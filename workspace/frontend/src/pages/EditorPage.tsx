@@ -5,6 +5,7 @@ import type { Building } from '../api/buildings'
 import { listFloors } from '../api/floors'
 import type { Floor } from '../api/floors'
 import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
+import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
 import { ThreeJSViewer } from '../components/ThreeJSViewer'
 import { DrawingToolbar } from '../components/DrawingToolbar'
 import { PropertyPanel } from '../components/PropertyPanel'
@@ -35,6 +36,12 @@ export function EditorPage() {
   const moveWall = useEditorStore((s) => s.moveWall)
   const pushHistory = useEditorStore((s) => s.pushHistory)
   const snapPoint = useEditorStore((s) => s.snapPoint)
+  const devices = useEditorStore((s) => s.devices)
+  const selectedDeviceIdx = useEditorStore((s) => s.selectedDeviceIdx)
+  const selectDevice = useEditorStore((s) => s.selectDevice)
+  const addDevice = useEditorStore((s) => s.addDevice)
+
+  const [deviceType, setDeviceType] = useState<SecurityDeviceType>('camera')
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -80,6 +87,10 @@ export function EditorPage() {
   let selectedWall: Wall2D | null = null
   if (selectedWallIdx != null && selectedWallIdx < walls.length) {
     selectedWall = walls[selectedWallIdx] as Wall2D
+  }
+  let selectedDevice: SecurityDevice | null = null
+  if (selectedDeviceIdx != null && selectedDeviceIdx < devices.length) {
+    selectedDevice = devices[selectedDeviceIdx] as SecurityDevice
   }
 
   return (
@@ -145,6 +156,8 @@ export function EditorPage() {
           onLoadSample={loadSample}
           onClear={useEditorStore.getState().clearAll}
           wallCount={walls.length}
+          deviceType={deviceType}
+          onDeviceTypeChange={setDeviceType}
         />
       </div>
 
@@ -154,8 +167,10 @@ export function EditorPage() {
           <Canvas2DViewer
             walls={walls}
             rooms={rooms}
+            devices={devices}
             selectedWallIdx={selectedWallIdx}
             selectedRoomIdx={selectedRoomIdx}
+            selectedDeviceIdx={selectedDeviceIdx}
             visibleLayers={visibleLayers}
             editMode={mode}
             width={760}
@@ -166,6 +181,9 @@ export function EditorPage() {
             onSelectRoom={(idx) => {
               if (idx >= 0) selectRoom(idx); else selectRoom(-1)
             }}
+            onSelectDevice={(idx) => {
+              if (idx >= 0) selectDevice(idx); else selectDevice(-1)
+            }}
             onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
             onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
             onMoveWall={(idx, dx, dy) => moveWall(idx, dx, dy)}
@@ -173,6 +191,8 @@ export function EditorPage() {
               pushHistory()
             }}
             snapPoint={(x, y) => snapPoint(x, y)}
+            onAddDevice={(device) => addDevice(device)}
+            deviceType={deviceType}
           />
         ) : (
           <ThreeJSViewer />
@@ -187,6 +207,9 @@ export function EditorPage() {
         roomCount={rooms.length}
         rooms={rooms}
         selectedRoomIdx={selectedRoomIdx}
+        selectedDevice={selectedDevice}
+        selectedDeviceIdx={selectedDeviceIdx}
+        deviceCount={devices.length}
       />
     </section>
   )

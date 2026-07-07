@@ -1,26 +1,32 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 
+import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
+
 export type Wall2D = { x1: number; y1: number; x2: number; y2: number }
 export type Room2D = { x: number; y: number; w: number; h: number; label?: string }
 
-type EditMode = 'select' | 'wall' | 'delete'
-
+type EditMode = 'select' | 'wall' | 'delete' | 'device'
 type Props = {
   walls: Wall2D[]
   rooms: Room2D[]
+  devices: SecurityDevice[]
   selectedWallIdx?: number | null
   selectedRoomIdx?: number | null
+  selectedDeviceIdx?: number | null
   editMode: EditMode
-  visibleLayers: { walls: boolean; rooms: boolean }
+  visibleLayers: { walls: boolean; rooms: boolean; devices: boolean }
   width?: number
   height?: number
   onSelectWall?: (idx: number) => void
   onSelectRoom?: (idx: number) => void
+  onSelectDevice?: (idx: number) => void
   onDrawWall?: (x1: number, y1: number, x2: number, y2: number) => void
   onDeleteAt?: (worldX: number, worldY: number) => void
   onMoveWall?: (idx: number, dx: number, dy: number) => void
   onFinishMoveWall?: (idx: number, x1: number, y1: number, x2: number, y2: number) => void
+  onAddDevice?: (device: SecurityDevice) => void
   snapPoint?: (x: number, y: number) => { x: number; y: number }
+  deviceType?: SecurityDeviceType
 }
 
 const PADDING = 40
@@ -64,27 +70,82 @@ function findRoomIdx(wx: number, wy: number, rooms: Room2D[]): number {
   return -1
 }
 
+function drawDevice(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: number, sel: boolean) {
+  const r = 11
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.strokeStyle = sel ? '#facc15' : '#94a3b8'
+  ctx.fillStyle = sel ? 'rgba(250, 204, 21, 0.2)' : 'rgba(148, 163, 184, 0.15)'
+  ctx.lineWidth = sel ? 2 : 1.5
+  switch (type) {
+    case 'camera':
+      ctx.beginPath()
+      ctx.roundRect(-r, -r * 0.7, r * 2, r * 1.4, 3)
+      ctx.fill(); ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2)
+      ctx.fillStyle = sel ? '#facc15' : '#64748b'
+      ctx.fill()
+      break
+    case 'sensor':
+      ctx.beginPath()
+      ctx.arc(0, 0, r, 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath()
+        ctx.arc(0, 0, r * 0.3 + i * 4, -Math.PI / 3, Math.PI / 3)
+        ctx.stroke()
+      }
+      break
+    case 'alarm':
+      ctx.beginPath()
+      ctx.arc(0, 2, r * 0.7, 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(0, -3, r * 0.45, 0, Math.PI * 2)
+      ctx.fillStyle = sel ? '#facc15' : '#64748b'
+      ctx.fill()
+      break
+    case 'access':
+      ctx.beginPath()
+      ctx.roundRect(-r * 0.8, -r * 0.6, r * 1.6, r * 1.2, 3)
+      ctx.fill(); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(-r * 0.35, -r * 0.1); ctx.lineTo(r * 0.35, -r * 0.1)
+      ctx.moveTo(-r * 0.35, r * 0.1); ctx.lineTo(r * 0.35, r * 0.1)
+      ctx.moveTo(-r * 0.35, r * 0.3); ctx.lineTo(r * 0.2, r * 0.3)
+      ctx.stroke()
+      break
+  }
+  ctx.restore()
+}
+
 export function Canvas2DViewer({
   walls,
   rooms,
+  devices,
   selectedWallIdx,
   selectedRoomIdx,
+  selectedDeviceIdx,
   editMode,
   visibleLayers,
   width = 760,
   height = 480,
   onSelectWall,
   onSelectRoom,
+  onSelectDevice,
   onDrawWall,
   onDeleteAt,
   onMoveWall,
   onFinishMoveWall,
+  onAddDevice,
   snapPoint,
+  deviceType = 'camera',
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  const maxX = Math.max(...walls.flatMap((w) => [w.x1, w.x2]), ...rooms.map((r) => r.x + r.w), 1)
-  const maxY = Math.max(...walls.flatMap((w) => [w.y1, w.y2]), ...rooms.map((r) => r.y + r.h), 1)
+  const maxX = Math.max(...walls.flatMap((w) => [w.x1, w.x2]), ...rooms.map((r) => r.x + r.w), ...devices.map((d) => d.x), 1)
+  const maxY = Math.max(...walls.flatMap((w) => [w.y1, w.y2]), ...rooms.map((r) => r.y + r.h), ...devices.map((d) => d.y), 1)
   const scale = Math.min((width - PADDING * 2) / maxX, (height - PADDING * 2) / maxY)
   const ox = (width - maxX * scale) / 2
   const oy = (height - maxY * scale) / 2
@@ -188,6 +249,20 @@ export function Canvas2DViewer({
       }
     }
 
+    // Devices
+    if (visibleLayers.devices) {
+      for (const [i, d] of devices.entries()) {
+        const cx = ox + d.x * scale
+        const cy = oy + d.y * scale
+        drawDevice(ctx, d.device_type, cx, cy, i === selectedDeviceIdx)
+        // Label
+        ctx.fillStyle = '#94a3b8'
+        ctx.font = '10px Inter, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(d.name, cx, cy + 20)
+      }
+    }
+
     // Drawing preview line (dashed)
     const dl = drawLine
     if (dl) {
@@ -240,7 +315,7 @@ export function Canvas2DViewer({
     ctx.textAlign = 'center'
     ctx.fillText(`${barMeters}m`, width - PADDING - barPx / 2, height - 28)
   }, [
-    walls, rooms, selectedWallIdx, selectedRoomIdx, editMode, visibleLayers,
+    walls, rooms, devices, selectedWallIdx, selectedRoomIdx, selectedDeviceIdx, editMode, visibleLayers,
     drawLine, snapPointVisible, dragInfo, width, height, maxX, maxY, scale, ox, oy,
   ])
 
@@ -272,8 +347,15 @@ export function Canvas2DViewer({
       if (rIdx >= 0) {
         onSelectRoom?.(rIdx)
       } else {
-        onSelectWall?.(-1)
-        onSelectRoom?.(-1)
+        // Check device hit
+        const dIdx = devices.findIndex((d) => Math.hypot(wPos.x - d.x, wPos.y - d.y) < 0.5)
+        if (dIdx >= 0) {
+          onSelectDevice?.(dIdx)
+        } else {
+          onSelectWall?.(-1)
+          onSelectRoom?.(-1)
+          onSelectDevice?.(-1)
+        }
       }
     }
 
@@ -281,6 +363,20 @@ export function Canvas2DViewer({
       const snapped = snapPoint ? snapPoint(wPos.x, wPos.y) : wPos
       drawStartRef.current = snapped
       setDrawLine(null)
+    }
+
+    if (editMode === 'device') {
+      const snapped = snapPoint ? snapPoint(wPos.x, wPos.y) : wPos
+      const overlap = devices.some((d) => Math.hypot(snapped.x - d.x, snapped.y - d.y) < 1.0)
+      if (!overlap) {
+        onAddDevice?.({
+          id: crypto.randomUUID(),
+          x: snapped.x,
+          y: snapped.y,
+          device_type: deviceType,
+          name: deviceType.charAt(0).toUpperCase() + deviceType.slice(1),
+        })
+      }
     }
   }
 
@@ -316,15 +412,15 @@ export function Canvas2DViewer({
       return
     }
 
-    // Hover snap in wall mode (before drawing start)
-    if (editMode === 'wall' && !drawStartRef.current && snapPoint) {
+    // Hover snap in wall/device mode (before drawing start)
+    if ((editMode === 'wall' || editMode === 'device') && snapPoint) {
       const snapped = snapPoint(wPos.x, wPos.y)
       if (snapped.x !== wPos.x || snapped.y !== wPos.y) {
         setSnapPointVisible(snapped)
       } else {
         setSnapPointVisible(null)
       }
-    } else if (editMode !== 'wall') {
+    } else {
       setSnapPointVisible(null)
     }
   }
@@ -385,7 +481,7 @@ export function Canvas2DViewer({
         borderRadius: '22px',
         border: '1px solid rgba(148, 163, 184, 0.18)',
         background: '#0f172a',
-        cursor: editMode === 'wall' ? 'crosshair' : editMode === 'delete' ? 'not-allowed' : 'default',
+        cursor: editMode === 'wall' || editMode === 'device' ? 'crosshair' : editMode === 'delete' ? 'not-allowed' : 'default',
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

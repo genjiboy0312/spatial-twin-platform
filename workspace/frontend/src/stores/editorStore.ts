@@ -1,7 +1,17 @@
 import { create } from 'zustand'
 import type { Wall2D, Room2D } from '../components/Canvas2DViewer'
 
-export type EditMode = 'select' | 'wall' | 'delete'
+export type SecurityDeviceType = 'camera' | 'sensor' | 'alarm' | 'access'
+export type SecurityDevice = {
+  id: string
+  x: number
+  y: number
+  device_type: SecurityDeviceType
+  name: string
+  angle?: number
+}
+
+export type EditMode = 'select' | 'wall' | 'delete' | 'device'
 
 export const GRID_SIZE = 1.0
 
@@ -30,6 +40,7 @@ export function snapToEndpoints(
 export type HistoryEntry = {
   walls: Wall2D[]
   rooms: Room2D[]
+  devices: SecurityDevice[]
 }
 
 type SnapMode = 'grid' | 'endpoint' | 'both' | 'none'
@@ -46,6 +57,8 @@ type State = {
   // History
   history: HistoryEntry[]
   historyIdx: number
+  selectedDeviceIdx: number | null
+  devices: SecurityDevice[]
 }
 
 type Actions = {
@@ -59,6 +72,9 @@ type Actions = {
   deleteWallAt: (worldX: number, worldY: number) => void
   addRoom: (room: Room2D) => void
   loadSample: () => void
+  selectDevice: (idx: number | null) => void
+  addDevice: (device: SecurityDevice) => void
+  removeDevice: (idx: number) => void
   clearAll: () => void
   // Snapping
   setSnapMode: (mode: SnapMode) => void
@@ -95,6 +111,7 @@ function snapshot(state: State): HistoryEntry {
   return {
     walls: state.walls.map((w) => ({ ...w })),
     rooms: state.rooms.map((r) => ({ ...r })),
+    devices: state.devices.map((d) => ({ ...d })),
   }
 }
 
@@ -102,14 +119,16 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
   mode: 'select',
   walls: [],
   rooms: [],
+  devices: [],
   selectedWallIdx: null,
   selectedRoomIdx: null,
+  selectedDeviceIdx: null,
   snapMode: 'both',
   visibleLayers: { walls: true, rooms: true, devices: true },
   history: [],
   historyIdx: -1,
 
-  setMode: (mode) => set({ mode, selectedWallIdx: null, selectedRoomIdx: null }),
+  setMode: (mode) => set({ mode, selectedWallIdx: null, selectedRoomIdx: null, selectedDeviceIdx: null }),
 
   addWall: (x1, y1, x2, y2) => {
     get().pushHistory()
@@ -137,9 +156,9 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     })
   },
 
-  selectWall: (idx) => set({ selectedWallIdx: idx, selectedRoomIdx: null }),
-  selectRoom: (idx) => set({ selectedRoomIdx: idx, selectedWallIdx: null }),
-  clearSelection: () => set({ selectedWallIdx: null, selectedRoomIdx: null }),
+  selectWall: (idx) => set({ selectedWallIdx: idx, selectedRoomIdx: null, selectedDeviceIdx: null }),
+  selectRoom: (idx) => set({ selectedRoomIdx: idx, selectedWallIdx: null, selectedDeviceIdx: null }),
+  clearSelection: () => set({ selectedWallIdx: null, selectedRoomIdx: null, selectedDeviceIdx: null }),
 
   deleteWallAt: (_wx, _wy) => {
     const { walls, selectedWallIdx } = get()
@@ -157,12 +176,28 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => ({ rooms: [...s.rooms, room] }))
   },
 
+  // Device actions
+  selectDevice: (idx) => set({ selectedDeviceIdx: idx, selectedWallIdx: null, selectedRoomIdx: null }),
+  addDevice: (device) => {
+    get().pushHistory()
+    set((s) => ({ devices: [...s.devices, device] }))
+  },
+  removeDevice: (idx) => {
+    const { devices } = get()
+    if (idx >= 0 && idx < devices.length) {
+      get().pushHistory()
+      set({ devices: devices.filter((_, i) => i !== idx), selectedDeviceIdx: null })
+    }
+  },
+
   loadSample: () =>
     set({
       walls: SAMPLE_WALLS.map((w) => ({ ...w })),
       rooms: SAMPLE_ROOMS.map((r) => ({ ...r })),
+      devices: [],
       selectedWallIdx: null,
       selectedRoomIdx: null,
+      selectedDeviceIdx: null,
       history: [],
       historyIdx: -1,
     }),
@@ -171,8 +206,10 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set({
       walls: [],
       rooms: [],
+      devices: [],
       selectedWallIdx: null,
       selectedRoomIdx: null,
+      selectedDeviceIdx: null,
       history: [],
       historyIdx: -1,
     }),
@@ -217,6 +254,7 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set({
       walls: entry.walls.map((w) => ({ ...w })),
       rooms: entry.rooms.map((r) => ({ ...r })),
+      devices: entry.devices.map((d) => ({ ...d })),
       historyIdx: historyIdx - 1,
     })
   },
@@ -228,6 +266,7 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set({
       walls: entry.walls.map((w) => ({ ...w })),
       rooms: entry.rooms.map((r) => ({ ...r })),
+      devices: entry.devices.map((d) => ({ ...d })),
       historyIdx: historyIdx + 1,
     })
   },
