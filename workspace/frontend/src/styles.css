@@ -496,3 +496,22 @@ a {
   color: #64748b;
   font-size: 0.8rem;
 }
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+.layers-group .dim {
+  opacity: 0.4;
+}
+.snap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.snap-toggle input {
+  accent-color: #38bdf8;
+}

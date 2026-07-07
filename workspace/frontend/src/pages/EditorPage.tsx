@@ -24,11 +24,17 @@ export function EditorPage() {
   const walls = useEditorStore((s) => s.walls)
   const rooms = useEditorStore((s) => s.rooms)
   const selectedWallIdx = useEditorStore((s) => s.selectedWallIdx)
+  const selectedRoomIdx = useEditorStore((s) => s.selectedRoomIdx)
+  const visibleLayers = useEditorStore((s) => s.visibleLayers)
   const setMode = useEditorStore((s) => s.setMode)
   const addWall = useEditorStore((s) => s.addWall)
   const selectWall = useEditorStore((s) => s.selectWall)
+  const selectRoom = useEditorStore((s) => s.selectRoom)
   const deleteWallAt = useEditorStore((s) => s.deleteWallAt)
   const loadSample = useEditorStore((s) => s.loadSample)
+  const moveWall = useEditorStore((s) => s.moveWall)
+  const pushHistory = useEditorStore((s) => s.pushHistory)
+  const snapPoint = useEditorStore((s) => s.snapPoint)
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -149,12 +155,24 @@ export function EditorPage() {
             walls={walls}
             rooms={rooms}
             selectedWallIdx={selectedWallIdx}
+            selectedRoomIdx={selectedRoomIdx}
+            visibleLayers={visibleLayers}
             editMode={mode}
             width={760}
             height={480}
-            onSelect={(idx) => selectWall(idx)}
+            onSelectWall={(idx) => {
+              if (idx >= 0) selectWall(idx); else selectWall(-1)
+            }}
+            onSelectRoom={(idx) => {
+              if (idx >= 0) selectRoom(idx); else selectRoom(-1)
+            }}
             onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
             onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
+            onMoveWall={(idx, dx, dy) => moveWall(idx, dx, dy)}
+            onFinishMoveWall={(idx, x1, y1, x2, y2) => {
+              pushHistory()
+            }}
+            snapPoint={(x, y) => snapPoint(x, y)}
           />
         ) : (
           <ThreeJSViewer />
@@ -167,6 +185,8 @@ export function EditorPage() {
         wallIndex={selectedWallIdx}
         wallCount={walls.length}
         roomCount={rooms.length}
+        rooms={rooms}
+        selectedRoomIdx={selectedRoomIdx}
       />
     </section>
   )
