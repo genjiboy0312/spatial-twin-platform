@@ -1,8 +1,25 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from './PageHeader'
 import { listBuildings } from '../api/buildings'
 import type { Building } from '../api/buildings'
 import { CreateBuildingModal } from './CreateBuildingModal'
+
+type BuildingWithCreatedAt = Building & {
+  created_at?: string | null
+}
+
+function formatCreatedAt(building: Building): string {
+  const createdAt = (building as BuildingWithCreatedAt).created_at
+  if (!createdAt) return '생성 시간 정보 없음'
+
+  const date = new Date(createdAt)
+  if (Number.isNaN(date.getTime())) return '생성 시간 정보 없음'
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
 
 export function ProjectsPage() {
   const [buildings, setBuildings] = useState<Building[]>([])
@@ -27,8 +44,8 @@ export function ProjectsPage() {
     fetchBuildings()
   }, [fetchBuildings])
 
-  const handleCreated = (building: Building) => {
-    setBuildings((prev) => [...prev, building])
+  const handleCreated = async () => {
+    await fetchBuildings()
     setShowModal(false)
   }
 
@@ -42,7 +59,7 @@ export function ProjectsPage() {
 
       <div className="projects-toolbar">
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + 새 건물 생성
+          건물 생성
         </button>
       </div>
 
@@ -82,12 +99,13 @@ export function ProjectsPage() {
           {buildings.map((b) => (
             <article key={b.id} className="card building-card">
               <strong className="building-name">{b.name}</strong>
-              {b.address && <p className="building-address">{b.address}</p>}
+              <p className="building-address">{b.address ?? '주소 정보 없음'}</p>
               <div className="building-meta">
                 <span>{b.total_floors}개 층</span>
+                <span>생성: {formatCreatedAt(b)}</span>
                 {b.origin_longitude != null && b.origin_latitude != null && (
                   <span className="building-coords">
-                    {b.origin_latitude.toFixed(4)}, {b.origin_longitude.toFixed(4)}
+                    위도 {b.origin_latitude.toFixed(4)} · 경도 {b.origin_longitude.toFixed(4)}
                   </span>
                 )}
               </div>

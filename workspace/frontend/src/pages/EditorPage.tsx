@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import { PageHeader } from './PageHeader'
 import { listBuildings } from '../api/buildings'
 import type { Building } from '../api/buildings'
@@ -6,12 +6,15 @@ import { listFloors } from '../api/floors'
 import type { Floor } from '../api/floors'
 import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
 import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
-import { ThreeJSViewer } from '../components/ThreeJSViewer'
 import { DrawingToolbar } from '../components/DrawingToolbar'
 import { PropertyPanel } from '../components/PropertyPanel'
 import { useEditorStore } from '../stores/editorStore'
 
 type ViewMode = '2d' | '3d'
+
+const ThreeJSViewer = lazy(() =>
+  import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
+)
 
 export function EditorPage() {
   const [buildings, setBuildings] = useState<Building[]>([])
@@ -195,7 +198,9 @@ export function EditorPage() {
             deviceType={deviceType}
           />
         ) : (
-          <ThreeJSViewer />
+          <Suspense fallback={<div className="viewer-placeholder">Loading 3D viewer...</div>}>
+            <ThreeJSViewer />
+          </Suspense>
         )}
       </div>
 
