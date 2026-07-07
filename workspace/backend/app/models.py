@@ -57,3 +57,30 @@ class WorkflowProgress(Base):
     current_step: Mapped[str] = mapped_column(String(50), default="projects")
     completed_steps: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Wall(Base):
+    __tablename__ = "walls"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    floor_id: Mapped[int] = mapped_column(ForeignKey("floors.id", ondelete="CASCADE"), index=True)
+    x1: Mapped[float]
+    y1: Mapped[float]
+    x2: Mapped[float]
+    y2: Mapped[float]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Room(Base):
+    __tablename__ = "rooms"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    floor_id: Mapped[int] = mapped_column(ForeignKey("floors.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    x: Mapped[float]
+    y: Mapped[float]
+    w: Mapped[float]
+    h: Mapped[float]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

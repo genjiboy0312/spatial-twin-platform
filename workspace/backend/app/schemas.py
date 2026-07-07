@@ -63,3 +63,54 @@ class WorkflowRead(BaseModel):
 class WorkflowUpdate(BaseModel):
     current_step: str | None = None
     completed_steps: list[str] | None = None
+
+
+# ── Geometry ──
+
+
+class WallCreate(BaseModel):
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class WallUpdate(BaseModel):
+    x1: float | None = None
+    y1: float | None = None
+    x2: float | None = None
+    y2: float | None = None
+
+
+class WallRead(WallCreate):
+    id: int
+    floor_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoomCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    x: float
+    y: float
+    w: float = Field(gt=0)
+    h: float = Field(gt=0)
+
+
+class RoomUpdate(BaseModel):
+    name: str | None = None
+    x: float | None = None
+    y: float | None = None
+    w: float | None = None
+    h: float | None = None
+
+
+class RoomRead(RoomCreate):
+    id: int
+    floor_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)

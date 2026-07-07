@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db import Base, engine
-from app.routers import buildings, uploads, workflow
+from app.routers import buildings, geometry, uploads, workflow
 from app.settings import get_settings
 
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
         return {"status": "ready"}
 
     api.include_router(buildings.router)
+    api.include_router(geometry.router)
     api.include_router(uploads.router)
     api.include_router(workflow.router)
     return api
