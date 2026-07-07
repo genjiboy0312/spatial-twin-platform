@@ -1,6 +1,7 @@
 """Integration tests for Wall and Room CRUD via geometry router."""
 
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)
@@ -83,6 +84,68 @@ def test_room_crud() -> None:
     assert r.json() == []
 
 
+def test_door_crud() -> None:
+    r = client.post("/api/buildings", json={"name": "DoorTest", "total_floors": 2})
+    assert r.status_code == 201
+    building = r.json()
+
+    r = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1})
+    assert r.status_code == 201
+    floor = r.json()
+
+    r = client.get(f"/api/floors/{floor['id']}/doors")
+    assert r.status_code == 200
+    assert r.json() == []
+
+    r = client.post(
+        f"/api/floors/{floor['id']}/doors",
+        json={"x": 3, "y": 0, "width": 1.1, "rotation_degrees": 90, "door_type": "sliding"},
+    )
+    assert r.status_code == 201
+    door = r.json()
+    assert door["floor_id"] == floor["id"]
+    assert door["door_type"] == "sliding"
+
+    r = client.put(f"/api/doors/{door['id']}", json={"width": 1.4})
+    assert r.status_code == 200
+    assert r.json()["width"] == 1.4
+
+    r = client.delete(f"/api/doors/{door['id']}")
+    assert r.status_code == 204
+    assert client.get(f"/api/floors/{floor['id']}/doors").json() == []
+
+
+def test_window_crud() -> None:
+    r = client.post("/api/buildings", json={"name": "WindowTest", "total_floors": 2})
+    assert r.status_code == 201
+    building = r.json()
+
+    r = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1})
+    assert r.status_code == 201
+    floor = r.json()
+
+    r = client.post(
+        f"/api/floors/{floor['id']}/windows",
+        json={"x": 4, "y": 0, "width": 1.5, "rotation_degrees": 0, "window_type": "casement"},
+    )
+    assert r.status_code == 201
+    window = r.json()
+    assert window["floor_id"] == floor["id"]
+    assert window["sill_height_meters"] == 0.9
+
+    r = client.put(f"/api/windows/{window['id']}", json={"sill_height_meters": 1.1})
+    assert r.status_code == 200
+    assert r.json()["sill_height_meters"] == 1.1
+
+    r = client.get(f"/api/floors/{floor['id']}/windows")
+    assert r.status_code == 200
+    assert len(r.json()) == 1
+
+    r = client.delete(f"/api/windows/{window['id']}")
+    assert r.status_code == 204
+    assert client.get(f"/api/floors/{floor['id']}/windows").json() == []
+
+
 def test_wall_requires_existing_floor() -> None:
     r = client.post("/api/floors/999999/walls", json={"x1": 0, "y1": 0, "x2": 1, "y2": 0})
     assert r.status_code == 404
@@ -90,4 +153,12 @@ def test_wall_requires_existing_floor() -> None:
 
 def test_room_requires_existing_floor() -> None:
     r = client.post("/api/floors/999999/rooms", json={"name": "X", "x": 0, "y": 0, "w": 1, "h": 1})
+    assert r.status_code == 404
+
+
+def test_door_and_window_require_existing_floor() -> None:
+    r = client.post("/api/floors/999999/doors", json={"x": 0, "y": 0})
+    assert r.status_code == 404
+
+    r = client.post("/api/floors/999999/windows", json={"x": 0, "y": 0})
     assert r.status_code == 404
