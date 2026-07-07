@@ -966,7 +966,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] DXF/Image/IFC 업로드 API (파일 저장 + 메타데이터)
 - [x] Geometry API (Wall/Room CRUD - models, schemas, router, tests)
 - [ ] Door/Window API (미정)
-- [ ] Security Device API
+- [x] Security Device API (CRUD)
 
 ### Phase 3: 프론트엔드 기본 (2-3주) -- 일부 완료
 - [x] 라우팅 및 레이아웃 (AppShell, Sidebar, Outlet)
@@ -1010,8 +1010,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 ### 예상 총 소요: **3-4개월** (1인 풀타임 기준)
 
 ### 현재 진행 상황 (2026-07-07)
-- Phase 1 완료 (CI/CD 제외)
-- Phase 2: Building/Floor CRUD + 업로드 API + Geometry API (Wall/Room CRUD) 완료 - Door/Window/Device 미진행
+- Phase 1 완료
+- Phase 2: Building/Floor CRUD + 업로드 API + Geometry API + Security Device API 완료
 - Phase 3: 라우팅/레이아웃/페이지/스토어/API 클라이언트 + DataSourcesPage 업로드 폼 완료
 - Phase 4: 2D/3D 뷰어 (Canvas2DViewer + ThreeJSViewer + EditorPage 통합) 완료 - 이벤트/선택/스냅 미구현
 - Phase 5: Geometry 편집 (DrawingToolbar + 선택/벽 그리기/삭제 + PropertyPanel) 완료 - 보안 장비/레이어/Undo 미구현
