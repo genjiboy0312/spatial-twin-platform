@@ -4,8 +4,11 @@ import { listBuildings } from '../api/buildings'
 import type { Building } from '../api/buildings'
 import { listFloors } from '../api/floors'
 import type { Floor } from '../api/floors'
-import { Canvas2DViewer } from '../components/Canvas2DViewer'
+import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
 import { ThreeJSViewer } from '../components/ThreeJSViewer'
+import { DrawingToolbar } from '../components/DrawingToolbar'
+import { PropertyPanel } from '../components/PropertyPanel'
+import { useEditorStore } from '../stores/editorStore'
 
 type ViewMode = '2d' | '3d'
 
@@ -16,10 +19,20 @@ export function EditorPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | ''>('')
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
 
+  // Editor store
+  const mode = useEditorStore((s) => s.mode)
+  const walls = useEditorStore((s) => s.walls)
+  const rooms = useEditorStore((s) => s.rooms)
+  const selectedWallIdx = useEditorStore((s) => s.selectedWallIdx)
+  const setMode = useEditorStore((s) => s.setMode)
+  const addWall = useEditorStore((s) => s.addWall)
+  const selectWall = useEditorStore((s) => s.selectWall)
+  const deleteWallAt = useEditorStore((s) => s.deleteWallAt)
+  const loadSample = useEditorStore((s) => s.loadSample)
+
   const loadBuildings = useCallback(async () => {
     try {
-      const data = await listBuildings()
-      setBuildings(data)
+      setBuildings(await listBuildings())
     } catch {
       /* ignore */
     }
@@ -36,9 +49,7 @@ export function EditorPage() {
     }
   }, [])
 
-  useEffect(() => {
-    loadBuildings()
-  }, [loadBuildings])
+  useEffect(() => { loadBuildings() }, [loadBuildings])
 
   useEffect(() => {
     if (selectedBuildingId !== '') {
@@ -50,17 +61,30 @@ export function EditorPage() {
     }
   }, [selectedBuildingId, loadFloors])
 
+  // Auto-load sample data once on mount
+  const [initialized, setInitialized] = useState(false)
+  useEffect(() => {
+    if (!initialized) {
+      loadSample()
+      setInitialized(true)
+    }
+  }, [initialized, loadSample])
+
   const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId)
+  let selectedWall: Wall2D | null = null
+  if (selectedWallIdx != null && selectedWallIdx < walls.length) {
+    selectedWall = walls[selectedWallIdx] as Wall2D
+  }
 
   return (
     <section className="page-grid editor-layout">
       <PageHeader
-        eyebrow="Step 3"
+        eyebrow="Step 3 / 4"
         title="2D / 3D Editor"
-        description="건물과 층을 선택하고 2D 또는 3D로 도면을 확인합니다."
+        description="건물과 층을 선택하고 2D 또는 3D로 도면을 확인하거나 편집합니다."
       />
 
-      {/* Toolbar */}
+      {/* Building / Floor toolbar */}
       <div className="editor-toolbar">
         <div className="editor-toolbar-left">
           <select
@@ -107,39 +131,43 @@ export function EditorPage() {
         </div>
       </div>
 
+      {/* Drawing toolbar (2D only) */}
+      <div className="full-width">
+        <DrawingToolbar
+          mode={mode}
+          onChange={setMode}
+          onLoadSample={loadSample}
+          onClear={useEditorStore.getState().clearAll}
+          wallCount={walls.length}
+        />
+      </div>
+
       {/* Viewport */}
-      {selectedBuildingId === '' ? (
-        <div className="viewer-placeholder full-width">
-          <span>건물과 층을 선택하면 도면이 표시됩니다</span>
-        </div>
-      ) : viewMode === '2d' ? (
-        <div className="viewer-container full-width">
-          <Canvas2DViewer width={760} height={480} />
-        </div>
-      ) : (
-        <div className="viewer-container full-width">
+      <div className="viewer-container full-width">
+        {viewMode === '2d' ? (
+          <Canvas2DViewer
+            walls={walls}
+            rooms={rooms}
+            selectedWallIdx={selectedWallIdx}
+            editMode={mode}
+            width={760}
+            height={480}
+            onSelect={(idx) => selectWall(idx)}
+            onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
+            onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
+          />
+        ) : (
           <ThreeJSViewer />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Property Panel */}
-      <aside className="inspector card">
-        <strong>Properties</strong>
-        {selectedBuilding ? (
-          <div className="inspector-info">
-            <p><span>Building</span> {selectedBuilding.name}</p>
-            {selectedFloor !== '' && <p><span>Floor</span> {selectedFloor}층</p>}
-            {selectedBuilding.origin_latitude != null && selectedBuilding.origin_longitude != null && (
-              <p>
-                <span>Origin</span>
-                {selectedBuilding.origin_latitude.toFixed(4)}, {selectedBuilding.origin_longitude.toFixed(4)}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="hint">건물을 선택하면 속성이 표시됩니다.</p>
-        )}
-      </aside>
+      <PropertyPanel
+        selectedWall={selectedWall}
+        wallIndex={selectedWallIdx}
+        wallCount={walls.length}
+        roomCount={rooms.length}
+      />
     </section>
   )
 }

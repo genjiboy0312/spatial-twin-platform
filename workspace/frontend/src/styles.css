@@ -459,3 +459,40 @@ a {
     position: static;
   }
 }
+
+/* ── Drawing Toolbar ── */
+
+.drawing-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+}
+
+.drawing-tool-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.drawing-tool .tool-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+.drawing-tool.btn-primary .tool-icon {
+  color: #93c5fd;
+}
+
+.inspector-stats {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+.inspector-stats small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
