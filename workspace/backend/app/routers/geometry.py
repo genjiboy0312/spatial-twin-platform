@@ -4,14 +4,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Floor, Room, Wall
+from app.models import Door, Floor, Room, Wall, Window
 from app.schemas import (
+    DoorCreate,
+    DoorRead,
+    DoorUpdate,
     RoomCreate,
     RoomRead,
     RoomUpdate,
     WallCreate,
     WallRead,
     WallUpdate,
+    WindowCreate,
+    WindowRead,
+    WindowUpdate,
 )
 
 router = APIRouter(prefix="/api", tags=["geometry"])
@@ -64,6 +70,94 @@ def delete_wall(wall_id: int, db: Session = Depends(get_db)) -> None:
 
 
 # ── Rooms ──
+
+
+# Doors
+
+
+@router.get("/floors/{floor_id}/doors", response_model=list[DoorRead])
+def list_doors(floor_id: int, db: Session = Depends(get_db)) -> list[Door]:
+    _ensure_floor_exists(db, floor_id)
+    return list(db.scalars(select(Door).where(Door.floor_id == floor_id).order_by(Door.id)))
+
+
+@router.post("/floors/{floor_id}/doors", response_model=DoorRead, status_code=status.HTTP_201_CREATED)
+def create_door(floor_id: int, payload: DoorCreate, db: Session = Depends(get_db)) -> Door:
+    _ensure_floor_exists(db, floor_id)
+    door = Door(floor_id=floor_id, **payload.model_dump())
+    db.add(door)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid door data") from exc
+    db.refresh(door)
+    return door
+
+
+@router.put("/doors/{door_id}", response_model=DoorRead)
+def update_door(door_id: int, payload: DoorUpdate, db: Session = Depends(get_db)) -> Door:
+    door = db.get(Door, door_id)
+    if door is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Door not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(door, field, value)
+    db.commit()
+    db.refresh(door)
+    return door
+
+
+@router.delete("/doors/{door_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_door(door_id: int, db: Session = Depends(get_db)) -> None:
+    door = db.get(Door, door_id)
+    if door is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Door not found")
+    db.delete(door)
+    db.commit()
+
+
+# Windows
+
+
+@router.get("/floors/{floor_id}/windows", response_model=list[WindowRead])
+def list_windows(floor_id: int, db: Session = Depends(get_db)) -> list[Window]:
+    _ensure_floor_exists(db, floor_id)
+    return list(db.scalars(select(Window).where(Window.floor_id == floor_id).order_by(Window.id)))
+
+
+@router.post("/floors/{floor_id}/windows", response_model=WindowRead, status_code=status.HTTP_201_CREATED)
+def create_window(floor_id: int, payload: WindowCreate, db: Session = Depends(get_db)) -> Window:
+    _ensure_floor_exists(db, floor_id)
+    window = Window(floor_id=floor_id, **payload.model_dump())
+    db.add(window)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid window data") from exc
+    db.refresh(window)
+    return window
+
+
+@router.put("/windows/{window_id}", response_model=WindowRead)
+def update_window(window_id: int, payload: WindowUpdate, db: Session = Depends(get_db)) -> Window:
+    window = db.get(Window, window_id)
+    if window is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Window not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(window, field, value)
+    db.commit()
+    db.refresh(window)
+    return window
+
+
+@router.delete("/windows/{window_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_window(window_id: int, db: Session = Depends(get_db)) -> None:
+    window = db.get(Window, window_id)
+    if window is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Window not found")
+    db.delete(window)
+    db.commit()
 
 
 @router.get("/floors/{floor_id}/rooms", response_model=list[RoomRead])

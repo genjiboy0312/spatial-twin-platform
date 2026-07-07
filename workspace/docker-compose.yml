@@ -1,13 +1,15 @@
+name: spatial-twin-platform
+
 services:
   postgres:
     image: postgis/postgis:15-3.4
-    container_name: building-editor-postgres
+    container_name: spatial-twin-platform-postgres
     environment:
       POSTGRES_DB: total_building_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
@@ -19,9 +21,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: building-editor-redis
+    container_name: spatial-twin-platform-redis
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:16379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -31,14 +33,15 @@ services:
       retries: 5
 
   backend:
+    image: spatial-twin-platform-backend
     build:
       context: ./backend
-    container_name: building-editor-backend
+    container_name: spatial-twin-platform-backend
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/total_building_db
       REDIS_URL: redis://redis:6379/0
       AUTO_CREATE_TABLES: "true"
-      CORS_ORIGINS: '["http://localhost:5173"]'
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:5174","http://127.0.0.1:5174"]'
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -51,13 +54,15 @@ services:
         condition: service_healthy
 
   frontend:
+    image: spatial-twin-platform-frontend
     build:
       context: ./frontend
-    container_name: building-editor-frontend
+    container_name: spatial-twin-platform-frontend
     environment:
       VITE_API_BASE_URL: ""
+      VITE_API_PROXY_TARGET: "http://backend:8000"
     ports:
-      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:5174:5173"
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules

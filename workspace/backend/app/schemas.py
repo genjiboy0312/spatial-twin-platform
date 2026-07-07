@@ -91,6 +91,58 @@ class WallRead(WallCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DoorCreate(BaseModel):
+    x: float
+    y: float
+    width: float = Field(default=0.9, gt=0, le=10)
+    rotation_degrees: float = 0.0
+    door_type: str = Field(default="swing", min_length=1, max_length=50)
+
+
+class DoorUpdate(BaseModel):
+    x: float | None = None
+    y: float | None = None
+    width: float | None = Field(default=None, gt=0, le=10)
+    rotation_degrees: float | None = None
+    door_type: str | None = Field(default=None, min_length=1, max_length=50)
+
+
+class DoorRead(DoorCreate):
+    id: int
+    floor_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WindowCreate(BaseModel):
+    x: float
+    y: float
+    width: float = Field(default=1.2, gt=0, le=20)
+    rotation_degrees: float = 0.0
+    window_type: str = Field(default="fixed", min_length=1, max_length=50)
+    sill_height_meters: float = Field(default=0.9, ge=0, le=5)
+
+
+class WindowUpdate(BaseModel):
+    x: float | None = None
+    y: float | None = None
+    width: float | None = Field(default=None, gt=0, le=20)
+    rotation_degrees: float | None = None
+    window_type: str | None = Field(default=None, min_length=1, max_length=50)
+    sill_height_meters: float | None = Field(default=None, ge=0, le=5)
+
+
+class WindowRead(WindowCreate):
+    id: int
+    floor_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RoomCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     x: float
