@@ -1,0 +1,10 @@
+{
+  "id": "T-a6054c94-3217-42fd-aabb-2f8dc6db5cef",
+  "subject": "2D/3D 뷰어 — Canvas 2D + Three.js 뷰어 + EditorPage 연결",
+  "description": "Three.js 설치, Canvas2DViewer / ThreeJSViewer 컴포넌트 생성, EditorPage에 빌딩/층 선택 + 2D/3D 토글 기능 연결",
+  "status": "completed",
+  "activeForm": "2D/3D 뷰어 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

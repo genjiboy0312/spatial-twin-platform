@@ -1,0 +1,12 @@
+{
+  "id": "T-762d7ab7-d11d-4766-9aba-7bc4c8b7ef70",
+  "subject": "Create OsmMapPicker component",
+  "description": "Add workspace/frontend/src/components/OsmMapPicker.tsx implementing the CDN-loaded Leaflet coordinate picker modal.",
+  "status": "completed",
+  "activeForm": "Creating OsmMapPicker component",
+  "blocks": [],
+  "blockedBy": [
+    "T-27bf34c7-6316-43b6-85a1-7a39a71109cf"
+  ],
+  "threadID": "ses_0c56e84b7ffe1VMbhwSLHGhy34"
+}

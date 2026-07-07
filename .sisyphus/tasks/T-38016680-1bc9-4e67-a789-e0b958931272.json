@@ -1,0 +1,10 @@
+{
+  "id": "T-38016680-1bc9-4e67-a789-e0b958931272",
+  "subject": "Review backend/frontend code paths for local-prototype security issues",
+  "description": "Inspect FastAPI backend routes/config and React/Vite frontend fetch usage for security-relevant behavior appropriate to a local prototype.",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "security-reviewer",
+  "threadID": "ses_0c5f9cc42ffe0N3ohoQ2mFmE60"
+}

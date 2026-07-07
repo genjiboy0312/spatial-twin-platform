@@ -1,0 +1,10 @@
+{
+  "id": "T-0d2a34d3-f375-4fec-b7e0-c97bf5635cea",
+  "subject": "Inspect prototype file structure and security-relevant configs",
+  "description": "Review workspace/building-editor-prototype structure, Docker Compose, env examples, README/context docs, and root pyrightconfig for local-prototype security concerns.",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "security-reviewer",
+  "threadID": "ses_0c5f9cc42ffe0N3ohoQ2mFmE60"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "T-b5d41b50-47f5-4c01-a985-e92ceead1c6c",
+  "subject": "Run Building Editor practical QA commands",
+  "description": "Run frontend npm test/build, backend pytest via venv if present, and root docker compose config; collect PASS/FAIL evidence.",
+  "status": "completed",
+  "activeForm": "Running verification commands",
+  "blocks": [],
+  "blockedBy": [
+    "T-43ec7b51-b31c-46ac-8de3-0b65d7090cde"
+  ],
+  "threadID": "ses_0c5f9cd67ffe8NqqqZeIE6ogOJ"
+}

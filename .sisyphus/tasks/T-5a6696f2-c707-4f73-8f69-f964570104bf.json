@@ -1,0 +1,10 @@
+{
+  "id": "T-5a6696f2-c707-4f73-8f69-f964570104bf",
+  "subject": "Address export review fixes",
+  "description": "Apply review fixes that do not conflict with the original spec: route order before monitor, CSV formula neutralization, OBJ floor/device winding, and focused tests.",
+  "status": "completed",
+  "activeForm": "Applying export review fixes",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c5263e9fffebpaVLKFVR7e71M"
+}

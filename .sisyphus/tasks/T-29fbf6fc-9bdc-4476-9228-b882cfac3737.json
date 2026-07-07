@@ -1,0 +1,10 @@
+{
+  "id": "T-29fbf6fc-9bdc-4476-9228-b882cfac3737",
+  "subject": "ProjectsPage — Building 목록 API 연동 및 카드 리스트 렌더링",
+  "description": "ProjectsPage에서 listBuildings() 호출해서 건물 목록을 불러오고 카드 리스트로 표시. 로딩/에러/빈 상태 처리.",
+  "status": "completed",
+  "activeForm": "Building 목록 API 연동 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

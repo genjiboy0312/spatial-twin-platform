@@ -1,0 +1,12 @@
+{
+  "id": "T-1932c87b-be95-48a3-bb86-432cbeb12244",
+  "subject": "Phase 6.2: Export - ExportDialog component",
+  "description": "Build ExportDialog modal component with format selection (OBJ/DXF/PDF/CSV), building/floor selector, export options, and download trigger. Integrate with editorStore data.",
+  "status": "pending",
+  "activeForm": "Building export dialog component",
+  "blocks": [],
+  "blockedBy": [
+    "T-b539f718-abb4-44bd-9f91-fb7ace36d43a"
+  ],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

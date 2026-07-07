@@ -1,0 +1,10 @@
+{
+  "id": "T-27cadab9-fc69-4057-8306-01faf1b4eaa5",
+  "subject": "Read required local policy docs",
+  "description": "Inspect AGENTS.md, workspace-model, project-setup-policy if present, building editor analysis, and startup guide for constraints relevant to the scaffold.",
+  "status": "completed",
+  "activeForm": "Reading required local policy docs",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c5f9cbb1ffewgxdHfqs7WVvEF"
+}

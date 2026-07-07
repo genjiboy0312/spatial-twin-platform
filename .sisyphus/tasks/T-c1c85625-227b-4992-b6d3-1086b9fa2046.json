@@ -1,0 +1,10 @@
+{
+  "id": "T-c1c85625-227b-4992-b6d3-1086b9fa2046",
+  "subject": "Geometry 편집 — DrawingToolbar + 선택/그리기 + PropertyPanel",
+  "description": "EditorStore(Zustand), DrawingToolbar, Interactive Canvas2D (벽 그리기/선택), PropertyPanel 구현",
+  "status": "completed",
+  "activeForm": "Geometry 편집 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

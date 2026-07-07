@@ -1,0 +1,10 @@
+{
+  "id": "T-26f0512a-92d0-48ce-a8c5-86ba9529b74f",
+  "subject": "Phase 6.2: Export - Complete Export feature",
+  "description": "Build full export feature: export utilities (OBJ/DXF/CSV), ExportPage, routing, navigation. Client-side export with optional API fallback.",
+  "status": "in_progress",
+  "activeForm": "Building export feature",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

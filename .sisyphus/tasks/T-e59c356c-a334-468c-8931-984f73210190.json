@@ -1,0 +1,10 @@
+{
+  "id": "T-e59c356c-a334-468c-8931-984f73210190",
+  "subject": "Phase 6.2: Export - ExportService utilities",
+  "description": "Create client-side export utilities: OBJ exporter (mesh from walls/rooms), DXF exporter (simple DXF), PDF exporter (canvas-to-PDF via browser print), CSV exporter (device inventory). Implement in src/utils/exportUtils.ts",
+  "status": "in_progress",
+  "activeForm": "Building export service and UI",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

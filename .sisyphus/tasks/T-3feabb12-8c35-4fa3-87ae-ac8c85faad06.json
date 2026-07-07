@@ -1,0 +1,10 @@
+{
+  "id": "T-3feabb12-8c35-4fa3-87ae-ac8c85faad06",
+  "subject": "업로드 파이프라인 — 백엔드 파일 업로드 + 프론트 DataSourcesPage",
+  "description": "백엔드에 파일 업로드 엔드포인트 추가, 프론트 uploads API 클라이언트 생성, DataSourcesPage에 실제 업로드 UI 연결",
+  "status": "completed",
+  "activeForm": "업로드 파이프라인 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T-43ec7b51-b31c-46ac-8de3-0b65d7090cde",
+  "subject": "Inspect Building Editor prototype scaffold",
+  "description": "Check expected frontend/backend/root files exist, package scripts, and README startup instructions without modifying files.",
+  "status": "completed",
+  "activeForm": "Inspecting scaffold files",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c5f9cd67ffe8NqqqZeIE6ogOJ"
+}

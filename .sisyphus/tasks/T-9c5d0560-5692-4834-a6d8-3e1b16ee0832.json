@@ -1,0 +1,10 @@
+{
+  "id": "T-9c5d0560-5692-4834-a6d8-3e1b16ee0832",
+  "subject": "Phase 5 — 보안 장비 배치 (DeviceTypeSelector + 캔버스 드롭)",
+  "description": "DeviceTypeSelector, 캔버스 드롭, Device 아이콘 렌더링, API 연동",
+  "status": "completed",
+  "activeForm": "보안 장비 배치 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

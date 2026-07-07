@@ -1,0 +1,19 @@
+{
+  "id": "T-65a67ab6-049b-4a23-83cf-baa816de998a",
+  "subject": "Review correctness, API design, type safety, and maintainability risks",
+  "description": "Analyze backend and frontend code for blockers and non-blocking findings.",
+  "status": "completed",
+  "activeForm": "Reviewing correctness and maintainability risks",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "gpt-5.5",
+  "metadata": {
+    "phase": "analysis",
+    "blocking_candidates": [
+      "Workflow and upload endpoints accept missing/inconsistent foreign keys and may 500 against Postgres while SQLite tests pass.",
+      "Frontend tsconfig.node emits JS config files that can shadow TS configs.",
+      "Test coverage only exercises health/default workflow, not CRUD/error contracts."
+    ]
+  },
+  "threadID": "ses_0c5f9ccddffeCu8DAaygFvntIc"
+}

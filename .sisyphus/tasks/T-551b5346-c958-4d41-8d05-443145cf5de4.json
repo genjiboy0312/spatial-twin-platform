@@ -1,0 +1,12 @@
+{
+  "id": "T-551b5346-c958-4d41-8d05-443145cf5de4",
+  "subject": "Phase 6.1: GPS Alignment - Anchor Point Components",
+  "description": "Build AnchorPointWorkflow, AnchorPointMarkers (canvas overlay), anchor point list/management UI",
+  "status": "completed",
+  "activeForm": "Building anchor point components",
+  "blocks": [],
+  "blockedBy": [
+    "T-b539f718-abb4-44bd-9f91-fb7ace36d43a"
+  ],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "T-cc5f3029-489a-4890-a8a1-5a5cf484ef82",
+  "subject": "Decide prototype location",
+  "description": "Confirm workspace convention and choose the output path for the new Building Editor prototype without overwriting existing docs/config.",
+  "status": "completed",
+  "activeForm": "output path decided: workspace/building-editor-prototype",
+  "blocks": [],
+  "blockedBy": [],
+  "parentID": "T-e12e35d0-2c86-4338-8ca3-30eb194a4521",
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

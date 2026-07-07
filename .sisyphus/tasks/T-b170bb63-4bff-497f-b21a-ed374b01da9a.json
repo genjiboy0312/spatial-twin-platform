@@ -1,0 +1,12 @@
+{
+  "id": "T-b170bb63-4bff-497f-b21a-ed374b01da9a",
+  "subject": "Phase 6.1: GPS Alignment - AlignmentPage UI",
+  "description": "Build full AlignmentPage with 3-step workflow: anchor point placement → coordinate input → transformation preview/completion",
+  "status": "completed",
+  "activeForm": "Building AlignmentPage UI",
+  "blocks": [],
+  "blockedBy": [
+    "T-b539f718-abb4-44bd-9f91-fb7ace36d43a"
+  ],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "T-1afd0bf3-b401-4055-aa37-9c9302e2165a",
+  "subject": "Create context docs",
+  "description": "Create .llm-context and README/developer guidance for the Building Editor prototype.",
+  "status": "completed",
+  "activeForm": "completed context docs",
+  "blocks": [],
+  "blockedBy": [
+    "T-cc5f3029-489a-4890-a8a1-5a5cf484ef82"
+  ],
+  "parentID": "T-e12e35d0-2c86-4338-8ca3-30eb194a4521",
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

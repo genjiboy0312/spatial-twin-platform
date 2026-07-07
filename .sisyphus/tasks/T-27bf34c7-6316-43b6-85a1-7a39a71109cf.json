@@ -1,0 +1,10 @@
+{
+  "id": "T-27bf34c7-6316-43b6-85a1-7a39a71109cf",
+  "subject": "Inspect frontend component patterns",
+  "description": "Read existing frontend component files and styles usage so OsmMapPicker matches project conventions without modifying existing files.",
+  "status": "completed",
+  "activeForm": "Inspecting frontend component patterns",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c56e84b7ffe1VMbhwSLHGhy34"
+}

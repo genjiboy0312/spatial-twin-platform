@@ -1,0 +1,10 @@
+{
+  "id": "T-dcfa0c66-0f25-4fb7-97a3-889eb3def731",
+  "subject": "Classify blockers vs non-blocking security warnings",
+  "description": "Synthesize findings into high/critical blockers and non-blocking warnings, scoped to local prototype expectations.",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "security-reviewer",
+  "threadID": "ses_0c5f9cc42ffe0N3ohoQ2mFmE60"
+}

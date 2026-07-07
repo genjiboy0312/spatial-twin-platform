@@ -1,0 +1,12 @@
+{
+  "id": "T-d8e13111-b3cd-438d-90cb-7fdfdca15bc4",
+  "subject": "Create GPS alignment workflow components",
+  "description": "Add AnchorPointWorkflow.tsx and AnchorPointMarkers.tsx using existing store/types and requested behavior, without modifying existing files.",
+  "status": "completed",
+  "activeForm": "Creating GPS alignment workflow components",
+  "blocks": [],
+  "blockedBy": [
+    "T-ede42106-669a-45c7-88eb-6562c877e62c"
+  ],
+  "threadID": "ses_0c56ed700ffenJ5mI4nDqkoTlD"
+}

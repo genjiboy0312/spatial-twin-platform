@@ -1,0 +1,10 @@
+{
+  "id": "T-b539f718-abb4-44bd-9f91-fb7ace36d43a",
+  "subject": "Phase 6.1: GPS Alignment - Alignment Store & Utils",
+  "description": "Create alignmentStore.ts (Zustand) and alignmentUtils.ts (Helmert transformation, anchor point CRUD, WGS84↔local with transformation matrix)",
+  "status": "completed",
+  "activeForm": "Building alignment store and utilities",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

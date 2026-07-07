@@ -1,0 +1,12 @@
+{
+  "id": "T-e287636c-2c3d-47f8-ba56-95b1ef93f181",
+  "subject": "Verify export feature",
+  "description": "Run LSP diagnostics on modified files plus tsc --noEmit and vitest run.",
+  "status": "completed",
+  "activeForm": "Verifying export feature",
+  "blocks": [],
+  "blockedBy": [
+    "T-e25119ff-5fd8-4121-a3c8-e70c7ed1562b"
+  ],
+  "threadID": "ses_0c5263e9fffebpaVLKFVR7e71M"
+}

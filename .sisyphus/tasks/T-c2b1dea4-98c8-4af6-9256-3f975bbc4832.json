@@ -1,0 +1,10 @@
+{
+  "id": "T-c2b1dea4-98c8-4af6-9256-3f975bbc4832",
+  "subject": "Inspect AlignmentPage patterns and dependencies",
+  "description": "Read the current AlignmentPage stub plus EditorPage/layout, alignment store, marker component, and related types to match existing conventions before editing.",
+  "status": "completed",
+  "activeForm": "Inspecting existing UI and alignment patterns",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c56ea66affe9MRdWqa686uaRo"
+}

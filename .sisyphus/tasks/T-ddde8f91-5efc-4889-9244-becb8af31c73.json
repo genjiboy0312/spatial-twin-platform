@@ -1,0 +1,12 @@
+{
+  "id": "T-ddde8f91-5efc-4889-9244-becb8af31c73",
+  "subject": "Phase 6.2: Export - ExportPage or route integration",
+  "description": "Add export route/page or integrate ExportDialog into EditorPage. Add nav link if needed.",
+  "status": "pending",
+  "activeForm": "Building navigation entry for export",
+  "blocks": [],
+  "blockedBy": [
+    "T-b539f718-abb4-44bd-9f91-fb7ace36d43a"
+  ],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

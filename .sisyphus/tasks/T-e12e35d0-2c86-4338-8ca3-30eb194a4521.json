@@ -1,0 +1,10 @@
+{
+  "id": "T-e12e35d0-2c86-4338-8ca3-30eb194a4521",
+  "subject": "Bootstrap Building Editor prototype",
+  "description": "Set up the basic development environment and implement an MVP prototype scaffold for Building Editor: docs/context, backend, frontend, Docker/PostGIS, and verification.",
+  "status": "completed",
+  "activeForm": "completed Building Editor prototype bootstrap",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}
