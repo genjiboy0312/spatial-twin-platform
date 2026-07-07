@@ -983,7 +983,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] 좌표 변환 유틸 (coordinateTransform.ts, WGS84/local)
 
 ### Phase 5: 편집 기능 (2-3주)
-- [ ] Geometry 편집 (DrawingToolbar, PropertyEditor)
+- [x] Geometry 편집 (DrawingToolbar, PropertyPanel, 선택/벽 그리기/삭제)
 - [ ] 보안 장비 배치 (DeviceTypeSelector, 드래그 드롭)
 - [ ] 선택/강조/레이어 관리
 - [ ] 편집 이력 (Undo/Redo)
@@ -1013,7 +1013,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - Phase 2: Building/Floor CRUD + 업로드 API (파일 저장) 완료 (Geometry/Device 미진행)
 - Phase 3: 라우팅/레이아웃/페이지/스토어/API 클라이언트 + DataSourcesPage 업로드 폼 완료
 - Phase 4: 2D/3D 뷰어 (Canvas2DViewer + ThreeJSViewer + EditorPage 통합) 완료 - 이벤트/선택/스냅 미구현
-- Phase 5-7: 미진행
+- Phase 5: Geometry 편집 (DrawingToolbar + 선택/벽 그리기/삭제 + PropertyPanel) 완료 - 보안 장비/레이어/Undo 미구현
+- Phase 6-7: 미진행
 **스택 변경사항**:
 - Tailwind 대신 CSS 커스텀 속성 (SOC Professional Dark 테마 유지)
 - Axios 대신 fetch 기반 경량 클라이언트
@@ -1021,7 +1022,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - Rust Axum 백엔드 제외 (Python FastAPI 단일 트랙)
 - 마이크로서비스 제외 (단일 FastAPI 서버)
 
-**다음 단계**: Geometry 편집 (DrawingToolbar, PropertyEditor) → 선택/스냅/드래그
+**다음 단계**: 보안 장비 배치 / 레이어 관리 / 편집 이력 (Undo/Redo)
 
 ---
 
