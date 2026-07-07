@@ -114,3 +114,35 @@ class RoomRead(RoomCreate):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Security Device ──
+
+
+class SecurityDeviceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    device_type: str = Field(min_length=1, max_length=30)
+    pos_x: float
+    pos_y: float
+    angle: float = 0.0
+    status: str = "active"
+    meta: str | None = None
+
+
+class SecurityDeviceUpdate(BaseModel):
+    name: str | None = None
+    device_type: str | None = None
+    pos_x: float | None = None
+    pos_y: float | None = None
+    angle: float | None = None
+    status: str | None = None
+    meta: str | None = None
+
+
+class SecurityDeviceRead(SecurityDeviceCreate):
+    id: int
+    floor_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)

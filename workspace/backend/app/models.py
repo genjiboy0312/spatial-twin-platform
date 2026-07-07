@@ -84,3 +84,19 @@ class Room(Base):
     h: Mapped[float]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SecurityDevice(Base):
+    __tablename__ = "security_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    floor_id: Mapped[int] = mapped_column(ForeignKey("floors.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    device_type: Mapped[str] = mapped_column(String(30))
+    pos_x: Mapped[float]
+    pos_y: Mapped[float]
+    angle: Mapped[float] = mapped_column(default=0.0)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    meta: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
