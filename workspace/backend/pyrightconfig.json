@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["app", "tests"],
+  "exclude": [".venv", "**/__pycache__"],
+  "extraPaths": [".venv/Lib/site-packages"],
+  "typeCheckingMode": "standard"
+}

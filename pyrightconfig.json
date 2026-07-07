@@ -1,0 +1,14 @@
+{
+  "include": [
+    "workspace/backend/app",
+    "workspace/backend/tests"
+  ],
+  "exclude": [
+    "workspace/backend/.venv",
+    "**/__pycache__"
+  ],
+  "extraPaths": [
+    "workspace/backend/.venv/Lib/site-packages"
+  ],
+  "typeCheckingMode": "standard"
+}
