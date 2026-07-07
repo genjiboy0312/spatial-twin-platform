@@ -1,13 +1,19 @@
+import { lazy } from 'react'
 import { createBrowserRouter } from 'react-router'
 
 import { AppShell } from './shell/AppShell'
-import { AlignmentPage } from '../pages/AlignmentPage'
-import { DataSourcesPage } from '../pages/DataSourcesPage'
-import { EditorPage } from '../pages/EditorPage'
-import { MonitorPage } from '../pages/MonitorPage'
-import { ProjectsPage } from '../pages/ProjectsPage'
-import { SettingsPage } from '../pages/SettingsPage'
-import { ValidationPage } from '../pages/ValidationPage'
+
+const AlignmentPage = lazy(() => import('../pages/AlignmentPage').then((module) => ({ default: module.AlignmentPage })))
+const CoveragePage = lazy(() => import('../pages/CoveragePage').then((module) => ({ default: module.CoveragePage })))
+const DataSourcesPage = lazy(() => import('../pages/DataSourcesPage').then((module) => ({ default: module.DataSourcesPage })))
+const EditorPage = lazy(() => import('../pages/EditorPage').then((module) => ({ default: module.EditorPage })))
+const ExportPage = lazy(() => import('../pages/ExportPage').then((module) => ({ default: module.ExportPage })))
+const MonitorPage = lazy(() => import('../pages/MonitorPage').then((module) => ({ default: module.MonitorPage })))
+const PathfindingPage = lazy(() => import('../pages/PathfindingPage').then((module) => ({ default: module.PathfindingPage })))
+const PointCloudPage = lazy(() => import('../pages/PointCloudPage').then((module) => ({ default: module.PointCloudPage })))
+const ProjectsPage = lazy(() => import('../pages/ProjectsPage').then((module) => ({ default: module.ProjectsPage })))
+const SettingsPage = lazy(() => import('../pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const ValidationPage = lazy(() => import('../pages/ValidationPage').then((module) => ({ default: module.ValidationPage })))
 
 export const router = createBrowserRouter([
   {
@@ -19,7 +25,11 @@ export const router = createBrowserRouter([
       { path: 'data-sources', Component: DataSourcesPage },
       { path: 'editor/:buildingId?', Component: EditorPage },
       { path: 'alignment', Component: AlignmentPage },
+      { path: 'point-cloud', Component: PointCloudPage },
+      { path: 'coverage', Component: CoveragePage },
+      { path: 'pathfinding', Component: PathfindingPage },
       { path: 'validation', Component: ValidationPage },
+      { path: 'export', Component: ExportPage },
       { path: 'monitor', Component: MonitorPage },
       { path: 'settings', Component: SettingsPage },
     ],

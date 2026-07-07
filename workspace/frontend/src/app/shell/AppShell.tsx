@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router'
 
 const navItems = [
@@ -5,7 +6,11 @@ const navItems = [
   ['Data Sources', '/data-sources'],
   ['Editor', '/editor/demo'],
   ['Alignment', '/alignment'],
+  ['Point Cloud', '/point-cloud'],
+  ['Coverage', '/coverage'],
+  ['Pathfinding', '/pathfinding'],
   ['Validation', '/validation'],
+  ['Export', '/export'],
   ['Monitor', '/monitor'],
   ['Settings', '/settings'],
 ] as const
@@ -13,6 +18,9 @@ const navItems = [
 export function AppShell() {
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand">
           <span className="brand-mark">BE</span>
@@ -29,8 +37,10 @@ export function AppShell() {
           ))}
         </nav>
       </aside>
-      <main className="content">
-        <Outlet />
+      <main className="content" id="main-content" tabIndex={-1}>
+        <Suspense fallback={<div className="card">Loading...</div>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   )
