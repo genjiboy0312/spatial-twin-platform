@@ -951,27 +951,28 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ## 12. 개발 로드맵 (재개발 순서)
 
-### Phase 1: 프로젝트 기반 (1-2주)
-- [ ] 프로젝트 생성 (monorepo 구조)
-- [ ] Docker Compose 설정 (PostgreSQL + PostGIS + Redis)
-- [ ] DB 스키마 설계 및 마이그레이션
-- [ ] FastAPI 기본 구조 (main.py, db.py, 모델)
-- [ ] React + Vite + TypeScript + Tailwind 설정
+### Phase 1: 프로젝트 기반 (1-2주) -- 완료
+- [x] 프로젝트 생성 (workspace/ 기반 monorepo)
+- [x] Docker Compose 설정 (PostgreSQL + PostGIS + Redis)
+- [x] FastAPI 기본 구조 (main.py, db.py, 모델, 라우터)
+- [x] React + Vite + TypeScript 설정 (CSS 커스텀 속성, Tailwind 미사용)
+- [x] Building/Floor CRUD API
+- [x] ProjectsPage Building 목록/생성 UI
 - [ ] 기본 CI/CD 파이프라인
 
-### Phase 2: 핵심 API (2-3주)
-- [ ] Building CRUD API (중복 검사, 지오코딩)
-- [ ] Floor CRUD API
+### Phase 2: 핵심 API (2-3주) -- 일부 완료
+- [x] Building CRUD API (중복 검사 포함)
+- [x] Floor CRUD API
 - [ ] DXF/Image/IFC 업로드 및 파싱 API
 - [ ] Geometry API (Wall/Door/Window/Room CRUD)
 - [ ] Security Device API
 
-### Phase 3: 프론트엔드 기본 (2-3주)
-- [ ] 라우팅 및 레이아웃 (DashboardLayout, Sidebar, Header)
-- [ ] 페이지: Home, Dashboard, Projects, DataSources
+### Phase 3: 프론트엔드 기본 (2-3주) -- 일부 완료
+- [x] 라우팅 및 레이아웃 (AppShell, Sidebar, Outlet)
+- [x] 페이지: Projects, DataSources, Editor, Alignment 등 7개
 - [ ] 업로드 다이얼로그 및 프로그레스
-- [ ] Building Store (Zustand)
-- [ ] API 클라이언트 (Axios + JWT)
+- [x] Workflow Store (Zustand)
+- [x] API 클라이언트 (fetch 기반, client.ts)
 
 ### Phase 4: 2D/3D 뷰어 (3-4주) ★가장 어려움
 - [ ] Canvas 2D 렌더러 (순수 함수 모듈화)
@@ -1006,6 +1007,21 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [ ] 문서화
 
 ### 예상 총 소요: **3-4개월** (1인 풀타임 기준)
+
+### 현재 진행 상황 (2026-07-07)
+- Phase 1 완료 (CI/CD 제외)
+- Phase 2: Building/Floor CRUD API 완료 (나머지 미진행)
+- Phase 3: 라우팅/레이아웃/페이지 스캐폴드/스토어/API 클라이언트 완료 (업로드 다이얼로그 미진행)
+- Phase 4-7: 미진행
+
+**스택 변경사항**:
+- Tailwind 대신 CSS 커스텀 속성 (SOC Professional Dark 테마 유지)
+- Axios 대신 fetch 기반 경량 클라이언트
+- JWT 인증 제외 (MVP 단계)
+- Rust Axum 백엔드 제외 (Python FastAPI 단일 트랙)
+- 마이크로서비스 제외 (단일 FastAPI 서버)
+
+**다음 단계**: 업로드 파이프라인 (DXF/Image/IFC) → 2D/3D 뷰어 → Geometry 편집
 
 ---
 
