@@ -963,14 +963,14 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 ### Phase 2: 핵심 API (2-3주) -- 일부 완료
 - [x] Building CRUD API (중복 검사 포함)
 - [x] Floor CRUD API
-- [ ] DXF/Image/IFC 업로드 및 파싱 API
+- [x] DXF/Image/IFC 업로드 API (파일 저장 + 메타데이터)
 - [ ] Geometry API (Wall/Door/Window/Room CRUD)
 - [ ] Security Device API
 
 ### Phase 3: 프론트엔드 기본 (2-3주) -- 일부 완료
 - [x] 라우팅 및 레이아웃 (AppShell, Sidebar, Outlet)
 - [x] 페이지: Projects, DataSources, Editor, Alignment 등 7개
-- [ ] 업로드 다이얼로그 및 프로그레스
+- [x] 업로드 폼 (DataSourcesPage, 파일 업로드 + 건물/층 연동)
 - [x] Workflow Store (Zustand)
 - [x] API 클라이언트 (fetch 기반, client.ts)
 
@@ -1010,8 +1010,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ### 현재 진행 상황 (2026-07-07)
 - Phase 1 완료 (CI/CD 제외)
-- Phase 2: Building/Floor CRUD API 완료 (나머지 미진행)
-- Phase 3: 라우팅/레이아웃/페이지 스캐폴드/스토어/API 클라이언트 완료 (업로드 다이얼로그 미진행)
+- Phase 2: Building/Floor CRUD + 업로드 API (파일 저장) 완료 (Geometry/Device 미진행)
+- Phase 3: 라우팅/레이아웃/페이지/스토어/API 클라이언트 + DataSourcesPage 업로드 폼 완료
 - Phase 4-7: 미진행
 
 **스택 변경사항**:
@@ -1021,7 +1021,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - Rust Axum 백엔드 제외 (Python FastAPI 단일 트랙)
 - 마이크로서비스 제외 (단일 FastAPI 서버)
 
-**다음 단계**: 업로드 파이프라인 (DXF/Image/IFC) → 2D/3D 뷰어 → Geometry 편집
+**다음 단계**: 2D/3D 뷰어 (Canvas 2D + Three.js) → Geometry 편집
 
 ---
 
