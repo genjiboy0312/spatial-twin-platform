@@ -958,14 +958,14 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] React + Vite + TypeScript 설정 (CSS 커스텀 속성, Tailwind 미사용)
 - [x] Building/Floor CRUD API
 - [x] ProjectsPage Building 목록/생성 UI
-- [ ] 기본 CI/CD 파이프라인
+- [x] 기본 CI/CD 파이프라인
 
 ### Phase 2: 핵심 API (2-3주) -- 일부 완료
 - [x] Building CRUD API (중복 검사 포함)
 - [x] Floor CRUD API
 - [x] DXF/Image/IFC 업로드 API (파일 저장 + 메타데이터)
 - [x] Geometry API (Wall/Room CRUD - models, schemas, router, tests)
-- [ ] Door/Window API (미정)
+- [x] Door/Window API (CRUD)
 - [x] Security Device API (CRUD)
 
 ### Phase 3: 프론트엔드 기본 (2-3주) -- 일부 완료
@@ -977,7 +977,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ### Phase 4: 2D/3D 뷰어 (3-4주) ★가장 어려움
 - [x] Canvas 2D 렌더러 (HTML5 Canvas, 그리드/벽/방/스케일바)
-- [ ] Canvas 2D 이벤트/선택/스냅
+- [x] Canvas 2D 이벤트/선택/스냅
 - [x] Three.js 3D 씬 설정 (@react-three/fiber, OrbitControls, Grid)
 - [x] Canvas 3D 렌더러 (벽 mesh, 방 area, Extrude)
 - [x] 2D/3D 뷰어 통합 (EditorPage, view mode toggle)
@@ -985,37 +985,40 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ### Phase 5: 편집 기능 (2-3주)
 - [x] Geometry 편집 (DrawingToolbar, PropertyPanel, 선택/벽 그리기/삭제)
-- [ ] 보안 장비 배치 (DeviceTypeSelector, 드래그 드롭)
-- [ ] 선택/강조/레이어 관리
-- [ ] 편집 이력 (Undo/Redo)
-- [ ] 숨김 레이어, 필터링
+- [x] 보안 장비 배치 (DeviceTypeSelector, 드래그 드롭)
+- [x] 선택/강조/레이어 관리
+- [x] 편집 이력 (Undo/Redo)
+- [x] 숨김 레이어, 필터링
 
 ### Phase 6: 고급 기능 (3-4주)
-- [ ] GPS 정합 (Alignment 페이지)
-- [ ] 포인트 클라우드 (LAS/LAZ/Potree)
-- [ ] 커버리지 분석
-- [ ] 경로 탐색 (Pathfinding)
-- [ ] 내보내기 (OBJ/DXF/PDF/Excel)
-- [ ] WebSocket 실시간 통신
+- [x] GPS 정합 (Alignment 페이지)
+- [x] 포인트 클라우드 (LAS/LAZ/Potree)
+- [x] 커버리지 분석
+- [x] 경로 탐색 (Pathfinding)
+- [x] 내보내기 (OBJ/DXF/PDF/CSV)
+- [x] WebSocket 실시간 통신
 
 ### Phase 7: 운영/완성 (2-3주)
-- [ ] 모니터링 페이지 (대시보드, 알람)
-- [ ] 검증 페이지 (Validation)
-- [ ] 성능 최적화 (인스턴싱, LOD, 지연 로딩)
-- [ ] i18n 다국어
-- [ ] 접근성 (aria, 키보드 네비게이션)
-- [ ] E2E 테스트 (Playwright)
-- [ ] 문서화
+- [x] 모니터링 페이지 (대시보드, 알람)
+- [x] 검증 페이지 (Validation)
+- [x] 성능 최적화 (인스턴싱, LOD, 지연 로딩)
+- [x] i18n 다국어
+- [x] 접근성 (aria, 키보드 네비게이션)
+- [x] E2E 테스트 (Playwright)
+- [x] 문서화
 
 ### 예상 총 소요: **3-4개월** (1인 풀타임 기준)
 
 ### 현재 진행 상황 (2026-07-07)
 - Phase 1 완료
-- Phase 2: Building/Floor CRUD + 업로드 API + Geometry API + Security Device API 완료
+- Phase 2: Building/Floor CRUD + 업로드 API + Geometry API + Door/Window API + Security Device API 완료
 - Phase 3: 라우팅/레이아웃/페이지/스토어/API 클라이언트 + DataSourcesPage 업로드 폼 완료
-- Phase 4: 2D/3D 뷰어 (Canvas2DViewer + ThreeJSViewer + EditorPage 통합) 완료 - 이벤트/선택/스냅 미구현
-- Phase 5: Geometry 편집 (DrawingToolbar + 선택/벽 그리기/삭제 + PropertyPanel) 완료 - 보안 장비/레이어/Undo 미구현
-- Phase 6-7: 미진행
+- Phase 4: 2D/3D 뷰어 (Canvas2DViewer + ThreeJSViewer + EditorPage 통합) + Canvas 이벤트/선택/스냅 완료
+- Phase 5: Geometry 편집 + 보안 장비 배치 + Undo/Redo + 선택/레이어 관리 완료
+- Phase 6: GPS 정합 (AlignmentPage + 앵커 포인트 + OSM 지도 + Helmert 변환) 완료
+- Phase 6: 포인트 클라우드 + 커버리지 분석 + 경로 탐색 + WebSocket 모니터링 완료
+- Phase 6: 내보내기 (ExportPage + OBJ/DXF/PDF/CSV + DXF backend fallback) 완료
+- Phase 7: 모니터링/검증/i18n/접근성/지연 로딩/E2E/문서화 완료
 **스택 변경사항**:
 - Tailwind 대신 CSS 커스텀 속성 (SOC Professional Dark 테마 유지)
 - Axios 대신 fetch 기반 경량 클라이언트
