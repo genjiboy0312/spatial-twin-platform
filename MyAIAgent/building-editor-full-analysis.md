@@ -975,12 +975,12 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] API 클라이언트 (fetch 기반, client.ts)
 
 ### Phase 4: 2D/3D 뷰어 (3-4주) ★가장 어려움
-- [ ] Canvas 2D 렌더러 (순수 함수 모듈화)
+- [x] Canvas 2D 렌더러 (HTML5 Canvas, 그리드/벽/방/스케일바)
 - [ ] Canvas 2D 이벤트/선택/스냅
-- [ ] Three.js 3D 씬 설정 (조명, 카메라, 바운드)
-- [ ] Canvas 3D 렌더러 (벽/문/창/방/장비)
-- [ ] 2D/3D 뷰어 통합 (UnifiedViewer)
-- [ ] 좌표 변환 (WGS84 ↔ 로컬)
+- [x] Three.js 3D 씬 설정 (@react-three/fiber, OrbitControls, Grid)
+- [x] Canvas 3D 렌더러 (벽 mesh, 방 area, Extrude)
+- [x] 2D/3D 뷰어 통합 (EditorPage, view mode toggle)
+- [x] 좌표 변환 유틸 (coordinateTransform.ts, WGS84/local)
 
 ### Phase 5: 편집 기능 (2-3주)
 - [ ] Geometry 편집 (DrawingToolbar, PropertyEditor)
@@ -1012,8 +1012,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - Phase 1 완료 (CI/CD 제외)
 - Phase 2: Building/Floor CRUD + 업로드 API (파일 저장) 완료 (Geometry/Device 미진행)
 - Phase 3: 라우팅/레이아웃/페이지/스토어/API 클라이언트 + DataSourcesPage 업로드 폼 완료
-- Phase 4-7: 미진행
-
+- Phase 4: 2D/3D 뷰어 (Canvas2DViewer + ThreeJSViewer + EditorPage 통합) 완료 - 이벤트/선택/스냅 미구현
+- Phase 5-7: 미진행
 **스택 변경사항**:
 - Tailwind 대신 CSS 커스텀 속성 (SOC Professional Dark 테마 유지)
 - Axios 대신 fetch 기반 경량 클라이언트
@@ -1021,7 +1021,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - Rust Axum 백엔드 제외 (Python FastAPI 단일 트랙)
 - 마이크로서비스 제외 (단일 FastAPI 서버)
 
-**다음 단계**: 2D/3D 뷰어 (Canvas 2D + Three.js) → Geometry 편집
+**다음 단계**: Geometry 편집 (DrawingToolbar, PropertyEditor) → 선택/스냅/드래그
 
 ---
 
