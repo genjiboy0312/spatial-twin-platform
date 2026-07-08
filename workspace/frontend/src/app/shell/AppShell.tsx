@@ -1,6 +1,7 @@
 import { Suspense, useMemo, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
+import { useWorkflowStore, type WorkflowStep } from '../../stores/workflowStore'
 import { setPreference, type Language, usePreferences } from '../preferences'
 
 const navGroups = [
@@ -15,7 +16,7 @@ const navGroups = [
   {
     labelKey: 'spatialTwin',
     items: [
-      ['Editor', '/editor/demo', 'editor'],
+      ['Editor', '/editor', 'editor'],
       ['Alignment', '/alignment', 'alignment'],
       ['Validation', '/validation', 'validation'],
       ['Dashboard', '/dashboard', 'dashboard'],
@@ -38,6 +39,15 @@ const APP_LABELS = {
     currentWorkspace: 'Current Workspace',
     status: ['Docker Live', 'API :8000', 'UI :5174'],
     toggle: 'Sidebar toggle',
+    previous: 'Previous',
+    next: 'Next',
+    endWorkflow: 'End Workflow',
+    workflowTitle: 'Scenario Play',
+    workflowSubtitle: 'Build workflow',
+    current: 'Current',
+    complete: 'Complete',
+    pending: 'Pending',
+    progress: 'progress',
     actions: {
       settings: 'Open settings',
       theme: 'Toggle light/dark mode',
@@ -52,23 +62,19 @@ const APP_LABELS = {
     groups: {
       workspace: 'Workspace',
       spatialTwin: 'Spatial Twin',
-      analysis: 'Analysis',
     },
     nav: {
       Home: 'Home',
-      Dashboard: 'Dashboard',
       Projects: 'Projects',
       'Data Sources': 'Data Sources',
       Editor: '3D Editor',
       Alignment: 'GPS Alignment',
-      'Point Cloud': 'PointCloud',
-      Models: 'Model Management',
-      Anchors: 'Anchor/Map',
-      Devices: 'Device Management',
-      Coverage: 'Coverage',
-      Pathfinding: 'Pathfinding',
       Validation: 'Validation',
-      Export: 'Export',
+      Dashboard: 'Dashboard',
+      Models: 'Model Management',
+      'Point Cloud': 'PointCloud',
+      Devices: 'Device Management',
+      Anchors: 'Anchor/Map',
       Monitor: 'Monitor',
       Settings: 'Settings',
     },
@@ -76,8 +82,17 @@ const APP_LABELS = {
   ko: {
     brandSubtitle: '보안 운영',
     currentWorkspace: '현재 워크스페이스',
-    status: ['도커 실행 중', 'API :8000', 'UI :5174'],
+    status: ['도커 실행중', 'API :8000', 'UI :5174'],
     toggle: '사이드바 토글',
+    previous: '이전',
+    next: '다음',
+    endWorkflow: '워크플로 종료',
+    workflowTitle: '시나리오 플레이',
+    workflowSubtitle: 'Build 워크플로',
+    current: '현재',
+    complete: '완료',
+    pending: '대기',
+    progress: '진행',
     actions: {
       settings: '설정 열기',
       theme: '라이트/다크 모드 전환',
@@ -92,23 +107,19 @@ const APP_LABELS = {
     groups: {
       workspace: '워크스페이스',
       spatialTwin: '공간 트윈',
-      analysis: '분석',
     },
     nav: {
       Home: '홈',
-      Dashboard: '대시보드',
       Projects: '프로젝트',
       'Data Sources': '데이터소스',
-      Editor: '3D편집',
-      Alignment: 'GPS정합',
-      'Point Cloud': 'PointCloud',
-      Models: '모델 관리',
-      Anchors: 'Anchor/Map',
-      Devices: '장치관리',
-      Coverage: '커버리지',
-      Pathfinding: '경로 탐색',
+      Editor: '3D 편집',
+      Alignment: 'GPS 정합',
       Validation: '검증',
-      Export: '내보내기',
+      Dashboard: '대시보드',
+      Models: '모델 관리',
+      'Point Cloud': 'PointCloud',
+      Devices: '장치관리',
+      Anchors: 'Anchor/Map',
       Monitor: '모니터',
       Settings: '설정',
     },
@@ -120,28 +131,61 @@ type NavLabel = keyof typeof APP_LABELS.en.nav
 const routeTitleKeys: Record<string, NavLabel> = {
   '/': 'Projects',
   '/home': 'Home',
-  '/dashboard': 'Dashboard',
   '/projects': 'Projects',
   '/data-sources': 'Data Sources',
   '/editor': 'Editor',
   '/alignment': 'Alignment',
-  '/point-cloud': 'Point Cloud',
-  '/models': 'Models',
-  '/anchors': 'Anchors',
-  '/devices': 'Devices',
-  '/coverage': 'Coverage',
-  '/pathfinding': 'Pathfinding',
   '/validation': 'Validation',
-  '/export': 'Export',
+  '/dashboard': 'Dashboard',
+  '/models': 'Models',
+  '/point-cloud': 'Point Cloud',
+  '/devices': 'Devices',
+  '/anchors': 'Anchors',
   '/monitor': 'Monitor',
   '/settings': 'Settings',
 }
+
+const scenarioSteps: Array<{ id: WorkflowStep; label: NavLabel; shortEn: string; shortKo: string; to: string }> = [
+  { id: 'projects', label: 'Projects', shortEn: 'Project', shortKo: '프로젝트', to: '/projects' },
+  { id: 'data-sources', label: 'Data Sources', shortEn: 'Data', shortKo: '데이터', to: '/data-sources' },
+  { id: 'editor', label: 'Editor', shortEn: '3D Edit', shortKo: '3D 편집', to: '/editor' },
+  { id: 'alignment', label: 'Alignment', shortEn: 'GPS', shortKo: 'GPS', to: '/alignment' },
+  { id: 'validation', label: 'Validation', shortEn: 'Validate', shortKo: '검증', to: '/validation' },
+  { id: 'monitor', label: 'Monitor', shortEn: 'Operate', shortKo: '운영', to: '/monitor' },
+]
+
+const notifications = [
+  {
+    tone: 'warning',
+    title: 'PointCloud density dropped',
+    titleKo: 'PointCloud 밀도 저하',
+    body: 'East corridor scan quality needs a reprocess.',
+    bodyKo: '동측 복도 스캔 품질을 다시 처리해야 합니다.',
+    time: '2m',
+  },
+  {
+    tone: 'caution',
+    title: 'GPS alignment drift',
+    titleKo: 'GPS 정합 오차',
+    body: 'Anchor A-03 is 0.42m away from the reference.',
+    bodyKo: 'Anchor A-03이 기준점에서 0.42m 벗어났습니다.',
+    time: '8m',
+  },
+  {
+    tone: 'normal',
+    title: 'Validation passed',
+    titleKo: '검증 통과',
+    body: 'Doors, devices, and model links are consistent.',
+    bodyKo: '문, 장치, 모델 링크가 일관된 상태입니다.',
+    time: '15m',
+  },
+] as const
 
 function getRouteTitle(pathname: string, language: Language): string {
   const match = Object.keys(routeTitleKeys)
     .sort((a, b) => b.length - a.length)
     .find((path) => pathname === path || pathname.startsWith(`${path}/`))
-  return match ? APP_LABELS[language].nav[routeTitleKeys[match]!] : APP_LABELS[language].nav.Dashboard
+  return match ? APP_LABELS[language].nav[routeTitleKeys[match]!] : APP_LABELS[language].nav.Projects
 }
 
 type IconName =
@@ -155,10 +199,7 @@ type IconName =
   | 'models'
   | 'anchors'
   | 'devices'
-  | 'coverage'
-  | 'pathfinding'
   | 'validation'
-  | 'export'
   | 'monitor'
   | 'settings'
 
@@ -183,6 +224,7 @@ function Icon({ name }: { name: IconName }) {
     ),
     editor: <path {...common} d="M5 19h4l10-10a2.1 2.1 0 0 0-3-3L6 16zM13.5 6.5l4 4" />,
     alignment: <path {...common} d="M5 7h14M8 12h8M5 17h14M12 4v16" />,
+    validation: <path {...common} d="m5 12 4 4L19 6M4 20h16" />,
     'point-cloud': (
       <>
         <circle {...common} cx="7" cy="8" r="1.4" />
@@ -195,10 +237,6 @@ function Icon({ name }: { name: IconName }) {
     models: <path {...common} d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9" />,
     anchors: <path {...common} d="M12 4v12M8 8a4 4 0 1 1 8 0M5 14c1 4 3.4 6 7 6s6-2 7-6M5 14h4M15 14h4" />,
     devices: <path {...common} d="M7 4h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM10 17h4" />,
-    coverage: <path {...common} d="M4 18a8 8 0 0 1 16 0M8 18a4 4 0 0 1 8 0M12 18h.01M12 5v2M5.6 7.6 7 9M18.4 7.6 17 9" />,
-    pathfinding: <path {...common} d="M5 18c3-6 11 0 14-6M5 18h4M5 18v-4M16 6h3v3M8 8h.01M12 12h.01M16 16h.01" />,
-    validation: <path {...common} d="m5 12 4 4L19 6M4 20h16" />,
-    export: <path {...common} d="M12 4v11M8 8l4-4 4 4M5 15v4h14v-4" />,
     monitor: <path {...common} d="M4 5h16v11H4zM9 20h6M12 16v4M7 12l3-3 3 3 4-5" />,
     settings: (
       <>
@@ -252,57 +290,54 @@ function TopbarIcon({ name }: { name: 'settings' | 'theme' | 'bell' | 'close' })
   )
 }
 
-const notifications = [
-  {
-    tone: 'warning',
-    title: 'PointCloud density dropped',
-    titleKo: 'PointCloud 밀도 저하',
-    body: 'East corridor scan quality needs a reprocess.',
-    bodyKo: '동측 복도 스캔 품질을 다시 처리해야 합니다.',
-    time: '2m',
-  },
-  {
-    tone: 'caution',
-    title: 'GPS alignment drift',
-    titleKo: 'GPS 정합 편차',
-    body: 'Anchor A-03 is 0.42m away from the reference.',
-    bodyKo: 'Anchor A-03이 기준점에서 0.42m 벗어났습니다.',
-    time: '8m',
-  },
-  {
-    tone: 'normal',
-    title: 'Validation passed',
-    titleKo: '검증 통과',
-    body: 'Doors, devices, and model links are consistent.',
-    bodyKo: '문, 장치, 모델 링크가 일관된 상태입니다.',
-    time: '15m',
-  },
-] as const
-
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { language, theme } = usePreferences()
   const location = useLocation()
+  const navigate = useNavigate()
   const labels = APP_LABELS[language]
+  const workflowCurrentStep = useWorkflowStore((state) => state.currentStep)
+  const completedSteps = useWorkflowStore((state) => state.completedSteps)
+  const setWorkflowCurrentStep = useWorkflowStore((state) => state.setCurrentStep)
+  const completeStep = useWorkflowStore((state) => state.completeStep)
+  const resetWorkflow = useWorkflowStore((state) => state.resetWorkflow)
   const title = useMemo(() => getRouteTitle(location.pathname, language), [language, location.pathname])
   const nextTheme = theme === 'dark' ? 'light' : 'dark'
+  const activeScenarioIndex = scenarioSteps.findIndex((step) => {
+    if (step.id === 'editor') return location.pathname.startsWith('/editor')
+    return location.pathname === step.to || location.pathname.startsWith(`${step.to}/`)
+  })
+  const fallbackScenarioIndex = scenarioSteps.findIndex((step) => step.id === workflowCurrentStep)
+  const scenarioIndex = Math.max(activeScenarioIndex >= 0 ? activeScenarioIndex : fallbackScenarioIndex, 0)
+  const scenarioProgress = Math.round(((scenarioIndex + 1) / scenarioSteps.length) * 100)
+  const currentScenario = scenarioSteps[scenarioIndex]!
+  const previousScenario = scenarioSteps[scenarioIndex - 1]
+  const nextScenario = scenarioSteps[scenarioIndex + 1]
+
+  const goScenario = (target: typeof scenarioSteps[number]) => {
+    setWorkflowCurrentStep(target.id)
+    navigate(target.to)
+  }
+
+  const goNextScenario = () => {
+    if (!nextScenario) return
+    completeStep(currentScenario.id)
+    goScenario(nextScenario)
+  }
+
+  const endWorkflow = () => {
+    resetWorkflow()
+    navigate('/home')
+  }
 
   return (
     <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
+      <a className="skip-link" href="#main-content">Skip to content</a>
 
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand">
-          <button
-            className="sidebar-options-button"
-            type="button"
-            onClick={() => setCollapsed((current) => !current)}
-            aria-label={labels.toggle}
-            title={labels.toggle}
-          >
+          <button className="sidebar-options-button" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={labels.toggle} title={labels.toggle}>
             <SidebarToggleIcon />
           </button>
           <span className="brand-mark">ST</span>
@@ -317,12 +352,7 @@ export function AppShell() {
             <section key={group.labelKey} className="nav-group" aria-label={labels.groups[group.labelKey]}>
               <span className="nav-group-label">{labels.groups[group.labelKey]}</span>
               {group.items.map(([label, to, icon]) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                  title={collapsed ? labels.nav[label] : undefined}
-                >
+                <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} title={collapsed ? labels.nav[label] : undefined}>
                   <span className="nav-icon" aria-hidden="true"><Icon name={icon} /></span>
                   <span className="nav-text">{labels.nav[label]}</span>
                 </NavLink>
@@ -333,12 +363,7 @@ export function AppShell() {
 
         <div className="sidebar-footer" aria-label="Pinned navigation">
           {pinnedNavItems.map(([label, to, icon]) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) => (isActive ? 'nav-link active pinned' : 'nav-link pinned')}
-              title={collapsed ? labels.nav[label] : undefined}
-            >
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'nav-link active pinned' : 'nav-link pinned')} title={collapsed ? labels.nav[label] : undefined}>
               <span className="nav-icon" aria-hidden="true"><Icon name={icon} /></span>
               <span className="nav-text">{labels.nav[label]}</span>
             </NavLink>
@@ -359,34 +384,68 @@ export function AppShell() {
             <NavLink className="topbar-icon-button" to="/settings" title={labels.actions.settings} aria-label={labels.actions.settings}>
               <TopbarIcon name="settings" />
             </NavLink>
-            <button
-              className="topbar-icon-button"
-              type="button"
-              title={labels.actions.theme}
-              aria-label={labels.actions.theme}
-              onClick={() => setPreference('theme', nextTheme)}
-            >
+            <button className="topbar-icon-button" type="button" title={labels.actions.theme} aria-label={labels.actions.theme} onClick={() => setPreference('theme', nextTheme)}>
               <TopbarIcon name="theme" />
             </button>
-            <button
-              className={`topbar-icon-button notification-button ${notificationsOpen ? 'active' : ''}`}
-              type="button"
-              title={labels.actions.notifications}
-              aria-label={labels.actions.notifications}
-              aria-expanded={notificationsOpen}
-              onClick={() => setNotificationsOpen((current) => !current)}
-            >
+            <button className={`topbar-icon-button notification-button ${notificationsOpen ? 'active' : ''}`} type="button" title={labels.actions.notifications} aria-label={labels.actions.notifications} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((current) => !current)}>
               <TopbarIcon name="bell" />
               <span className="notification-dot" />
             </button>
           </div>
         </header>
 
+        <section className="scenario-workflow-bar" aria-label={labels.workflowTitle}>
+          <div className="scenario-bottom-summary">
+            <span className="topbar-kicker">{labels.workflowTitle}</span>
+            <strong>{labels.workflowSubtitle}</strong>
+          </div>
+          <nav className="scenario-stepper" aria-label={labels.workflowSubtitle}>
+            {scenarioSteps.map((step, index) => {
+              const isActive = index === scenarioIndex
+              const isComplete = completedSteps.includes(step.id) || index < scenarioIndex
+              const stateLabel = isActive ? labels.current : isComplete ? labels.complete : labels.pending
+              return (
+                <NavLink
+                  key={step.id}
+                  to={step.to}
+                  className={`scenario-step ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
+                  aria-current={isActive ? 'step' : undefined}
+                  onClick={() => setWorkflowCurrentStep(step.id)}
+                >
+                  <span className="scenario-step-index">{isComplete ? '✓' : index + 1}</span>
+                  <span className="scenario-step-copy">
+                    <strong>{language === 'ko' ? step.shortKo : step.shortEn}</strong>
+                    <small>{stateLabel}</small>
+                  </span>
+                </NavLink>
+              )
+            })}
+          </nav>
+          <div className="scenario-progress-box">
+            <span>{scenarioProgress}% {labels.progress}</span>
+            <div className="scenario-progress-track" aria-hidden="true">
+              <i style={{ width: `${scenarioProgress}%` }} />
+            </div>
+          </div>
+        </section>
+
         <main className="content" id="main-content" tabIndex={-1}>
           <Suspense fallback={<div className="card">Loading...</div>}>
             <Outlet />
           </Suspense>
         </main>
+
+        <footer className="scenario-control-bar" aria-label={labels.workflowTitle}>
+          <button className="btn btn-secondary" type="button" disabled={!previousScenario} onClick={() => previousScenario && goScenario(previousScenario)}>
+            {labels.previous}: {previousScenario ? (language === 'ko' ? previousScenario.shortKo : previousScenario.shortEn) : '-'}
+          </button>
+          <button className="btn btn-primary" type="button" disabled={!nextScenario} onClick={goNextScenario}>
+            {labels.next}: {nextScenario ? (language === 'ko' ? nextScenario.shortKo : nextScenario.shortEn) : '-'}
+          </button>
+          <button className="btn btn-secondary scenario-end-button" type="button" onClick={endWorkflow}>
+            {labels.endWorkflow}
+          </button>
+        </footer>
       </div>
 
       <aside className={`notification-drawer ${notificationsOpen ? 'open' : ''}`} aria-hidden={!notificationsOpen}>

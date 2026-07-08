@@ -7,6 +7,7 @@ type WorkflowState = {
   completedSteps: WorkflowStep[]
   setCurrentStep: (step: WorkflowStep) => void
   completeStep: (step: WorkflowStep) => void
+  resetWorkflow: () => void
 }
 
 export const useWorkflowStore = create<WorkflowState>()((set) => ({
@@ -17,4 +18,5 @@ export const useWorkflowStore = create<WorkflowState>()((set) => ({
     set((state) => ({
       completedSteps: state.completedSteps.includes(step) ? state.completedSteps : [...state.completedSteps, step],
     })),
+  resetWorkflow: () => set({ currentStep: 'projects', completedSteps: [] }),
 }))
