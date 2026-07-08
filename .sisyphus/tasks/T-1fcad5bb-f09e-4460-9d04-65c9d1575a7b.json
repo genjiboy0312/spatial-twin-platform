@@ -1,0 +1,13 @@
+{
+  "id": "T-1fcad5bb-f09e-4460-9d04-65c9d1575a7b",
+  "subject": "Implement useValidation audit logic",
+  "description": "Add a custom useValidation hook for geometry, space, device, security, and alignment checks with issue details and overall scoring.",
+  "status": "completed",
+  "activeForm": "Implementing validation hook",
+  "blocks": [],
+  "blockedBy": [
+    "T-62b00204-d64d-465e-96cc-4c54461192b4"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c001883effeJmQt0VAM4GL3PO"
+}

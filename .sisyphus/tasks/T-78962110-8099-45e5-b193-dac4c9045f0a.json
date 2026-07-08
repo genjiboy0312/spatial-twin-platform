@@ -1,0 +1,10 @@
+{
+  "id": "T-78962110-8099-45e5-b193-dac4c9045f0a",
+  "subject": "Replace 3D device spheres with detailed primitive shapes",
+  "description": "Replace basic spheres in ThreeJSViewer with detailed primitive-based shapes (Camera, Sensor, Alarm, Access) matching device types.",
+  "status": "pending",
+  "activeForm": "Improving 3D device geometries",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

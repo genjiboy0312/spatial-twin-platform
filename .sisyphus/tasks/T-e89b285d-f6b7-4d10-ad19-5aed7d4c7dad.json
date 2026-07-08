@@ -1,0 +1,10 @@
+{
+  "id": "T-e89b285d-f6b7-4d10-ad19-5aed7d4c7dad",
+  "subject": "Create layerStore, device constants, objectSnap foundation",
+  "description": "Create layerStore.ts with LayerConfig/categories, constants/devices.ts, utils/objectSnap.ts",
+  "status": "completed",
+  "activeForm": "Creating foundation files",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

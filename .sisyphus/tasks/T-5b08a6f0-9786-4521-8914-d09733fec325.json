@@ -1,0 +1,10 @@
+{
+  "id": "T-5b08a6f0-9786-4521-8914-d09733fec325",
+  "subject": "Fix 3D view full-height issue (ThreeJSViewer not filling container)",
+  "description": "ThreeJSViewer viewport not filling available space. Investigate and fix CSS/component to fill container.",
+  "status": "completed",
+  "activeForm": "Fixing ThreeJSViewer full-height",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

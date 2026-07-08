@@ -1,0 +1,10 @@
+{
+  "id": "T-59dc3add-a2d4-4cdb-bd47-19ace6d84090",
+  "subject": "Add device drag & drop from panel to canvas",
+  "description": "Make device type buttons draggable, drop on canvas to add device, show preview",
+  "status": "completed",
+  "activeForm": "Adding drag-drop for devices",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

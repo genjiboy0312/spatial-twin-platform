@@ -1,0 +1,13 @@
+{
+  "id": "T-6326322c-351b-4212-b347-edde5d88c12e",
+  "subject": "Redesign ValidationPage audit dashboard",
+  "description": "Replace the existing validation UI with professional dark dashboard cards, circular gauge, category detail views, and emerald/amber/ruby status styling.",
+  "status": "completed",
+  "activeForm": "Redesigning validation dashboard",
+  "blocks": [],
+  "blockedBy": [
+    "T-1fcad5bb-f09e-4460-9d04-65c9d1575a7b"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c001883effeJmQt0VAM4GL3PO"
+}

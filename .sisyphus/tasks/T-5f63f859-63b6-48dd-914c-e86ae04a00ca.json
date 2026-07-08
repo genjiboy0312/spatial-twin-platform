@@ -1,0 +1,10 @@
+{
+  "id": "T-5f63f859-63b6-48dd-914c-e86ae04a00ca",
+  "subject": "Update EditorPage — reorder view modes, integrate bottom bar",
+  "description": "Change viewModes order to 2d, 3d, split, pointcloud, ifc. Add ViewModeBar below viewport.",
+  "status": "completed",
+  "activeForm": "Updating EditorPage layout",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

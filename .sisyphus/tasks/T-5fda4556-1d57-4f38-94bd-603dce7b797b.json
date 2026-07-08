@@ -1,0 +1,10 @@
+{
+  "id": "T-5fda4556-1d57-4f38-94bd-603dce7b797b",
+  "subject": "Redesign EnhancedDevicePanel — section-divided header, add/list buttons, refresh",
+  "description": "1. Section-divided \"보안장치\" header with refresh button 2. Add \"Add Security Device\" button 3. Add \"Device List\" button 4. Section dividers",
+  "status": "completed",
+  "activeForm": "Redesigning device panel",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

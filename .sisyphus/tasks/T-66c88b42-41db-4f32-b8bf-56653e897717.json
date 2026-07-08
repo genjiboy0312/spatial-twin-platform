@@ -1,0 +1,10 @@
+{
+  "id": "T-66c88b42-41db-4f32-b8bf-56653e897717",
+  "subject": "Reorder floor section: all-floors below add-floor with separator",
+  "description": "Move 전층 보기 button below 층 추가 button, add divider line matching layer/device component style between floor and layers sections",
+  "status": "completed",
+  "activeForm": "Moving all-floors below add-floor",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

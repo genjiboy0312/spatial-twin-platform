@@ -1,0 +1,10 @@
+{
+  "id": "T-23be1249-25b4-4343-9a4d-3806245b302a",
+  "subject": "Relocate Upload/Export buttons to left sidebar",
+  "description": "Remove upload/export buttons from ViewToolbar. Add them to left sidebar below all-floors toggle, with a separator and \"파일 업로드\" label.",
+  "status": "pending",
+  "activeForm": "Moving upload/export buttons to left sidebar",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

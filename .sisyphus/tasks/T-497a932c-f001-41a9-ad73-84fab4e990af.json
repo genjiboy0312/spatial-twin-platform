@@ -1,0 +1,10 @@
+{
+  "id": "T-497a932c-f001-41a9-ad73-84fab4e990af",
+  "subject": "Add icons (RefreshCw, Plus) + CSS for new components",
+  "description": "Add RefreshCw and Plus icons to Icons.tsx. Add CSS for view-mode-bar, section dividers, refresh button.",
+  "status": "completed",
+  "activeForm": "Adding icons and CSS",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

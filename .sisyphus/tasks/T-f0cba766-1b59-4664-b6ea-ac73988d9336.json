@@ -1,0 +1,10 @@
+{
+  "id": "T-f0cba766-1b59-4664-b6ea-ac73988d9336",
+  "subject": "Split ViewToolbar — keep Undo/Redo at top, move modes to bottom ViewModeBar",
+  "description": "1. Create ViewModeBar component for bottom placement 2. Update ViewToolbar to only have Undo/Redo 3. Add ViewModeBar below viewport in EditorPage",
+  "status": "completed",
+  "activeForm": "Splitting ViewToolbar",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

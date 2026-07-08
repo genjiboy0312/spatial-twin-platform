@@ -1,0 +1,10 @@
+{
+  "id": "T-ea7e6e59-b31c-43d3-a5be-de071269d032",
+  "subject": "Migrate device panel components from building-editor",
+  "description": "Copy EnhancedDevicePanel, DeviceListItem, constants/devices.ts and related components to spatial-twin-platform",
+  "status": "pending",
+  "activeForm": "Migrating device panel components",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

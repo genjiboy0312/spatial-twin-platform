@@ -1,0 +1,10 @@
+{
+  "id": "T-f09e725a-6121-499e-9783-fdb6e6e1abe4",
+  "subject": "Fix ViewModeBar layout - move inside editor-scene-main",
+  "description": "ViewModeBar is between main and rightbar inside the shell grid, pushing rightbar to row 2. Move it inside editor-scene-main as grid row 3.",
+  "status": "completed",
+  "activeForm": "Fixing ViewModeBar layout position",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

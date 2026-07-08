@@ -1,0 +1,10 @@
+{
+  "id": "T-c31e7558-b31f-43c4-a201-dde0f6d3f590",
+  "subject": "Update EditorPage with new left/right panels",
+  "description": "Integrate floor management, all floors view, upload, layer panel on left; settings, object snap, device panel on right",
+  "status": "pending",
+  "activeForm": "Integrating EditorPage",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

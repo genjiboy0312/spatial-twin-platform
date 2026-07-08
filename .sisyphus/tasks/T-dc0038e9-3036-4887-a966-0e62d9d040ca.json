@@ -1,0 +1,10 @@
+{
+  "id": "T-dc0038e9-3036-4887-a966-0e62d9d040ca",
+  "subject": "Implement zoom-to-cursor in 2D viewport",
+  "description": "Update handleWheel in Canvas2DViewer to zoom relative to mouse cursor by adjusting cameraOffset.",
+  "status": "pending",
+  "activeForm": "Implementing zoom-to-cursor in 2D view",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "T-5c5636c0-9495-4e55-a14d-35aabd5ffa2a",
+  "subject": "Analyze building editor upload/export modal requirements",
+  "description": "Review building-editor-full-analysis.md and related project references to identify exact fields, workflows, options, and UI/UX patterns for File Upload and Export pop-ups, then return a detailed specification.",
+  "status": "completed",
+  "activeForm": "Completed building editor upload/export modal specification research",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c058bb23ffeA7TRSHeHURLaPQ"
+}

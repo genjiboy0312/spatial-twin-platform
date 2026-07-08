@@ -1,0 +1,10 @@
+{
+  "id": "T-8efae3f7-4aeb-428a-88c3-2f6ce97f55bb",
+  "subject": "Fix viewport full-height + add ChevronLeft/Right icons",
+  "description": "1. Add ChevronLeft, ChevronRight icons 2. Make Canvas2DViewer fill container height (remove fixed 760x480, use ResizeObserver)",
+  "status": "completed",
+  "activeForm": "Fixing viewport height and adding icons",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

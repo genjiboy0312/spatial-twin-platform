@@ -1073,3 +1073,26 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 > **이 문서는 building-editor 프로젝트의 전체 분석을 바탕으로 작성되었습니다.**
 > **재개발 시 이 문서를 참고하여 A-Z까지 빠짐없이 구현하세요.**
+
+---
+
+## Codex UI Migration Progress (2026-07-07)
+
+- [x] Home page: imported start/workflow concepts and adapted to current black/gray shell.
+- [x] Projects page: imported project selection and floor-management layout.
+- [x] Data Sources page: imported floor selector, status panel, and five separate upload branches for Image, DXF/DWG, IFC, GLB/GLTF, and PointCloud with source-specific options; branch cards now only select the source type, the upload zone centers the emoji, target upload label, example flow, supported formats, DXF/DWG and GLB/GLTF guide notes, and the file picker opens from the dedicated Choose File button with reset placed beside it.
+- [x] 3D Editor page: restructured to match the reference editor scene with left floor/building panel, center 2D/3D/split viewport, floating tools, view-mode bar, right settings/properties panel, Beta all-floors popup, reference-style upload/export popup flows, removed layer reset, added security-device refresh, and upgraded placed 3D device markers with glow/light effects.
+- [x] App workflow controls: moved Build workflow progress to the top of the content area and changed the bottom bar to Previous / Next / End Workflow navigation only.
+- [x] GPS Alignment page: rebuilt reference-style OSM/Cesium alignment workspace with method separation, view-mode switching, model anchor picking, OSM tile map panel, Origin/Point1/Point2 GPS marking, and alignment compute/apply flow.
+- [x] Validation page: rebuilt score panel and validation checklist.
+- [x] Dashboard page: rebuilt reference-style SOC dashboard with four KPI cards, building inventory grid backed by the current buildings API, recent events feed, model/device/alignment readiness signals, and black/gray responsive styling.
+- [x] Model Management page: rebuilt the reference-style model source hub with building context selector, Image/DXF/IFC/GLB source status cards, PointCloud gateway, floor separation results table, editor/data-source actions, and current uploads/floors API integration.
+- [x] PointCloud page: re-imported the reference page layout with building/floor selectors, four status cards, workflow guide, upload/connected tabs, connected source cards, next-step editor card, and maintained LAS/LAZ/PLY upload through the current backend upload API.
+- [x] Device Management page: rebuilt the reference-style operations handoff with KPI cards, editor-linked inventory, type distribution, selected-device detail, placement guide, cleaned device labels, and replaced CAM/SNS/ALM/ACS abbreviations with editor-matched device icons.
+- [x] Anchor/Map page: rebuilt anchor table, OSM tile map panel with real GPS marker positions, and alignment summary using the shared OSM/Cesium-style map renderer.
+- [x] Monitor page: rebuilt reference-style operations console with top control bar, building/floor tree, spatial monitor viewport, device/event right tabs, bottom logs/camera panel, layer toggles, and realtime demo events.
+- [x] Backend reference migration started: analyzed the comparison backend and added current-project FastAPI endpoints for building updates, OSM map settings, building/floor spatial settings, and GPS three-point/single/batch affine alignment with pytest coverage.
+- [x] PointCloud maintenance: hardened backend file upload validation/status handling and connected uploaded PointCloud assets to Editor pointcloud/3D scene object generation.
+- [x] PointCloud rendering cap: updated Editor pointcloud generation to cap at 500,000 generated points and animate point creation while assets load.
+- [x] Editor all-floors popup maintenance: rebuilt the Beta floor stacking popup with reference-style floor list, stacked preview, X/Z/R adjustment mode, drag/wheel/hold controls, bright-view toggle, reference point picking, marker size control, and reset flow.
+- [x] Page header polish: unified all page title/description headers into a compact modern command-bar style aligned with the black/gray UI.
