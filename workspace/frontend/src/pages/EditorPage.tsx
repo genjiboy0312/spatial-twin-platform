@@ -1,67 +1,285 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
-import { PageHeader } from './PageHeader'
-import { listBuildings } from '../api/buildings'
-import type { Building } from '../api/buildings'
-import { listFloors } from '../api/floors'
-import type { Floor } from '../api/floors'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { Upload, Download } from '../components/Icons'
+import { ViewToolbar } from '../components/ViewToolbar'
+import { ViewModeBar } from '../components/ViewModeBar'
+import { ObjectSnapPanel } from '../components/ObjectSnapPanel'
+
+import { listBuildings, type Building } from '../api/buildings'
+import { createFloor, listFloors, type Floor } from '../api/floors'
+import { usePreferences } from '../app/preferences'
 import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
-import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
-import { DrawingToolbar } from '../components/DrawingToolbar'
 import { PropertyPanel } from '../components/PropertyPanel'
-import { useEditorStore } from '../stores/editorStore'
+import { DrawingToolbar } from '../components/DrawingToolbar'
+import { EnhancedLayerPanel } from '../components/layer/EnhancedLayerPanel'
+import { EnhancedDevicePanel } from '../components/device/EnhancedDevicePanel'
+import {
+  useEditorStore,
+  type EditMode,
+  type SecurityDevice,
+  type SecurityDeviceType,
+} from '../stores/editorStore'
+import { PageHeader } from './PageHeader'
+import { UploadModal } from '../components/UploadModal'
+import { ExportModal } from '../components/ExportModal'
+import { FloorPositionModal } from '../components/FloorPositionModal'
 
-type ViewMode = '2d' | '3d'
-
+import { SnapType, type SnapConfig } from '../utils/objectSnap'
+import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 const ThreeJSViewer = lazy(() =>
   import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
 )
 
+const copy = {
+  en: {
+    eyebrow: '3D Editor',
+    title: 'Spatial Editor Scene',
+    description: 'Edit the twin in a dedicated scene with floor navigation, view modes, canvas overlays, and properties.',
+    building: 'Building',
+    noBuilding: 'No building selected',
+    floorStack: 'Floor Stack',
+    addFloor: 'Add Floor',
+    upload: 'Upload Source',
+    canvas: 'Canvas',
+    scene: 'Scene',
+    properties: 'Properties',
+    settings: 'Settings',
+    deviceSize: 'Device Size',
+    snap: 'Object Snap',
+    layers: 'Layers',
+    autosaved: 'Autosaved just now',
+    selectBuilding: '-- Select building --',
+    noFloors: 'No floors yet. Add one or continue with the sample scene.',
+    loading3d: 'Loading 3D viewer...',
+    floorSuffix: 'F',
+    modes: { '2d': '2D', split: 'Split', '3d': '3D', pointcloud: 'PointCloud', ifc: 'IFC' },
+    sample: 'Sample',
+    clear: 'Clear',
+  },
+  ko: {
+    eyebrow: '3D 편집',
+    title: '공간 편집 씬',
+    description: '층 탐색, 캔버스 오버레이, 뷰 모드, 속성 패널을 한 화면에서 다루는 전용 편집 씬입니다.',
+    building: '건물',
+    noBuilding: '선택된 건물 없음',
+    floorStack: '층 구성',
+    addFloor: '층 추가',
+    upload: '소스 업로드',
+    canvas: '캔버스',
+    scene: '씬',
+    properties: '속성',
+    settings: '설정',
+    deviceSize: '장치 크기',
+    snap: '오브젝트 스냅',
+    layers: '레이어',
+    autosaved: '방금 자동 저장됨',
+    selectBuilding: '-- 건물 선택 --',
+    noFloors: '아직 층이 없습니다. 층을 추가하거나 샘플 씬으로 계속 진행하세요.',
+    loading3d: '3D 뷰어 로딩 중...',
+    floorSuffix: '층',
+    modes: { '2d': '2D', split: '분할', '3d': '3D', pointcloud: 'PointCloud', ifc: 'IFC' },
+    sample: '샘플',
+    clear: '지우기',
+  },
+} as const
+
+type ViewMode = '2d' | 'split' | '3d' | 'pointcloud' | 'ifc'
+
+const viewModes: ViewMode[] = ['2d', '3d', 'split', 'pointcloud', 'ifc']
+const POINTCLOUD_MAX_POINTS = 500_000
+
+function floorLabel(floor: Floor, suffix: string) {
+  return floor.floor_name ?? `${floor.floor_number}${suffix}`
+}
+
+function formatPointCount(value: number) {
+  return new Intl.NumberFormat('ko-KR').format(value)
+}
+
+function PointCloudGenerationCanvas({ uploads }: { uploads: UploadAsset[] }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [generatedPoints, setGeneratedPoints] = useState(0)
+  const totalPoints = uploads.length > 0 ? POINTCLOUD_MAX_POINTS : 0
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || uploads.length === 0) {
+      setGeneratedPoints(0)
+      return undefined
+    }
+
+    let frameId = 0
+    let generated = 0
+    let lastUiUpdate = 0
+    const context = canvas.getContext('2d')
+    if (!context) return undefined
+
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect()
+      const ratio = window.devicePixelRatio || 1
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio))
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio))
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+      context.clearRect(0, 0, rect.width, rect.height)
+      generated = 0
+      lastUiUpdate = 0
+      setGeneratedPoints(0)
+    }
+
+    const drawBatch = () => {
+      const rect = canvas.getBoundingClientRect()
+      const batchSize = Math.min(12_000, totalPoints - generated)
+      for (let i = 0; i < batchSize; i += 1) {
+        const index = generated + i
+        const upload = uploads[index % uploads.length]!
+        const seed = upload.id * 104_729 + index * 37
+        const x = 22 + ((seed * 17) % Math.max(1, Math.floor(rect.width - 44)))
+        const y = 36 + ((seed * 31) % Math.max(1, Math.floor(rect.height - 70)))
+        const alpha = 0.24 + ((seed * 13) % 64) / 100
+        context.fillStyle = index % 3 === 0 ? `rgba(56,189,248,${alpha})` : `rgba(34,197,94,${alpha})`
+        context.fillRect(x, y, 1.25, 1.25)
+      }
+
+      generated += batchSize
+      if (generated - lastUiUpdate > 18_000 || generated >= totalPoints) {
+        lastUiUpdate = generated
+        setGeneratedPoints(generated)
+      }
+      if (generated < totalPoints) frameId = window.requestAnimationFrame(drawBatch)
+    }
+
+    resizeCanvas()
+    frameId = window.requestAnimationFrame(drawBatch)
+    window.addEventListener('resize', resizeCanvas)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.removeEventListener('resize', resizeCanvas)
+    }
+  }, [totalPoints, uploads])
+
+  return (
+    <>
+      <canvas ref={canvasRef} className="editor-pointcloud-canvas" />
+      <div className="editor-pointcloud-generation-meter">
+        <strong>{formatPointCount(generatedPoints)}</strong>
+        <span>/ {formatPointCount(totalPoints)} points generated</span>
+      </div>
+    </>
+  )
+}
+
 export function EditorPage() {
+  const { language } = usePreferences()
+  const navigate = useNavigate()
+  const labels = copy[language]
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | ''>('')
   const [floors, setFloors] = useState<Floor[]>([])
-  const [selectedFloor, setSelectedFloor] = useState<number | ''>('')
-  const [viewMode, setViewMode] = useState<ViewMode>('2d')
-
-  // Editor store
-  const mode = useEditorStore((s) => s.mode)
-  const walls = useEditorStore((s) => s.walls)
-  const rooms = useEditorStore((s) => s.rooms)
-  const selectedWallIdx = useEditorStore((s) => s.selectedWallIdx)
-  const selectedRoomIdx = useEditorStore((s) => s.selectedRoomIdx)
-  const visibleLayers = useEditorStore((s) => s.visibleLayers)
-  const setMode = useEditorStore((s) => s.setMode)
-  const addWall = useEditorStore((s) => s.addWall)
-  const selectWall = useEditorStore((s) => s.selectWall)
-  const selectRoom = useEditorStore((s) => s.selectRoom)
-  const deleteWallAt = useEditorStore((s) => s.deleteWallAt)
-  const loadSample = useEditorStore((s) => s.loadSample)
-  const moveWall = useEditorStore((s) => s.moveWall)
-  const pushHistory = useEditorStore((s) => s.pushHistory)
-  const snapPoint = useEditorStore((s) => s.snapPoint)
-  const devices = useEditorStore((s) => s.devices)
-  const selectedDeviceIdx = useEditorStore((s) => s.selectedDeviceIdx)
-  const selectDevice = useEditorStore((s) => s.selectDevice)
-  const addDevice = useEditorStore((s) => s.addDevice)
-
+  const [selectedFloorId, setSelectedFloorId] = useState<number | ''>('')
+  const [allFloorsView, setAllFloorsView] = useState(false)
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [initialized, setInitialized] = useState(false)
   const [deviceType, setDeviceType] = useState<SecurityDeviceType>('camera')
+  const [deviceScale, setDeviceScale] = useState(5)
+  const [fitViewTrigger, setFitViewTrigger] = useState(0)
+  const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const [snapConfig, setSnapConfig] = useState<SnapConfig>({
+    enabled: true,
+    types: [SnapType.ENDPOINT, SnapType.MIDPOINT, SnapType.GRID],
+    gridSize: 1,
+    tolerance: 10,
+    endpointThreshold: 0.5,
+  })
+
+  const mode = useEditorStore((state) => state.mode)
+  const walls = useEditorStore((state) => state.walls)
+  const rooms = useEditorStore((state) => state.rooms)
+  const devices = useEditorStore((state) => state.devices)
+  const selectedWallIdx = useEditorStore((state) => state.selectedWallIdx)
+  const selectedRoomIdx = useEditorStore((state) => state.selectedRoomIdx)
+  const selectedDeviceIdx = useEditorStore((state) => state.selectedDeviceIdx)
+  const visibleLayers = useEditorStore((state) => state.visibleLayers)
+  const snapMode = useEditorStore((state) => state.snapMode)
+  const setMode = useEditorStore((state) => state.setMode)
+  const addWall = useEditorStore((state) => state.addWall)
+  const addRoom = useEditorStore((state) => state.addRoom)
+  const selectWall = useEditorStore((state) => state.selectWall)
+  const selectRoom = useEditorStore((state) => state.selectRoom)
+  const selectDevice = useEditorStore((state) => state.selectDevice)
+  const deleteWallAt = useEditorStore((state) => state.deleteWallAt)
+  const removeDevice = useEditorStore((state) => state.removeDevice)
+  const loadSample = useEditorStore((state) => state.loadSample)
+  const clearAll = useEditorStore((state) => state.clearAll)
+  const moveWall = useEditorStore((state) => state.moveWall)
+  const pushHistory = useEditorStore((state) => state.pushHistory)
+  const snapPoint = useEditorStore((state) => state.snapPoint)
+  const addDevice = useEditorStore((state) => state.addDevice)
+  const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
+  const setSnapMode = useEditorStore((state) => state.setSnapMode)
+
+  const toggleSnapEnabled = useCallback(() => {
+    setSnapConfig(prev => ({ ...prev, enabled: !prev.enabled }))
+  }, [])
+
+  const toggleSnapType = useCallback((type: SnapType) => {
+    setSnapConfig(prev => {
+      const next = [...prev.types]
+      const idx = next.indexOf(type)
+      if (idx >= 0) {
+        next.splice(idx, 1)
+      } else {
+        next.push(type)
+      }
+      return { ...prev, types: next }
+    })
+  }, [])
+
+  const setSnapTolerance = useCallback((tolerance: number) => {
+    setSnapConfig(prev => ({ ...prev, tolerance }))
+  }, [])
+
+  const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
+  const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId)
+  const selectedFloor = floors.find((floor) => floor.id === selectedFloorId)
+  const selectedDevice: SecurityDevice | null =
+    selectedDeviceIdx != null && selectedDeviceIdx < devices.length ? (devices[selectedDeviceIdx] as SecurityDevice) : null
+
+  const handleDeviceRefresh = useCallback(() => {
+    selectDevice(null)
+    setDeviceType('camera')
+    setMode('select')
+  }, [selectDevice, setMode])
 
   const loadBuildings = useCallback(async () => {
     try {
-      setBuildings(await listBuildings())
+      const data = await listBuildings()
+      setBuildings(data)
+      setSelectedBuildingId((current) => {
+        if (current && data.some((building) => building.id === current)) return current
+        return data[0]?.id ?? ''
+      })
     } catch {
-      /* ignore */
+      setBuildings([])
     }
   }, [])
 
-  const loadFloors = useCallback(async (buildingId: number) => {
+  const loadBuildingFloors = useCallback(async (buildingId: number) => {
     try {
-      const data = await listFloors(buildingId)
+      const [data, uploads] = await Promise.all([listFloors(buildingId), listUploadsByBuilding(buildingId)])
       setFloors(data)
-      const first = data[0]
-      if (first) setSelectedFloor(first.floor_number)
+      setPointCloudUploads(uploads.filter((upload) => upload.source_type === 'pointcloud'))
+      setSelectedFloorId((current) => {
+        if (current && data.some((floor) => floor.id === current)) return current
+        return data[0]?.id ?? ''
+      })
     } catch {
       setFloors([])
+      setPointCloudUploads([])
+      setSelectedFloorId('')
     }
   }, [])
 
@@ -69,16 +287,19 @@ export function EditorPage() {
 
   useEffect(() => {
     if (selectedBuildingId !== '') {
-      loadFloors(selectedBuildingId)
-      setSelectedFloor('')
+      loadBuildingFloors(selectedBuildingId)
     } else {
       setFloors([])
-      setSelectedFloor('')
+      setPointCloudUploads([])
+      setSelectedFloorId('')
     }
-  }, [selectedBuildingId, loadFloors])
+  }, [loadBuildingFloors, selectedBuildingId])
 
-  // Auto-load sample data once on mount
-  const [initialized, setInitialized] = useState(false)
+  const visiblePointCloudUploads = useMemo(() => {
+    if (selectedFloorId === '') return pointCloudUploads
+    return pointCloudUploads.filter((upload) => upload.floor_id === null || upload.floor_id === selectedFloorId)
+  }, [pointCloudUploads, selectedFloorId])
+
   useEffect(() => {
     if (!initialized) {
       loadSample()
@@ -86,135 +307,348 @@ export function EditorPage() {
     }
   }, [initialized, loadSample])
 
-  const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId)
-  let selectedWall: Wall2D | null = null
-  if (selectedWallIdx != null && selectedWallIdx < walls.length) {
-    selectedWall = walls[selectedWallIdx] as Wall2D
+  const handleAddFloor = async () => {
+    if (selectedBuildingId === '') return
+    const nextNumber = (sortedFloors[0]?.floor_number ?? floors.length) + 1
+    await createFloor(selectedBuildingId, {
+      floor_number: nextNumber,
+      floor_name: `${nextNumber}${labels.floorSuffix}`,
+      height_meters: 3.2,
+    })
+    await loadBuildingFloors(selectedBuildingId)
   }
-  let selectedDevice: SecurityDevice | null = null
-  if (selectedDeviceIdx != null && selectedDeviceIdx < devices.length) {
-    selectedDevice = devices[selectedDeviceIdx] as SecurityDevice
+
+  const handleAddOpening = (type: 'door' | 'window' | 'opening', wallIdx: number, _pos: number) => {
+    // Placeholder - stores will be expanded for doors/windows/openings
+    pushHistory()
   }
 
-  return (
-    <section className="page-grid editor-layout">
-      <PageHeader
-        eyebrow="Step 3 / 4"
-        title="2D / 3D Editor"
-        description="건물과 층을 선택하고 2D 또는 3D로 도면을 확인하거나 편집합니다."
-      />
+  const renderCanvas2d = () => (
+    <Canvas2DViewer
+      walls={walls}
+      rooms={rooms}
+      devices={devices}
+      selectedWallIdx={selectedWallIdx}
+      selectedRoomIdx={selectedRoomIdx}
+      selectedDeviceIdx={selectedDeviceIdx}
+      visibleLayers={visibleLayers}
+      editMode={mode}
+      onSelectWall={(idx) => selectWall(idx >= 0 ? idx : null)}
+      onSelectRoom={(idx) => selectRoom(idx >= 0 ? idx : null)}
+      onSelectDevice={(idx) => selectDevice(idx >= 0 ? idx : null)}
+      onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
+      onAddRoom={(room) => addRoom(room)}
+      onAddOpening={handleAddOpening}
+      onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
+      onMoveWall={(idx, dx, dy) => moveWall(idx, dx, dy)}
+      onFinishMoveWall={() => pushHistory()}
+      snapPoint={(x, y) => snapPoint(x, y)}
+      onAddDevice={(device) => addDevice(device)}
+      deviceType={deviceType}
+    />
+  )
 
-      {/* Building / Floor toolbar */}
-      <div className="editor-toolbar">
-        <div className="editor-toolbar-left">
-          <select
-            className="select-input"
-            value={selectedBuildingId}
-            onChange={(e) => setSelectedBuildingId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">-- 건물 선택 --</option>
-            {buildings.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-
-          {floors.length > 0 && (
-            <select
-              className="select-input narrow"
-              value={selectedFloor}
-              onChange={(e) => setSelectedFloor(e.target.value ? Number(e.target.value) : '')}
-            >
-              {floors.map((f) => (
-                <option key={f.id} value={f.floor_number}>
-                  {f.floor_name ?? `${f.floor_number}층`}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="editor-toolbar-right">
-          <button
-            className={`btn ${viewMode === '2d' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setViewMode('2d')}
-          >
-            2D
-          </button>
-          <button
-            className={`btn ${viewMode === '3d' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setViewMode('3d')}
-          >
-            3D
-          </button>
-        </div>
-      </div>
-
-      {/* Drawing toolbar (2D only) */}
-      <div className="full-width">
-        <DrawingToolbar
-          mode={mode}
-          onChange={setMode}
-          onLoadSample={loadSample}
-          onClear={useEditorStore.getState().clearAll}
-          wallCount={walls.length}
-          deviceType={deviceType}
-          onDeviceTypeChange={setDeviceType}
-        />
-      </div>
-
-      {/* Viewport */}
-      <div className="viewer-container full-width">
-        {viewMode === '2d' ? (
-          <Canvas2DViewer
-            walls={walls}
-            rooms={rooms}
-            devices={devices}
-            selectedWallIdx={selectedWallIdx}
-            selectedRoomIdx={selectedRoomIdx}
-            selectedDeviceIdx={selectedDeviceIdx}
-            visibleLayers={visibleLayers}
-            editMode={mode}
-            width={760}
-            height={480}
-            onSelectWall={(idx) => {
-              if (idx >= 0) selectWall(idx); else selectWall(-1)
-            }}
-            onSelectRoom={(idx) => {
-              if (idx >= 0) selectRoom(idx); else selectRoom(-1)
-            }}
-            onSelectDevice={(idx) => {
-              if (idx >= 0) selectDevice(idx); else selectDevice(-1)
-            }}
-            onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
-            onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
-            onMoveWall={(idx, dx, dy) => moveWall(idx, dx, dy)}
-            onFinishMoveWall={(idx, x1, y1, x2, y2) => {
-              pushHistory()
-            }}
-            snapPoint={(x, y) => snapPoint(x, y)}
-            onAddDevice={(device) => addDevice(device)}
-            deviceType={deviceType}
-          />
-        ) : (
-          <Suspense fallback={<div className="viewer-placeholder">Loading 3D viewer...</div>}>
-            <ThreeJSViewer />
-          </Suspense>
-        )}
-      </div>
-
-      {/* Property Panel */}
-      <PropertyPanel
-        selectedWall={selectedWall}
-        wallIndex={selectedWallIdx}
-        wallCount={walls.length}
-        roomCount={rooms.length}
+  const renderCanvas3d = () => (
+    <Suspense fallback={<div className="viewer-placeholder">{labels.loading3d}</div>}>
+      <ThreeJSViewer
+        walls={walls}
         rooms={rooms}
-        selectedRoomIdx={selectedRoomIdx}
-        selectedDevice={selectedDevice}
+        devices={devices}
         selectedDeviceIdx={selectedDeviceIdx}
-        deviceCount={devices.length}
+        pointClouds={visiblePointCloudUploads}
+      />
+    </Suspense>
+  )
+
+  const renderPointCloudObjects = () => {
+    if (visiblePointCloudUploads.length === 0) {
+      return (
+        <div className="editor-pointcloud-empty">
+          <strong>PointCloud source not connected</strong>
+          <span>Upload LAS/LAZ/PLY from Data Sources or PointCloud page to create scene objects.</span>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className="editor-pointcloud-object-list">
+          {visiblePointCloudUploads.map((upload, index) => (
+            <article key={upload.id} className="editor-pointcloud-object-card">
+              <strong>{upload.filename}</strong>
+              <span>{upload.status === 'ready' ? 'Generating point object' : upload.status}</span>
+              <small>{upload.floor_id ? `Floor #${upload.floor_id}` : 'Building level'}</small>
+              <i style={{ width: `${Math.min(92, 34 + index * 12)}%` }} />
+            </article>
+          ))}
+        </div>
+        <PointCloudGenerationCanvas uploads={visiblePointCloudUploads} />
+      </>
+    )
+  }
+
+  const renderViewport = () => {
+    switch (viewMode) {
+      case '2d':
+        return (
+          <div className="editor-view-pane single">
+            <span className="editor-view-label">2D</span>
+            {renderCanvas2d()}
+          </div>
+        )
+      case '3d':
+        return (
+          <div className="editor-view-pane single">
+            <span className="editor-view-label">3D</span>
+            {renderCanvas3d()}
+          </div>
+        )
+      case 'split':
+        return (
+          <div className="editor-split-view">
+            <div className="editor-view-pane">
+              <span className="editor-view-label">2D</span>
+              {renderCanvas2d()}
+            </div>
+            <div className="editor-view-divider" />
+            <div className="editor-view-pane">
+              <span className="editor-view-label">3D</span>
+              {renderCanvas3d()}
+            </div>
+          </div>
+        )
+      case 'pointcloud':
+        return (
+          <div className="editor-pointcloud-scene">
+            <span className="editor-view-label">PointCloud</span>
+            {renderPointCloudObjects()}
+          </div>
+        )
+      case 'ifc':
+        return (
+          <div className="editor-ifc-scene">
+            <span className="editor-view-label">IFC</span>
+            <strong>IFC model viewport</strong>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+  return (
+    <section className="editor-scene-page">
+      <PageHeader eyebrow={labels.eyebrow} title={labels.title} description={labels.description} />
+
+      <div className="editor-scene-shell">
+        {/* ── Left Sidebar: Buildings + Floors + Layers ── */}
+        <aside className="editor-scene-sidebar">
+          {/* Building name */}
+          <section className="editor-sidebar-section">
+            <div className="editor-scene-panel-title compact">
+              <span className="eyebrow-muted">{labels.building}</span>
+            </div>
+            {selectedBuilding ? (
+              <div className="editor-building-name">
+                <strong>{selectedBuilding.name}</strong>
+              </div>
+            ) : (
+              <p className="editor-floor-empty">{labels.noBuilding}</p>
+            )}
+          </section>
+          <div className="editor-sidebar-divider" />
+
+          <div className="editor-sidebar-divider" />
+
+          {/* Building name */}
+          <section className="editor-sidebar-section">
+            <div className="editor-scene-panel-title compact">
+              <span className="eyebrow-muted">{labels.building}</span>
+            </div>
+            {selectedBuilding ? (
+              <div className="editor-building-name">
+                <strong>{selectedBuilding.name}</strong>
+              </div>
+            ) : (
+              <p className="editor-floor-empty">{labels.noBuilding}</p>
+            )}
+          </section>
+          <div className="editor-sidebar-divider" />
+
+          {/* Floor stack */}
+          <section className="editor-sidebar-section">
+            <div className="editor-scene-panel-title compact">
+              <span className="eyebrow-muted">{labels.floorStack}</span>
+            </div>
+            <div className="editor-floor-list">
+              {sortedFloors.map((floor) => (
+                <button
+                  key={floor.id}
+                  className={floor.id === selectedFloorId ? 'selected' : ''}
+                  onClick={() => setSelectedFloorId(floor.id)}
+                  type="button"
+                >
+                  <strong>{floorLabel(floor, labels.floorSuffix)}</strong>
+                </button>
+              ))}
+              {sortedFloors.length === 0 && (
+                <p className="editor-floor-empty">{labels.noFloors}</p>
+              )}
+            </div>
+            <button
+              className="editor-floor-add-btn"
+              onClick={handleAddFloor}
+              type="button"
+              disabled={selectedBuildingId === ''}
+            >
+              + {labels.addFloor}
+            </button>
+            <div className="editor-sidebar-divider" />
+            <div className="editor-sidebar-label">전층 보기</div>
+            <button
+              className={'editor-all-floors-btn' + (allFloorsView ? ' active' : '')}
+              onClick={() => setAllFloorsView((v) => !v)}
+              type="button"
+              disabled={sortedFloors.length === 0}
+            >
+              <span>전층 보기</span>
+            </button>
+            <div className="editor-sidebar-divider" />
+            <div className="editor-sidebar-label">파일 업로드</div>
+            <div className="editor-upload-actions">
+              <button
+                className="editor-sidebar-btn"
+                onClick={() => setIsUploadOpen(true)}
+                type="button"
+              >
+                <Upload size={14} />
+                <span>업로드</span>
+              </button>
+              <button
+                className="editor-sidebar-btn"
+                onClick={() => setIsExportOpen(true)}
+                type="button"
+              >
+                <Download size={14} />
+                <span>내보내기</span>
+              </button>
+            </div>
+          </section>
+          <EnhancedLayerPanel />
+
+          {/* Layers */}
+          <EnhancedLayerPanel />
+        </aside>
+
+        {/* ── Center: Viewport ── */}
+        <main className="editor-scene-main">
+          {/* Top toolbar: Undo/Redo */}
+          <ViewToolbar />
+          {/* Viewport */}
+          <div className="editor-scene-viewport" data-fit-trigger={fitViewTrigger}>
+            {renderViewport()}
+
+            {/* Drawing Toolbar - floating bottom-left */}
+            <div className="editor-viewport-overlay-bottom-left">
+              <DrawingToolbar
+                mode={mode}
+                onChange={setMode}
+                onLoadSample={loadSample}
+                onClear={clearAll}
+                wallCount={walls.length}
+                deviceType={deviceType}
+                onDeviceTypeChange={setDeviceType}
+              />
+            </div>
+          </div>
+          {/* Bottom toolbar: View mode buttons */}
+          <ViewModeBar
+            viewMode={viewMode}
+            viewModes={viewModes}
+            labels={labels.modes}
+            onViewModeChange={setViewMode}
+          />
+        </main>
+
+        {/* ── Right Sidebar: Settings + Snap + Devices + Properties ── */}
+        <aside className="editor-scene-rightbar">
+          {/* Settings */}
+          <section className="editor-settings-card">
+            <div className="editor-scene-panel-title compact">
+              <span className="eyebrow-muted">{labels.settings}</span>
+            </div>
+            <div className="device-size-row">
+              <label className="device-size-label">{labels.deviceSize}</label>
+              <input
+                type="range"
+                className="device-size-slider"
+                min="1"
+                max="20"
+                step="0.5"
+                value={deviceScale}
+                onChange={(event) => setDeviceScale(Number(event.target.value))}
+              />
+              <strong className="device-size-mult">{deviceScale}x</strong>
+            </div>
+          </section>
+
+          {/* Object Snap */}
+          <ObjectSnapPanel
+            snapConfig={snapConfig}
+            onToggleEnabled={toggleSnapEnabled}
+            onToggleType={toggleSnapType}
+            onChangeRadius={setSnapTolerance}
+          />
+
+          {/* Device Panel */}
+          <EnhancedDevicePanel
+            devices={devices}
+            selectedDeviceIdx={selectedDeviceIdx}
+            deviceType={deviceType}
+            onDeviceTypeChange={setDeviceType}
+            onSelectDevice={selectDevice}
+            onRemoveDevice={removeDevice}
+            onStartAddDevice={() => setMode('device')}
+            onRefresh={handleDeviceRefresh}
+          />
+
+          {/* Properties */}
+          <PropertyPanel
+            selectedWall={selectedWallIdx != null && selectedWallIdx < walls.length ? walls[selectedWallIdx]! : null}
+            wallIndex={selectedWallIdx}
+            wallCount={walls.length}
+            roomCount={rooms.length}
+            rooms={rooms}
+            selectedRoomIdx={selectedRoomIdx}
+            selectedDevice={selectedDevice}
+            selectedDeviceIdx={selectedDeviceIdx}
+            deviceCount={devices.length}
+          />
+        </aside>
+      </div>
+      <UploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        buildings={buildings}
+        floors={floors}
+        selectedBuildingId={selectedBuildingId}
+        selectedFloorId={selectedFloorId}
+        onUploaded={() => {
+          if (selectedBuildingId !== '') return loadBuildingFloors(selectedBuildingId)
+          return undefined
+        }}
+      />
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        buildingName={selectedBuilding?.name}
+        floorName={selectedFloor ? floorLabel(selectedFloor, labels.floorSuffix) : undefined}
+      />
+      <FloorPositionModal
+        isOpen={allFloorsView}
+        onClose={() => setAllFloorsView(false)}
+        floors={sortedFloors}
+        selectedFloorId={selectedFloorId}
+        onSelectFloor={(floorId) => setSelectedFloorId(floorId)}
       />
     </section>
   )

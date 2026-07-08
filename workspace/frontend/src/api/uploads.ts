@@ -13,7 +13,7 @@ export type UploadAsset = {
 
 export type UploadAssetCreate = {
   filename: string
-  source_type: 'dxf' | 'image' | 'ifc' | 'glb' | 'unknown'
+  source_type: 'dxf' | 'image' | 'ifc' | 'glb' | 'pointcloud' | 'unknown'
   building_id?: number
   floor_id?: number
 }

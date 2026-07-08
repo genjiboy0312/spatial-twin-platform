@@ -11,7 +11,7 @@ export type SecurityDevice = {
   angle?: number
 }
 
-export type EditMode = 'select' | 'wall' | 'delete' | 'device'
+export type EditMode = 'select' | 'wall' | 'delete' | 'device' | 'room' | 'door' | 'window' | 'opening'
 
 export const GRID_SIZE = 1.0
 
@@ -129,7 +129,6 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
   historyIdx: -1,
 
   setMode: (mode) => set({ mode, selectedWallIdx: null, selectedRoomIdx: null, selectedDeviceIdx: null }),
-
   addWall: (x1, y1, x2, y2) => {
     get().pushHistory()
     set((s) => ({ walls: [...s.walls, { x1, y1, x2, y2 }] }))
