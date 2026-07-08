@@ -28,6 +28,14 @@ class Building(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     floors: Mapped[list["Floor"]] = relationship(back_populates="building", cascade="all, delete-orphan")
+    map_settings: Mapped["BuildingMapSettings | None"] = relationship(
+        back_populates="building",
+        cascade="all, delete-orphan",
+    )
+    spatial_settings: Mapped["BuildingSpatialSettings | None"] = relationship(
+        back_populates="building",
+        cascade="all, delete-orphan",
+    )
 
 
 class Floor(Base):
@@ -42,6 +50,58 @@ class Floor(Base):
     input_type: Mapped[str | None] = mapped_column(String(20))
 
     building: Mapped[Building] = relationship(back_populates="floors")
+    spatial_settings: Mapped["FloorSpatialSettings | None"] = relationship(
+        back_populates="floor",
+        cascade="all, delete-orphan",
+    )
+
+
+class BuildingMapSettings(Base):
+    __tablename__ = "building_map_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), unique=True, index=True)
+    origin_latitude: Mapped[float] = mapped_column(default=37.5665)
+    origin_longitude: Mapped[float] = mapped_column(default=126.9784)
+    osm_zoom: Mapped[int] = mapped_column(Integer, default=16)
+    osm_scale: Mapped[float] = mapped_column(default=2.0)
+    osm_opacity: Mapped[float] = mapped_column(default=0.72)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="map_settings")
+
+
+class BuildingSpatialSettings(Base):
+    __tablename__ = "building_spatial_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), unique=True, index=True)
+    apply_to_building: Mapped[bool] = mapped_column(default=True)
+    alignment_local_points: Mapped[str | None] = mapped_column(Text)
+    alignment_gps_points: Mapped[str | None] = mapped_column(Text)
+    glb_transform: Mapped[str | None] = mapped_column(Text)
+    render_model_format: Mapped[str | None] = mapped_column(String(20))
+    alignment_transform_matrix: Mapped[str | None] = mapped_column(Text)
+    alignment_rmse: Mapped[float | None]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="spatial_settings")
+
+
+class FloorSpatialSettings(Base):
+    __tablename__ = "floor_spatial_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    floor_id: Mapped[int] = mapped_column(ForeignKey("floors.id", ondelete="CASCADE"), unique=True, index=True)
+    alignment_local_points: Mapped[str | None] = mapped_column(Text)
+    alignment_gps_points: Mapped[str | None] = mapped_column(Text)
+    glb_transform: Mapped[str | None] = mapped_column(Text)
+    render_model_format: Mapped[str | None] = mapped_column(String(20))
+    alignment_transform_matrix: Mapped[str | None] = mapped_column(Text)
+    alignment_rmse: Mapped[float | None]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    floor: Mapped[Floor] = relationship(back_populates="spatial_settings")
 
 
 class UploadAsset(Base):

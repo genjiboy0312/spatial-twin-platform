@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,14 @@ class BuildingBase(BaseModel):
 
 class BuildingCreate(BuildingBase):
     pass
+
+
+class BuildingUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    address: str | None = None
+    total_floors: int | None = Field(default=None, ge=1, le=300)
+    origin_longitude: float | None = Field(default=None, ge=-180, le=180)
+    origin_latitude: float | None = Field(default=None, ge=-90, le=90)
 
 
 class BuildingRead(BuildingBase):
@@ -38,9 +46,76 @@ class FloorRead(FloorCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BuildingMapSettingsPayload(BaseModel):
+    origin_latitude: float = Field(ge=-90, le=90)
+    origin_longitude: float = Field(ge=-180, le=180)
+    osm_zoom: int = Field(default=16, ge=1, le=22)
+    osm_scale: float = Field(default=2.0, gt=0, le=100)
+    osm_opacity: float = Field(default=0.72, ge=0, le=1)
+
+
+class BuildingMapSettingsRead(BuildingMapSettingsPayload):
+    building_id: int
+    saved: bool = False
+    updated_at: datetime | None = None
+
+
+class SpatialSettingsPayload(BaseModel):
+    apply_to_building: bool | None = None
+    alignment_local_points: Any | None = None
+    alignment_gps_points: Any | None = None
+    glb_transform: Any | None = None
+    render_model_format: Literal["glb", "dxf"] | None = None
+    alignment_transform_matrix: Any | None = None
+    alignment_rmse: float | None = None
+
+
+class SpatialSettingsRead(SpatialSettingsPayload):
+    building_id: int | None = None
+    floor_id: int | None = None
+    saved: bool = False
+    updated_at: datetime | None = None
+
+
+class GpsControlPoint(BaseModel):
+    local: tuple[float, float]
+    gps: tuple[float, float]
+
+
+class GpsThreePointRequest(BaseModel):
+    building_id: int
+    points: list[GpsControlPoint] = Field(min_length=3)
+
+
+class GpsThreePointResponse(BaseModel):
+    building_id: int
+    transform_matrix: list[list[float]]
+    rmse: float
+
+
+class GpsTransformPointRequest(BaseModel):
+    building_id: int
+    local_point: tuple[float, float]
+    transform_matrix: list[list[float]]
+
+
+class GpsTransformPointResponse(BaseModel):
+    gps_point: tuple[float, float]
+
+
+class GpsBatchTransformPointRequest(BaseModel):
+    building_id: int
+    local_points: list[tuple[float, float]] = Field(min_length=1)
+    transform_matrix: list[list[float]]
+
+
+class GpsBatchTransformPointResponse(BaseModel):
+    gps_points: list[tuple[float, float]]
+
+
 class UploadAssetCreate(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
-    source_type: Literal["dxf", "image", "ifc", "glb", "unknown"] = "unknown"
+    source_type: Literal["dxf", "image", "ifc", "glb", "pointcloud", "unknown"] = "unknown"
     building_id: int | None = None
     floor_id: int | None = None
 

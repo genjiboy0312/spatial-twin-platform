@@ -13,6 +13,9 @@ from app.settings import get_settings
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
+ALLOWED_SOURCE_TYPES = {"dxf", "image", "ifc", "glb", "pointcloud", "unknown"}
+POINTCLOUD_EXTENSIONS = {".las", ".laz", ".ply"}
+
 
 @router.get("", response_model=list[UploadAssetRead])
 def list_uploads(db: Session = Depends(get_db)) -> list[UploadAsset]:
@@ -61,26 +64,46 @@ async def upload_file(
 ) -> UploadAsset:
     settings = get_settings()
 
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported source type")
+
     if building_id is not None and db.get(Building, building_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Building not found")
+
+    floor: Floor | None = None
+    if floor_id is not None:
+        floor = db.get(Floor, floor_id)
+        if floor is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Floor not found")
+        if building_id is not None and floor.building_id != building_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Floor does not belong to building")
 
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     ext = Path(file.filename or "unknown").suffix if file.filename else ""
+    if source_type == "pointcloud" and ext.lower() not in POINTCLOUD_EXTENSIONS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported pointcloud file type")
+
     unique_name = f"{uuid4().hex}{ext}"
     file_path = upload_dir / unique_name
 
     content = await file.read()
     file_path.write_bytes(content)
+    status_value = "ready" if source_type == "pointcloud" else "uploaded"
+    message = (
+        f"PointCloud object ready from {file_path.name} ({len(content)} bytes)"
+        if source_type == "pointcloud"
+        else f"Stored at {file_path.name}"
+    )
 
     upload = UploadAsset(
         filename=file.filename or unique_name,
         source_type=source_type,
         building_id=building_id,
         floor_id=floor_id,
-        status="uploaded",
-        message=f"Stored at {file_path.name}",
+        status=status_value,
+        message=message,
     )
     db.add(upload)
     try:

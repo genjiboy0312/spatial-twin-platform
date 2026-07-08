@@ -53,6 +53,39 @@ def test_upload_rejects_floor_from_other_building() -> None:
     assert response.json() == {"detail": "Floor does not belong to building"}
 
 
+def test_pointcloud_file_upload_creates_ready_asset() -> None:
+    building = client.post("/api/buildings", json={"name": "PointCloud Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+
+    response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "pointcloud", "building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files={"file": ("scan.ply", b"ply\nformat ascii 1.0\nend_header\n", "application/octet-stream")},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["source_type"] == "pointcloud"
+    assert body["status"] == "ready"
+    assert body["floor_id"] == floor["id"]
+    assert "PointCloud object ready" in body["message"]
+
+
+def test_file_upload_rejects_floor_from_other_building() -> None:
+    first = client.post("/api/buildings", json={"name": "File Upload A"}).json()
+    second = client.post("/api/buildings", json={"name": "File Upload B"}).json()
+    floor = client.post(f"/api/buildings/{first['id']}/floors", json={"floor_number": 1}).json()
+
+    response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "pointcloud", "building_id": str(second["id"]), "floor_id": str(floor["id"])},
+        files={"file": ("scan.ply", b"ply\nformat ascii 1.0\nend_header\n", "application/octet-stream")},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Floor does not belong to building"}
+
+
 def test_workflow_update_requires_existing_building() -> None:
     response = client.patch("/api/workflow/404", json={"current_step": "editor"})
     assert response.status_code == 404
@@ -72,3 +105,97 @@ def test_workflow_update_for_existing_building() -> None:
         "current_step": "editor",
         "completed_steps": ["projects", "data-sources"],
     }
+
+
+def test_update_building_and_map_settings() -> None:
+    building = client.post("/api/buildings", json={"name": "Map Parent"}).json()
+
+    patch_response = client.patch(
+        f"/api/buildings/{building['id']}",
+        json={"origin_latitude": 37.5, "origin_longitude": 127.0},
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.json()["origin_latitude"] == 37.5
+
+    map_response = client.put(
+        f"/api/buildings/{building['id']}/map-settings",
+        json={
+            "origin_latitude": 37.501,
+            "origin_longitude": 127.001,
+            "osm_zoom": 17,
+            "osm_scale": 2.5,
+            "osm_opacity": 0.8,
+        },
+    )
+    assert map_response.status_code == 200
+    assert map_response.json()["saved"] is True
+    assert map_response.json()["osm_zoom"] == 17
+
+    get_response = client.get(f"/api/buildings/{building['id']}/map-settings")
+    assert get_response.status_code == 200
+    assert get_response.json()["origin_latitude"] == 37.501
+
+
+def test_spatial_settings_round_trip() -> None:
+    building = client.post("/api/buildings", json={"name": "Spatial Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+    payload = {
+        "apply_to_building": False,
+        "alignment_local_points": {"origin": [0, 0, 0]},
+        "alignment_gps_points": {"origin": [37.5, 127.0]},
+        "glb_transform": {"position": [1, 2, 3]},
+        "render_model_format": "glb",
+        "alignment_transform_matrix": [[1, 0, 127], [0, 1, 37]],
+        "alignment_rmse": 0.12,
+    }
+
+    building_response = client.put(f"/api/buildings/{building['id']}/spatial-settings", json=payload)
+    assert building_response.status_code == 200
+    assert building_response.json()["alignment_local_points"] == {"origin": [0, 0, 0]}
+    assert building_response.json()["apply_to_building"] is False
+
+    floor_response = client.put(f"/api/floors/{floor['id']}/spatial-settings", json=payload)
+    assert floor_response.status_code == 200
+    assert floor_response.json()["floor_id"] == floor["id"]
+    assert floor_response.json()["glb_transform"] == {"position": [1, 2, 3]}
+
+
+def test_gps_alignment_three_point_and_transform() -> None:
+    building = client.post("/api/buildings", json={"name": "GPS Parent"}).json()
+    response = client.post(
+        "/api/gps-alignment/three-point",
+        json={
+            "building_id": building["id"],
+            "points": [
+                {"local": [0, 0], "gps": [37.0, 127.0]},
+                {"local": [10, 0], "gps": [37.0, 127.001]},
+                {"local": [0, 10], "gps": [37.001, 127.0]},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["building_id"] == building["id"]
+    assert body["rmse"] < 1e-9
+
+    transform_response = client.post(
+        "/api/gps-alignment/transform-point",
+        json={
+            "building_id": building["id"],
+            "local_point": [10, 10],
+            "transform_matrix": body["transform_matrix"],
+        },
+    )
+    assert transform_response.status_code == 200
+    assert transform_response.json()["gps_point"] == [37.001, 127.001]
+
+    batch_response = client.post(
+        "/api/gps-alignment/batch-transform-point",
+        json={
+            "building_id": building["id"],
+            "local_points": [[0, 0], [10, 10]],
+            "transform_matrix": body["transform_matrix"],
+        },
+    )
+    assert batch_response.status_code == 200
+    assert batch_response.json()["gps_points"] == [[37.0, 127.0], [37.001, 127.001]]
