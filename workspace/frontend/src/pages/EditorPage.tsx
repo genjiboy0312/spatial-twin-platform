@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload, Download } from '../components/Icons'
 import { ViewToolbar } from '../components/ViewToolbar'
@@ -57,8 +57,8 @@ const copy = {
     clear: 'Clear',
   },
   ko: {
-    eyebrow: '3D 편집',
-    title: '공간 편집 씬',
+    eyebrow: 'STEP 3',
+    title: '공간 편집',
     description: '층 탐색, 캔버스 오버레이, 뷰 모드, 속성 패널을 한 화면에서 다루는 전용 편집 씬입니다.',
     building: '건물',
     noBuilding: '선택된 건물 없음',
@@ -86,7 +86,7 @@ const copy = {
 type ViewMode = '2d' | 'split' | '3d' | 'pointcloud' | 'ifc'
 
 const viewModes: ViewMode[] = ['2d', '3d', 'split', 'pointcloud', 'ifc']
-const POINTCLOUD_MAX_POINTS = 500_000
+const POINTCLOUD_MAX_POINTS = 2_000_000
 
 function floorLabel(floor: Floor, suffix: string) {
   return floor.floor_name ?? `${floor.floor_number}${suffix}`
@@ -96,76 +96,38 @@ function formatPointCount(value: number) {
   return new Intl.NumberFormat('ko-KR').format(value)
 }
 
-function PointCloudGenerationCanvas({ uploads }: { uploads: UploadAsset[] }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+function PointCloudGenerationMeter({ uploads }: { uploads: UploadAsset[] }) {
   const [generatedPoints, setGeneratedPoints] = useState(0)
   const totalPoints = uploads.length > 0 ? POINTCLOUD_MAX_POINTS : 0
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || uploads.length === 0) {
+    if (uploads.length === 0) {
       setGeneratedPoints(0)
       return undefined
     }
 
     let frameId = 0
     let generated = 0
-    let lastUiUpdate = 0
-    const context = canvas.getContext('2d')
-    if (!context) return undefined
-
-    const resizeCanvas = () => {
-      const rect = canvas.getBoundingClientRect()
-      const ratio = window.devicePixelRatio || 1
-      canvas.width = Math.max(1, Math.floor(rect.width * ratio))
-      canvas.height = Math.max(1, Math.floor(rect.height * ratio))
-      context.setTransform(ratio, 0, 0, ratio, 0, 0)
-      context.clearRect(0, 0, rect.width, rect.height)
-      generated = 0
-      lastUiUpdate = 0
-      setGeneratedPoints(0)
-    }
 
     const drawBatch = () => {
-      const rect = canvas.getBoundingClientRect()
-      const batchSize = Math.min(12_000, totalPoints - generated)
-      for (let i = 0; i < batchSize; i += 1) {
-        const index = generated + i
-        const upload = uploads[index % uploads.length]!
-        const seed = upload.id * 104_729 + index * 37
-        const x = 22 + ((seed * 17) % Math.max(1, Math.floor(rect.width - 44)))
-        const y = 36 + ((seed * 31) % Math.max(1, Math.floor(rect.height - 70)))
-        const alpha = 0.24 + ((seed * 13) % 64) / 100
-        context.fillStyle = index % 3 === 0 ? `rgba(56,189,248,${alpha})` : `rgba(34,197,94,${alpha})`
-        context.fillRect(x, y, 1.25, 1.25)
-      }
-
-      generated += batchSize
-      if (generated - lastUiUpdate > 18_000 || generated >= totalPoints) {
-        lastUiUpdate = generated
-        setGeneratedPoints(generated)
-      }
+      generated = Math.min(totalPoints, generated + Math.max(8_000, Math.floor(totalPoints * 0.025)))
+      setGeneratedPoints(generated)
       if (generated < totalPoints) frameId = window.requestAnimationFrame(drawBatch)
     }
 
-    resizeCanvas()
+    setGeneratedPoints(0)
     frameId = window.requestAnimationFrame(drawBatch)
-    window.addEventListener('resize', resizeCanvas)
 
     return () => {
       window.cancelAnimationFrame(frameId)
-      window.removeEventListener('resize', resizeCanvas)
     }
   }, [totalPoints, uploads])
 
   return (
-    <>
-      <canvas ref={canvasRef} className="editor-pointcloud-canvas" />
-      <div className="editor-pointcloud-generation-meter">
-        <strong>{formatPointCount(generatedPoints)}</strong>
-        <span>/ {formatPointCount(totalPoints)} points generated</span>
-      </div>
-    </>
+    <div className="editor-pointcloud-generation-meter">
+      <strong>{formatPointCount(generatedPoints)}</strong>
+      <span>/ {formatPointCount(totalPoints)} points generated</span>
+    </div>
   )
 }
 
@@ -355,7 +317,6 @@ export function EditorPage() {
         rooms={rooms}
         devices={devices}
         selectedDeviceIdx={selectedDeviceIdx}
-        pointClouds={visiblePointCloudUploads}
       />
     </Suspense>
   )
@@ -372,17 +333,22 @@ export function EditorPage() {
 
     return (
       <>
-        <div className="editor-pointcloud-object-list">
-          {visiblePointCloudUploads.map((upload, index) => (
-            <article key={upload.id} className="editor-pointcloud-object-card">
-              <strong>{upload.filename}</strong>
-              <span>{upload.status === 'ready' ? 'Generating point object' : upload.status}</span>
-              <small>{upload.floor_id ? `Floor #${upload.floor_id}` : 'Building level'}</small>
-              <i style={{ width: `${Math.min(92, 34 + index * 12)}%` }} />
-            </article>
-          ))}
+        <div className="editor-pointcloud-stage">
+          <Suspense fallback={<div className="viewer-placeholder">{labels.loading3d}</div>}>
+            <ThreeJSViewer pointClouds={visiblePointCloudUploads} />
+          </Suspense>
+          <div className="editor-pointcloud-object-list">
+            {visiblePointCloudUploads.map((upload, index) => (
+              <article key={upload.id} className="editor-pointcloud-object-card">
+                <strong>{upload.filename}</strong>
+                <span>{upload.status === 'ready' ? 'Generating point object' : upload.status}</span>
+                <small>{upload.floor_id ? `Floor #${upload.floor_id}` : 'Building level'}</small>
+                <i style={{ width: `${Math.min(92, 34 + index * 12)}%` }} />
+              </article>
+            ))}
+          </div>
         </div>
-        <PointCloudGenerationCanvas uploads={visiblePointCloudUploads} />
+        <PointCloudGenerationMeter uploads={visiblePointCloudUploads} />
       </>
     )
   }
@@ -457,23 +423,6 @@ export function EditorPage() {
           </section>
           <div className="editor-sidebar-divider" />
 
-          <div className="editor-sidebar-divider" />
-
-          {/* Building name */}
-          <section className="editor-sidebar-section">
-            <div className="editor-scene-panel-title compact">
-              <span className="eyebrow-muted">{labels.building}</span>
-            </div>
-            {selectedBuilding ? (
-              <div className="editor-building-name">
-                <strong>{selectedBuilding.name}</strong>
-              </div>
-            ) : (
-              <p className="editor-floor-empty">{labels.noBuilding}</p>
-            )}
-          </section>
-          <div className="editor-sidebar-divider" />
-
           {/* Floor stack */}
           <section className="editor-sidebar-section">
             <div className="editor-scene-panel-title compact">
@@ -533,9 +482,6 @@ export function EditorPage() {
               </button>
             </div>
           </section>
-          <EnhancedLayerPanel />
-
-          {/* Layers */}
           <EnhancedLayerPanel />
         </aside>
 

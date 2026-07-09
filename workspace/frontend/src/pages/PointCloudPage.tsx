@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { listFloors, type Floor } from '../api/floors'
-import { listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
+import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
 
@@ -190,10 +190,13 @@ export function PointCloudPage() {
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [activeTab, setActiveTab] = useState<'upload' | 'connected'>('upload')
+  const [selectedUploadIds, setSelectedUploadIds] = useState<Set<number>>(() => new Set())
+  const [deletingUploadId, setDeletingUploadId] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const pointClouds = useMemo(() => uploads.filter((upload) => upload.source_type === 'pointcloud'), [uploads])
+  const selectedCount = selectedUploadIds.size
 
   const stats = useMemo(() => {
     const totalPoints = pointClouds.reduce((sum, asset) => sum + estimatePoints(asset), 0)
@@ -249,6 +252,14 @@ export function PointCloudPage() {
     refreshBuildingData(selectedBuildingId)
   }, [refreshBuildingData, selectedBuildingId])
 
+  useEffect(() => {
+    setSelectedUploadIds((current) => {
+      const availableIds = new Set(pointClouds.map((asset) => asset.id))
+      const next = new Set(Array.from(current).filter((id) => availableIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [pointClouds])
+
   const handleUpload = useCallback(async (file: File) => {
     if (selectedBuildingId === null) {
       setError(labels.noBuildingTitle)
@@ -281,6 +292,39 @@ export function PointCloudPage() {
     setIsDragging(false)
     const file = event.dataTransfer.files?.[0]
     if (file) handleUpload(file)
+  }
+
+  const toggleSelectedUpload = (uploadId: number) => {
+    setSelectedUploadIds((current) => {
+      const next = new Set(current)
+      if (next.has(uploadId)) {
+        next.delete(uploadId)
+      } else {
+        next.add(uploadId)
+      }
+      return next
+    })
+  }
+
+  const handleDeleteUpload = async (asset: UploadAsset) => {
+    if (selectedBuildingId === null || deletingUploadId !== null) return
+    setDeletingUploadId(asset.id)
+    setError(null)
+    setMessage(null)
+    try {
+      await deleteUpload(asset.id)
+      await refreshBuildingData(selectedBuildingId)
+      setSelectedUploadIds((current) => {
+        const next = new Set(current)
+        next.delete(asset.id)
+        return next
+      })
+      setMessage(`${asset.filename} 삭제 완료`)
+    } catch {
+      setError(`${asset.filename} 삭제 실패`)
+    } finally {
+      setDeletingUploadId(null)
+    }
   }
 
   return (
@@ -428,16 +472,45 @@ export function PointCloudPage() {
                   )}
                   {pointClouds.length > 0 && (
                     <div className="pointcloud-source-list">
+                      <div className="pointcloud-selection-bar">
+                        <span>{selectedCount > 0 ? `${selectedCount}개 선택됨` : '업로드된 PointCloud 목록'}</span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          type="button"
+                          onClick={() => setSelectedUploadIds(selectedCount > 0 ? new Set() : new Set(pointClouds.map((asset) => asset.id)))}
+                        >
+                          {selectedCount > 0 ? '선택 해제' : '전체 선택'}
+                        </button>
+                      </div>
                       {pointClouds.map((asset) => {
                         const status = uploadStatus(asset)
                         const floor = floors.find((candidate) => candidate.id === asset.floor_id)
+                        const selected = selectedUploadIds.has(asset.id)
                         return (
-                          <article key={asset.id} className={`pointcloud-source-card ${status}`}>
+                          <article key={asset.id} className={`pointcloud-source-card ${status} ${selected ? 'selected' : ''}`}>
+                            <label className="pointcloud-source-select" aria-label={`${asset.filename} 선택`}>
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => toggleSelectedUpload(asset.id)}
+                              />
+                              <span />
+                            </label>
                             <span className="pointcloud-source-status"><PointCloudIcon name={status === 'failed' ? 'warning' : status === 'converting' ? 'clock' : 'check'} /></span>
                             <div>
                               <div className="pointcloud-source-title">
                                 <strong>{asset.filename}</strong>
-                                <em>{labels.status[status]}</em>
+                                <div className="pointcloud-source-actions">
+                                  <em>{labels.status[status]}</em>
+                                  <button
+                                    className="pointcloud-delete-btn"
+                                    type="button"
+                                    disabled={deletingUploadId === asset.id}
+                                    onClick={() => handleDeleteUpload(asset)}
+                                  >
+                                    {deletingUploadId === asset.id ? '삭제 중' : '삭제'}
+                                  </button>
+                                </div>
                               </div>
                               <p>
                                 {formatPoints(estimatePoints(asset))} / {formatDate(asset.created_at)}

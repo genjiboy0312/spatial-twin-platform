@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type WorkflowStep = 'projects' | 'data-sources' | 'editor' | 'alignment' | 'validation' | 'monitor'
+export type WorkflowStep = 'projects' | 'data-sources' | 'editor' | 'alignment' | 'validation'
 
 type WorkflowState = {
   currentStep: WorkflowStep

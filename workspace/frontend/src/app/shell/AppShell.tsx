@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import { useWorkflowStore, type WorkflowStep } from '../../stores/workflowStore'
@@ -151,7 +151,6 @@ const scenarioSteps: Array<{ id: WorkflowStep; label: NavLabel; shortEn: string;
   { id: 'editor', label: 'Editor', shortEn: '3D Edit', shortKo: '3D 편집', to: '/editor' },
   { id: 'alignment', label: 'Alignment', shortEn: 'GPS', shortKo: 'GPS', to: '/alignment' },
   { id: 'validation', label: 'Validation', shortEn: 'Validate', shortKo: '검증', to: '/validation' },
-  { id: 'monitor', label: 'Monitor', shortEn: 'Operate', shortKo: '운영', to: '/monitor' },
 ]
 
 const notifications = [
@@ -405,19 +404,25 @@ export function AppShell() {
               const isComplete = completedSteps.includes(step.id) || index < scenarioIndex
               const stateLabel = isActive ? labels.current : isComplete ? labels.complete : labels.pending
               return (
-                <NavLink
-                  key={step.id}
-                  to={step.to}
-                  className={`scenario-step ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
-                  aria-current={isActive ? 'step' : undefined}
-                  onClick={() => setWorkflowCurrentStep(step.id)}
-                >
-                  <span className="scenario-step-index">{isComplete ? '✓' : index + 1}</span>
-                  <span className="scenario-step-copy">
-                    <strong>{language === 'ko' ? step.shortKo : step.shortEn}</strong>
-                    <small>{stateLabel}</small>
-                  </span>
-                </NavLink>
+                <Fragment key={step.id}>
+                  <NavLink
+                    to={step.to}
+                    className={`scenario-step ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
+                    aria-current={isActive ? 'step' : undefined}
+                    onClick={() => setWorkflowCurrentStep(step.id)}
+                  >
+                    <span className="scenario-step-index">{isComplete ? '\u2713' : index + 1}</span>
+                    <span className="scenario-step-copy">
+                      <strong>{language === 'ko' ? step.shortKo : step.shortEn}</strong>
+                      <small>{stateLabel}</small>
+                    </span>
+                  </NavLink>
+                  {index < scenarioSteps.length - 1 && (
+                    <span className="scenario-step-arrow" aria-hidden="true">
+                      {'\u2192'}
+                    </span>
+                  )}
+                </Fragment>
               )
             })}
           </nav>

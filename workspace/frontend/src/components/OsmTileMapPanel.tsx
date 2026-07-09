@@ -21,7 +21,7 @@ type Props = {
   onViewChange?: (center: LatLngTuple, zoom: number) => void
 }
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const TILE_URL = '/api/osm-tiles/{z}/{x}/{y}.png'
 const DEFAULT_CENTER: LatLngTuple = [37.5665, 126.9784]
 const MIN_ZOOM = 10
 const MAX_ZOOM = 18
@@ -117,7 +117,7 @@ export function OsmTileMapPanel({
   }, [mapCenter, mapZoom, updateView])
 
   const handleMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
+    if (event.button !== 2) return
     panStart.current = { x: event.clientX, y: event.clientY, center: mapCenter }
     isPanning.current = false
   }, [mapCenter])
@@ -160,6 +160,7 @@ export function OsmTileMapPanel({
       onMouseUp={finishPan}
       onMouseLeave={finishPan}
       onClick={handleClick}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {tileInfo.tiles.map((tile) => (
         <img

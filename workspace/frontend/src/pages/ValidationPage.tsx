@@ -122,7 +122,7 @@ type ValidationLabels = {
 
 const copy: Record<'en' | 'ko', ValidationLabels> = {
   en: {
-    eyebrow: 'Step 6',
+    eyebrow: 'Step 5',
     title: 'Validation',
     description: 'Audit geometry, rooms, security coverage, and GPS alignment before operations handoff.',
     dashboard: 'Dashboard',
@@ -287,7 +287,7 @@ const copy: Record<'en' | 'ko', ValidationLabels> = {
     },
   },
   ko: {
-    eyebrow: 'Step 6',
+    eyebrow: 'Step 5',
     title: '검증',
     description: '운영 인계 전에 형상, 공간, 보안 커버리지, GPS 정합 상태를 감사합니다.',
     dashboard: '대시보드',
@@ -958,137 +958,432 @@ function formatMeters(value: number): string {
   return `${value.toFixed(value < 10 ? 2 : 1)} m`
 }
 
+type ValidationViewMode = 'floor' | 'building' | 'coverage' | 'risk'
+
+type ValidationFloor = {
+  id: string
+  name: string
+  height: string
+  sourceCategory: ValidationCategoryId
+}
+
+type ValidationUiCopy = {
+  pageTitle: string
+  pageDescription: string
+  score: string
+  statusText: Record<ValidationStatus, string>
+  pass: string
+  warning: string
+  failed: string
+  structure: string
+  floorPreview: string
+  floorPreviewDescription: string
+  checklist: string
+  devices: string
+  categoryLabels: Record<ValidationCategoryId, string>
+  viewLabels: Record<ValidationViewMode, string>
+  issueMarkers: string
+  on: string
+  off: string
+  summary: string
+  selectedDevices: string
+  selectedDevicesDetail: string
+  overallStatus: string
+  ready: string
+  readyDetail: string
+  needsReview: string
+  needsReviewDetail: string
+  issuesTitle: string
+  noIssues: string
+  quickFix: string
+  openEditor: string
+  openDataSources: string
+  selectedFloor: string
+  fullBuilding: string
+  coverage: string
+  risk: string
+  emptyScene: string
+}
+
+const validationUiCopy: Record<'en' | 'ko', ValidationUiCopy> = {
+  en: {
+    pageTitle: 'Validation',
+    pageDescription: 'Review building structure, security devices, coverage, and alignment readiness in one validation scene.',
+    score: 'Validation Score',
+    statusText: { pass: 'Pass', warning: 'Warning', error: 'Fail' },
+    pass: 'Passed',
+    warning: 'Warning',
+    failed: 'Failed',
+    structure: 'Building Structure',
+    floorPreview: 'Floor Preview',
+    floorPreviewDescription: 'Check the selected floor first, then switch to the whole building when needed.',
+    checklist: 'Validation Checklist',
+    devices: 'devices',
+    categoryLabels: { geometry: 'Structure', space: 'Space', security: 'Security', alignment: 'Alignment' },
+    viewLabels: { floor: 'Selected Floor 3D', building: 'Full Building', coverage: 'Coverage', risk: 'Risk Analysis' },
+    issueMarkers: 'Show issue markers',
+    on: 'On',
+    off: 'Off',
+    summary: 'Summary',
+    selectedDevices: 'Selected floor security devices',
+    selectedDevicesDetail: 'Devices placed on the current floor',
+    overallStatus: 'Overall Status',
+    ready: 'Validation passed',
+    readyDetail: 'You can proceed to the next workflow step.',
+    needsReview: 'Needs review',
+    needsReviewDetail: 'Resolve failed or warning checks before handoff.',
+    issuesTitle: 'Needs Resolution',
+    noIssues: 'No issues found for the selected validation scope.',
+    quickFix: 'Quick Fix',
+    openEditor: 'Open 3D Editor',
+    openDataSources: 'Open Data Sources',
+    selectedFloor: 'Selected floor structure and security preview',
+    fullBuilding: 'Whole building validation stack',
+    coverage: 'Coverage map preview',
+    risk: 'Risk markers and threat paths',
+    emptyScene: 'Upload a drawing or place geometry to preview validation.',
+  },
+  ko: {
+    pageTitle: '검증',
+    pageDescription: '건물 구조, 보안장치, 커버리지, GPS 정합 준비 상태를 한 화면에서 확인합니다.',
+    score: 'Validation Score',
+    statusText: { pass: '통과', warning: '주의', error: '실패' },
+    pass: '통과',
+    warning: '주의',
+    failed: '실패',
+    structure: 'Building Structure',
+    floorPreview: '층별 프리뷰',
+    floorPreviewDescription: '검증은 선택 층 기준으로 먼저 확인하고, 필요 시 전체 건물 뷰로 전환합니다.',
+    checklist: '검증 체크리스트',
+    devices: 'devices',
+    categoryLabels: { geometry: '구조', space: '공간', security: '보안', alignment: '정합' },
+    viewLabels: { floor: '선택 층 3D', building: '전체 건물', coverage: '커버리지', risk: '위험 분석' },
+    issueMarkers: '이슈 마커 표시',
+    on: '켜기',
+    off: '끄기',
+    summary: '요약',
+    selectedDevices: '선택 층 보안장치',
+    selectedDevicesDetail: '현재 층에 배치된 장치 수',
+    overallStatus: '전체 상태',
+    ready: '검증 통과',
+    readyDetail: '다음 워크플로 단계로 진행할 수 있습니다.',
+    needsReview: '검토 필요',
+    needsReviewDetail: '인계 전에 실패 또는 주의 항목을 해결하세요.',
+    issuesTitle: '해결이 필요한 항목',
+    noIssues: '선택한 검증 범위에서 발견된 이슈가 없습니다.',
+    quickFix: '빠른 이동',
+    openEditor: '3D 편집 열기',
+    openDataSources: '데이터 소스 열기',
+    selectedFloor: '선택 층 구조 및 보안장치 프리뷰',
+    fullBuilding: '전체 건물 검증 스택',
+    coverage: '커버리지 맵 프리뷰',
+    risk: '위험 마커 및 위협 경로',
+    emptyScene: '도면을 업로드하거나 구조를 배치하면 검증 프리뷰가 표시됩니다.',
+  },
+}
+
+const validationFloors: ValidationFloor[] = [
+  { id: '3f', name: '3FTest', height: '3m', sourceCategory: 'alignment' },
+  { id: '2f', name: '2F', height: '3m', sourceCategory: 'space' },
+  { id: '1f', name: '1F', height: '3m', sourceCategory: 'geometry' },
+]
+
+function getPlanBounds(walls: Wall2D[], rooms: Room2D[], devices: SecurityDevice[]) {
+  const xs = [
+    ...walls.flatMap((wall) => [wall.x1, wall.x2]),
+    ...rooms.flatMap((room) => [room.x, room.x + room.w]),
+    ...devices.map((device) => device.x),
+  ]
+  const ys = [
+    ...walls.flatMap((wall) => [wall.y1, wall.y2]),
+    ...rooms.flatMap((room) => [room.y, room.y + room.h]),
+    ...devices.map((device) => device.y),
+  ]
+
+  if (xs.length === 0 || ys.length === 0) {
+    return { minX: -8, maxX: 18, minY: -8, maxY: 18 }
+  }
+
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const pad = Math.max(2, Math.max(maxX - minX, maxY - minY) * 0.18)
+
+  return { minX: minX - pad, maxX: maxX + pad, minY: minY - pad, maxY: maxY + pad }
+}
+
+function statusIcon(status: ValidationStatus): string {
+  if (status === 'pass') return 'OK'
+  if (status === 'warning') return '!'
+  return 'X'
+}
+
 export function ValidationPage() {
   const { language } = usePreferences()
   const labels = copy[language]
+  const ui = validationUiCopy[language]
   const validation = useValidation(labels)
+  const walls = useEditorStore((state) => state.walls)
+  const rooms = useEditorStore((state) => state.rooms)
+  const devices = useEditorStore((state) => state.devices)
+  const [selectedFloorId, setSelectedFloorId] = useState('1f')
+  const [activeView, setActiveView] = useState<ValidationViewMode>('floor')
   const [selectedCategoryId, setSelectedCategoryId] = useState<ValidationCategoryId>('geometry')
+  const [showIssueMarkers, setShowIssueMarkers] = useState(true)
+
+  const selectedFloor = validationFloors.find((floor) => floor.id === selectedFloorId) ?? validationFloors[2]!
   const selectedCategory = validation.categories.find((category) => category.id === selectedCategoryId) ?? validation.categories[0]!
+  const allIssues = validation.categories.flatMap((category) => category.issues.map((issue) => ({ ...issue, category: category.id })))
+  const bounds = useMemo(() => getPlanBounds(walls, rooms, devices), [devices, rooms, walls])
+  const rangeX = Math.max(bounds.maxX - bounds.minX, 1)
+  const rangeY = Math.max(bounds.maxY - bounds.minY, 1)
+  const selectedFloorDeviceCount = selectedFloor.id === '1f' ? devices.length : 0
+  const quickIssues = selectedCategory.issues.length > 0 ? selectedCategory.issues : allIssues.slice(0, 4)
+
+  const toLeft = (x: number) => ((x - bounds.minX) / rangeX) * 100
+  const toTop = (y: number) => ((y - bounds.minY) / rangeY) * 100
 
   return (
-    <section className="page-grid spatial-page validation-page">
-      <PageHeader eyebrow={labels.eyebrow} title={labels.title} description={labels.description} />
+    <section className="page-grid spatial-page validation-page validation-workspace">
+      <PageHeader eyebrow="Step 5" title={ui.pageTitle} description={ui.pageDescription} />
 
-      <section className={`validation-hero ${validation.status}`}>
-        <div className="validation-hero-copy">
-          <span className="eyebrow-muted">{labels.dashboard}</span>
-          <h2>{labels.overall}</h2>
-          <p>{labels.liveAudit}</p>
-          <div className="validation-status-legend" aria-label={labels.score}>
-            <span className="pass">Emerald</span>
-            <span className="warning">Amber</span>
-            <span className="error">Ruby</span>
+      <section className="validation-score-grid" aria-label={ui.score}>
+        <article className={`validation-score-card hero ${validation.status}`}>
+          <div>
+            <span>{ui.score}</span>
+            <strong>{validation.score}%</strong>
+            <p>{ui.pageDescription}</p>
           </div>
-        </div>
-
-        <div className="validation-gauge-shell">
-          <div
-            aria-label={`${labels.score}: ${validation.score}%`}
-            className={`validation-gauge ${validation.status}`}
-            role="img"
-            style={{ ['--score' as string]: `${validation.score}%` }}
-          >
-            <div className="validation-gauge-core">
-              <strong>{validation.score}%</strong>
-              <span>{labels.statuses[validation.status]}</span>
-            </div>
+          <div className="validation-score-icon" aria-hidden="true">LS</div>
+        </article>
+        <article className="validation-score-card pass">
+          <span className="validation-ring-icon">OK</span>
+          <div>
+            <strong>{validation.passedCount}</strong>
+            <p>{ui.pass}</p>
           </div>
-        </div>
-
-        <div className="validation-hero-actions">
-          <Link className="btn btn-primary" to="/editor">{labels.openEditor}</Link>
-          <Link className="btn btn-secondary" to="/dashboard">{labels.openDashboard}</Link>
-        </div>
-      </section>
-
-      <section className="validation-stat-grid" aria-label={labels.overall}>
-        <article className="validation-stat-card">
-          <span>{labels.checks}</span>
-          <strong>{validation.checkCount}</strong>
-          <small>{validation.passedCount}/{validation.categories.length} {labels.passed}</small>
         </article>
-        <article className="validation-stat-card">
-          <span>{labels.issueCount}</span>
-          <strong>{validation.issueCount}</strong>
-          <small>{validation.issueCount === 0 ? labels.passed : labels.review}</small>
+        <article className="validation-score-card warning">
+          <span className="validation-ring-icon">!</span>
+          <div>
+            <strong>{validation.warningCount}</strong>
+            <p>{ui.warning}</p>
+          </div>
         </article>
-        <article className="validation-stat-card warning">
-          <span>{labels.warnings}</span>
-          <strong>{validation.warningCount}</strong>
-          <small>{labels.statuses.warning}</small>
-        </article>
-        <article className="validation-stat-card error">
-          <span>{labels.errors}</span>
-          <strong>{validation.errorCount}</strong>
-          <small>{labels.statuses.error}</small>
+        <article className="validation-score-card error">
+          <span className="validation-ring-icon">X</span>
+          <div>
+            <strong>{validation.errorCount}</strong>
+            <p>{ui.failed}</p>
+          </div>
         </article>
       </section>
 
-      <div className="validation-dashboard-layout">
-        <section className="validation-category-grid" aria-label={labels.dashboard}>
-          {validation.categories.map((category) => (
-            <button
-              key={category.id}
-              aria-pressed={selectedCategory.id === category.id}
-              className={`validation-category-card ${category.status} ${selectedCategory.id === category.id ? 'active' : ''}`}
-              onClick={() => setSelectedCategoryId(category.id)}
-              type="button"
-            >
-              <span className="validation-card-kicker">{category.title}</span>
-              <strong>{category.score}%</strong>
-              <em>{labels.statuses[category.status]}</em>
-              <p>{category.summary}</p>
-              <span className="validation-card-footer">
-                <span>{category.checks} {labels.checks}</span>
-                <span>{category.issues.length} {labels.issues}</span>
-              </span>
-            </button>
-          ))}
-        </section>
+      <div className="validation-reference-layout">
+        <aside className="validation-left-panel">
+          <div className="validation-panel-heading">
+            <span>{ui.structure}</span>
+            <strong>{ui.floorPreview}</strong>
+            <p>{ui.floorPreviewDescription}</p>
+          </div>
 
-        <aside className={`validation-detail-panel ${selectedCategory.status}`}>
-          <div className="validation-detail-header">
+          <div className="validation-floor-list">
+            {validationFloors.map((floor) => {
+              const category = validation.categories.find((item) => item.id === floor.sourceCategory)
+              const isSelected = floor.id === selectedFloor.id
+
+              return (
+                <button
+                  key={floor.id}
+                  className={isSelected ? 'active' : ''}
+                  onClick={() => {
+                    setSelectedFloorId(floor.id)
+                    setActiveView('floor')
+                    setSelectedCategoryId(floor.sourceCategory)
+                  }}
+                  type="button"
+                >
+                  <span>
+                    <strong>{floor.name}</strong>
+                    <small>{floor.height} · {floor.id === '1f' ? devices.length : 0} {ui.devices}</small>
+                  </span>
+                  <em>#{category?.score ?? 0}</em>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="validation-checklist-card">
+            <strong>{ui.checklist}</strong>
             <div>
-              <span className="eyebrow-muted">{labels.detail}</span>
-              <h3>{selectedCategory.title}</h3>
+              {validation.categories.map((category) => (
+                <button
+                  key={category.id}
+                  className={selectedCategory.id === category.id ? `active ${category.status}` : category.status}
+                  onClick={() => {
+                    setSelectedCategoryId(category.id)
+                    setActiveView(category.id === 'security' ? 'coverage' : category.id === 'alignment' ? 'risk' : 'floor')
+                  }}
+                  type="button"
+                >
+                  {ui.categoryLabels[category.id]} {category.issues.length}
+                </button>
+              ))}
             </div>
-            <span className={`validation-status-pill ${selectedCategory.status}`}>{labels.statuses[selectedCategory.status]}</span>
           </div>
+        </aside>
 
-          <p className="validation-detail-summary">{selectedCategory.summary}</p>
-
-          <div className="validation-metric-grid">
-            {selectedCategory.metrics.map((metric) => (
-              <div key={`${selectedCategory.id}-${metric.label}`} className={metric.tone ? `validation-metric ${metric.tone}` : 'validation-metric'}>
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-              </div>
+        <main className="validation-view-panel">
+          <div className="validation-tabs">
+            {(Object.keys(ui.viewLabels) as ValidationViewMode[]).map((view) => (
+              <button
+                key={view}
+                className={activeView === view ? 'active' : ''}
+                onClick={() => {
+                  setActiveView(view)
+                  if (view === 'coverage') setSelectedCategoryId('security')
+                  if (view === 'risk') setSelectedCategoryId('alignment')
+                }}
+                type="button"
+              >
+                {ui.viewLabels[view]}
+              </button>
             ))}
           </div>
 
-          <div className="validation-issue-header">
-            <span>{labels.issues}</span>
-            <small>{labels.issueIntro}</small>
+          <div className={`validation-viewport ${activeView}`}>
+            <div className="validation-view-badge">
+              <strong>{activeView === 'floor' ? selectedFloor.name : ui.viewLabels[activeView]}</strong>
+              <span>
+                {activeView === 'floor' && ui.selectedFloor}
+                {activeView === 'building' && ui.fullBuilding}
+                {activeView === 'coverage' && ui.coverage}
+                {activeView === 'risk' && ui.risk}
+              </span>
+            </div>
+            <button
+              className={`validation-marker-toggle ${showIssueMarkers ? 'active' : ''}`}
+              onClick={() => setShowIssueMarkers((value) => !value)}
+              type="button"
+            >
+              {ui.issueMarkers} <strong>{showIssueMarkers ? ui.off : ui.on}</strong>
+            </button>
+
+            <div className="validation-scene">
+              <div className="validation-scene-grid" />
+              <div className="validation-floor-plate">
+                {rooms.length === 0 && walls.length === 0 ? (
+                  <div className="validation-empty-scene">{ui.emptyScene}</div>
+                ) : (
+                  <>
+                    {rooms.map((room, index) => (
+                      <div
+                        key={`${room.label ?? 'room'}-${index}`}
+                        className="validation-room-block"
+                        style={{
+                          left: `${toLeft(room.x)}%`,
+                          top: `${toTop(room.y)}%`,
+                          width: `${Math.max((room.w / rangeX) * 100, 7)}%`,
+                          height: `${Math.max((room.h / rangeY) * 100, 7)}%`,
+                        }}
+                      >
+                        <span>{room.label ?? `R${index + 1}`}</span>
+                      </div>
+                    ))}
+                    {walls.map((wall, index) => {
+                      const x1 = toLeft(wall.x1)
+                      const y1 = toTop(wall.y1)
+                      const x2 = toLeft(wall.x2)
+                      const y2 = toTop(wall.y2)
+                      const length = Math.hypot(x2 - x1, y2 - y1)
+                      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
+
+                      return (
+                        <span
+                          key={`wall-${index}`}
+                          className="validation-wall-line"
+                          style={{
+                            left: `${x1}%`,
+                            top: `${y1}%`,
+                            width: `${length}%`,
+                            transform: `rotate(${angle}deg)`,
+                          }}
+                        />
+                      )
+                    })}
+                    {devices.map((device, index) => (
+                      <span
+                        key={device.id}
+                        className={`validation-device-marker ${device.device_type}`}
+                        style={{ left: `${toLeft(device.x)}%`, top: `${toTop(device.y)}%` }}
+                        title={device.name || `${device.device_type} ${index + 1}`}
+                      >
+                        {device.device_type.slice(0, 1).toUpperCase()}
+                      </span>
+                    ))}
+                    {showIssueMarkers && quickIssues.slice(0, 3).map((issue, index) => (
+                      <span key={issue.id} className={`validation-issue-marker ${issue.severity} marker-${index + 1}`}>
+                        {statusIcon(issue.severity)}
+                      </span>
+                    ))}
+                  </>
+                )}
+              </div>
+              <div className="validation-axis-widget">
+                <span>X</span>
+                <span>Y</span>
+                <span>Z</span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside className="validation-summary-panel">
+          <h3>{ui.summary}</h3>
+          <div className="validation-building-summary">
+            <strong>Final Test Building</strong>
+            <span>{validationFloors.length} floors · {devices.length} devices</span>
           </div>
 
-          {selectedCategory.issues.length === 0 ? (
-            <div className="validation-empty-detail">
-              <strong>{labels.statuses.pass}</strong>
-              <p>{labels.noIssues}</p>
+          <div className="validation-selected-devices">
+            <span>{ui.selectedDevices}</span>
+            <strong>{selectedFloorDeviceCount}</strong>
+            <p>{ui.selectedDevicesDetail}</p>
+          </div>
+
+          <div className="validation-overall-box">
+            <span>{ui.overallStatus}</span>
+            <div className={validation.status}>
+              <strong>{validation.status === 'pass' ? ui.ready : ui.needsReview}</strong>
+              <p>{validation.status === 'pass' ? ui.readyDetail : ui.needsReviewDetail}</p>
             </div>
-          ) : (
-            <div className="validation-issue-list">
-              {selectedCategory.issues.map((issue) => (
-                <article key={issue.id} className={`validation-issue ${issue.severity}`}>
-                  <span>{issue.severity === 'error' ? 'ERR' : 'WARN'}</span>
-                  <div>
-                    <strong>{issue.title}</strong>
-                    <p>{issue.detail}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
+          </div>
+
+          <div className="validation-issue-panel">
+            <span>{ui.issuesTitle}</span>
+            {quickIssues.length === 0 ? (
+              <p className="validation-no-issues">{ui.noIssues}</p>
+            ) : (
+              <div className="validation-issue-list compact">
+                {quickIssues.map((issue) => (
+                  <article key={issue.id} className={`validation-issue ${issue.severity}`}>
+                    <span>{statusIcon(issue.severity)}</span>
+                    <div>
+                      <strong>{issue.title}</strong>
+                      <p>{issue.detail}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="validation-quick-actions">
+            <span>{ui.quickFix}</span>
+            <Link className="btn btn-secondary" to="/editor">{ui.openEditor}</Link>
+            <Link className="btn btn-secondary" to="/data-sources">{ui.openDataSources}</Link>
+          </div>
         </aside>
       </div>
     </section>

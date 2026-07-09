@@ -40,6 +40,7 @@ type Actions = {
 
   // Anchor management
   startPlacingAnchor: (localX: number, localY: number) => void
+  upsertAnchorAt: (index: number, localX: number, localY: number, longitude: number, latitude: number, label: string) => void
   setAnchorCoords: (id: string, longitude: number, latitude: number) => void
   setAnchorLabel: (id: string, label: string) => void
   removeAnchor: (id: string) => void
@@ -86,6 +87,37 @@ export const useAlignmentStore = create<State & Actions>((set, get) => ({
       params: null,
       result: null,
     }))
+  },
+
+  upsertAnchorAt: (index, localX, localY, longitude, latitude, label) => {
+    set((s) => {
+      const nextAnchors = [...s.anchors]
+      while (nextAnchors.length <= index) {
+        nextAnchors.push({
+          id: genId(),
+          localX: 0,
+          localY: 0,
+          longitude: 0,
+          latitude: 0,
+          label: `Anchor ${nextAnchors.length + 1}`,
+        })
+      }
+      nextAnchors[index] = {
+        ...nextAnchors[index]!,
+        localX,
+        localY,
+        longitude,
+        latitude,
+        label,
+      }
+      return {
+        anchors: nextAnchors,
+        activeAnchorId: nextAnchors[index]!.id,
+        params: null,
+        result: null,
+        isApplied: false,
+      }
+    })
   },
 
   setAnchorCoords: (id, longitude, latitude) => {

@@ -54,6 +54,9 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
   const inputDragRef = useRef<{ axis: Axis; floorId: number; startY: number; startValue: number; active: boolean } | null>(null)
   const heldArrowRef = useRef<{ axis: Axis; direction: 1 | -1 } | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const orbitDragRef = useRef<{ type: 'rotate' | 'pan'; sx: number; sy: number; rx: number; ry: number; px: number; py: number; moved: boolean } | null>(null)
+  const [viewRot, setViewRot] = useState({ x: 0, y: 0 })
+  const [viewPan, setViewPan] = useState({ x: 0, y: 0 })
 
   const sortedFloors = useMemo(
     () => floors.slice().sort((a, b) => b.floor_number - a.floor_number),
@@ -185,7 +188,7 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
     updateOffset(axis, formatNumber(currentOffset[axis] + (event.deltaY > 0 ? -step : step)))
   }
 
-  function handlePreviewClick(event: ReactMouseEvent<HTMLDivElement>) {
+  function handlePreviewClick(event: ReactMouseEvent<HTMLElement>) {
     if (!refPointPicking || selectedId === null || !previewRef.current) return
     const rect = previewRef.current.getBoundingClientRect()
     const x = formatNumber(((event.clientX - rect.left) / rect.width - 0.5) * 60)
@@ -315,14 +318,59 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
           <main
             ref={previewRef}
             className={'floor-position-preview' + (refPointPicking ? ' picking' : '')}
-            onClick={handlePreviewClick}
+            onClick={(event) => {
+              if (orbitDragRef.current?.moved) return
+              handlePreviewClick(event)
+            }}
+            onPointerDown={(event) => {
+              if (refPointPicking) return
+              const target = event.target as HTMLElement
+              if (target.closest('.floor-position-nudge-pad, .floor-position-pick-hint, .floor-position-empty')) return
+              if (event.button === 0) {
+                if (target.closest('.floor-position-stack button')) return
+                event.preventDefault()
+                event.currentTarget.setPointerCapture(event.pointerId)
+                orbitDragRef.current = { type: 'rotate', sx: event.clientX, sy: event.clientY, rx: viewRot.x, ry: viewRot.y, px: viewPan.x, py: viewPan.y, moved: false }
+              } else if (event.button === 2) {
+                event.preventDefault()
+                event.currentTarget.setPointerCapture(event.pointerId)
+                orbitDragRef.current = { type: 'pan', sx: event.clientX, sy: event.clientY, rx: viewRot.x, ry: viewRot.y, px: viewPan.x, py: viewPan.y, moved: false }
+              }
+            }}
+            onPointerMove={(event) => {
+              const d = orbitDragRef.current
+              if (!d) return
+              const dx = event.clientX - d.sx
+              const dy = event.clientY - d.sy
+              if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true
+              if (!d.moved) return
+              if (d.type === 'rotate') {
+                setViewRot({ x: d.rx + dy * 0.5, y: d.ry + dx * 0.5 })
+              } else {
+                setViewPan({ x: d.px + dx, y: d.py + dy })
+              }
+            }}
+            onPointerUp={() => { orbitDragRef.current = null }}
+            onPointerLeave={() => { orbitDragRef.current = null }}
+            onContextMenu={(event) => event.preventDefault()}
           >
-            <div className="floor-position-grid" />
+            <div
+              className="floor-position-grid"
+              style={{
+                transform: 'perspective(700px) rotateX(62deg) scale(1.2) rotateX(' + viewRot.x + 'deg) rotateY(' + viewRot.y + 'deg) translate(' + viewPan.x + 'px, ' + viewPan.y + 'px)',
+              }}
+            />
             <div className="floor-position-axis-guide">
               <span className="x">X</span>
               <span className="z">Z</span>
             </div>
-            <div className={'floor-position-stack' + (showBright ? ' bright' : '')}>
+            <div
+              className={'floor-position-stack' + (showBright ? ' bright' : '')}
+              style={{
+                transform: 'translate(-50%, -50%) perspective(900px) rotateX(58deg) rotateZ(-30deg) rotateX(' + viewRot.x + 'deg) rotateY(' + viewRot.y + 'deg) translate(' + viewPan.x + 'px, ' + viewPan.y + 'px)',
+                transformStyle: 'preserve-3d' as any,
+              }}
+            >
               {sortedFloors.slice().reverse().map((floor, index) => {
                 const offset = offsets[floor.id] ?? defaultOffset()
                 const refPoint = refPoints[floor.id]
@@ -339,10 +387,10 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
                     }}
                     style={{
                       '--floor-color': FLOOR_COLORS[index % FLOOR_COLORS.length],
-                      '--floor-y': `${index * -34}px`,
-                      '--floor-x': `${offset.x * 10}px`,
-                      '--floor-z': `${offset.z * -6}px`,
-                      '--floor-rot': `${offset.r}deg`,
+                      '--floor-y': index * -34 + 'px',
+                      '--floor-x': offset.x * 10 + 'px',
+                      '--floor-z': offset.z * -6 + 'px',
+                      '--floor-rot': offset.r + 'deg',
                     } as CSSProperties}
                   >
                     <span>{floorLabel(floor)}</span>
@@ -351,8 +399,8 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
                         className="floor-position-ref-marker"
                         style={{
                           '--marker-size': markerSize,
-                          left: `calc(50% + ${refPoint.x * 2.2}px)`,
-                          top: `calc(50% - ${refPoint.z * 1.2}px)`,
+                          left: 'calc(50% + ' + refPoint.x * 2.2 + 'px)',
+                          top: 'calc(50% - ' + refPoint.z * 1.2 + 'px)',
                         } as CSSProperties}
                       />
                     )}
