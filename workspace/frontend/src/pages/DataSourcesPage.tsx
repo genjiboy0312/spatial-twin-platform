@@ -3,7 +3,8 @@ import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
-import { listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
+import { getProjectSnapshot, saveProjectSnapshot, type ProjectSnapshot } from '../api/projectData'
+import { getUploadPipeline, listUploadsByBuilding, uploadFile, type UploadAsset, type UploadPipeline } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
 
@@ -304,6 +305,33 @@ function formatUploadDate(value: string | null) {
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
+function uploadStatusLabel(status: string, language: 'en' | 'ko') {
+  const labels = {
+    en: {
+      pending: 'Pending',
+      uploaded: 'Uploaded',
+      processing: 'Processing',
+      ready: 'Ready',
+      failed: 'Failed',
+    },
+    ko: {
+      pending: '대기',
+      uploaded: '업로드됨',
+      processing: '처리 중',
+      ready: '준비 완료',
+      failed: '실패',
+    },
+  } as const
+  const normalized = status in labels.en ? status as keyof typeof labels.en : 'pending'
+  return labels[language][normalized]
+}
+
+function projectSnapshotLabel(snapshot: ProjectSnapshot | null, language: 'en' | 'ko') {
+  if (!snapshot?.saved) return language === 'ko' ? '저장된 스냅샷 없음' : 'No saved snapshot'
+  const updatedAt = formatUploadDate(snapshot.updated_at)
+  return language === 'ko' ? `최근 저장: ${updatedAt}` : `Last saved: ${updatedAt}`
+}
+
 export function DataSourcesPage() {
   const { language } = usePreferences()
   const labels = copy[language]
@@ -318,7 +346,10 @@ export function DataSourcesPage() {
   const [newFloorNumber, setNewFloorNumber] = useState('')
   const [creatingFloor, setCreatingFloor] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [savingSnapshot, setSavingSnapshot] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null)
+  const [pipelines, setPipelines] = useState<Record<number, UploadPipeline>>({})
   const [scalePxPerMeter, setScalePxPerMeter] = useState(100)
   const [dxfScaleFactor, setDxfScaleFactor] = useState(0.001)
   const [dxfHeight, setDxfHeight] = useState('')
@@ -352,9 +383,18 @@ export function DataSourcesPage() {
   }, [])
 
   const loadBuildingData = useCallback(async (buildingId: number) => {
-    const [nextFloors, nextUploads] = await Promise.all([listFloors(buildingId), listUploadsByBuilding(buildingId)])
+    const [nextFloors, nextUploads, nextSnapshot] = await Promise.all([
+      listFloors(buildingId),
+      listUploadsByBuilding(buildingId),
+      getProjectSnapshot(buildingId).catch(() => null),
+    ])
     setFloors(nextFloors)
     setUploads(nextUploads)
+    setSnapshot(nextSnapshot)
+    const uploadPipelines = await Promise.all(
+      nextUploads.slice(-8).map((upload) => getUploadPipeline(upload.id).catch(() => null)),
+    )
+    setPipelines(Object.fromEntries(uploadPipelines.filter((pipeline): pipeline is UploadPipeline => pipeline !== null).map((pipeline) => [pipeline.upload.id, pipeline])))
     setSelectedFloorId((current) => {
       if (current && nextFloors.some((floor) => floor.id === current)) return current
       return nextFloors[0]?.id ?? null
@@ -369,12 +409,16 @@ export function DataSourcesPage() {
     if (selectedBuildingId === null) {
       setFloors([])
       setUploads([])
+      setSnapshot(null)
+      setPipelines({})
       setSelectedFloorId(null)
       return
     }
     loadBuildingData(selectedBuildingId).catch(() => {
       setFloors([])
       setUploads([])
+      setSnapshot(null)
+      setPipelines({})
       setSelectedFloorId(null)
     })
   }, [loadBuildingData, selectedBuildingId])
@@ -419,6 +463,34 @@ export function DataSourcesPage() {
       setStatusMessage(labels.uploadFailed)
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleSaveSnapshot = async () => {
+    if (selectedBuildingId === null) return
+    setSavingSnapshot(true)
+    setStatusMessage(null)
+    try {
+      const savedSnapshot = await saveProjectSnapshot(selectedBuildingId, {
+        datasource: {
+          selected_floor_id: selectedFloorId,
+          active_source_type: activeTab,
+          upload_ids: uploads.map((upload) => upload.id),
+          options: {
+            scale_px_per_meter: scalePxPerMeter,
+            dxf_scale_factor: dxfScaleFactor,
+            dxf_height: dxfHeight,
+            invert_y_axis: invertYAxis,
+            ifc_floor_level: floorLevel,
+          },
+        },
+      })
+      setSnapshot(savedSnapshot)
+      setStatusMessage(language === 'ko' ? '프로젝트 스냅샷이 저장되었습니다.' : 'Project snapshot saved.')
+    } catch {
+      setStatusMessage(language === 'ko' ? '프로젝트 스냅샷 저장에 실패했습니다.' : 'Project snapshot save failed.')
+    } finally {
+      setSavingSnapshot(false)
     }
   }
 
@@ -729,6 +801,24 @@ export function DataSourcesPage() {
             </div>
           </div>
 
+          <section className="datasource-status-section datasource-snapshot-card">
+            <div className="datasource-section-title no-margin">
+              <span>{language === 'ko' ? '프로젝트 저장/불러오기' : 'Project Save / Load'}</span>
+              <strong>{snapshot?.saved ? 'OK' : '-'}</strong>
+            </div>
+            <p className="datasource-muted-text">{projectSnapshotLabel(snapshot, language)}</p>
+            {snapshot?.saved && (
+              <p className="datasource-pipeline-note">
+                {language === 'ko'
+                  ? '이 건물의 최근 데이터소스 선택 상태를 백엔드에서 불러왔습니다.'
+                  : 'The latest data-source workspace state was loaded from the backend.'}
+              </p>
+            )}
+            <button className="btn btn-secondary datasource-save-snapshot-button" type="button" onClick={handleSaveSnapshot} disabled={!selectedBuilding || savingSnapshot}>
+              {savingSnapshot ? (language === 'ko' ? '저장 중...' : 'Saving...') : (language === 'ko' ? '현재 상태 저장' : 'Save Current State')}
+            </button>
+          </section>
+
           <section className="datasource-status-section">
             <div className="datasource-section-title no-margin">
               <span>{labels.allFloorStatus}</span>
@@ -756,15 +846,30 @@ export function DataSourcesPage() {
               <p className="datasource-muted-text">{labels.noUploads}</p>
             ) : (
               <div className="datasource-upload-list">
-                {latestUploads.map((upload) => (
-                  <article key={upload.id} className="datasource-upload-row">
-                    <strong>{upload.filename}</strong>
-                    <span>
-                      {labels.sourceLabels[upload.source_type as SourceType] ?? upload.source_type} / {upload.status}
-                    </span>
-                    <small>{formatUploadDate(upload.created_at)}</small>
-                  </article>
-                ))}
+                {latestUploads.map((upload) => {
+                  const pipeline = pipelines[upload.id]
+                  return (
+                    <article key={upload.id} className={`datasource-upload-row status-${upload.status}`}>
+                      <div className="datasource-upload-row-main">
+                        <strong>{upload.filename}</strong>
+                        <span>
+                          {labels.sourceLabels[upload.source_type as SourceType] ?? upload.source_type}
+                        </span>
+                      </div>
+                      <span className={`datasource-pipeline-badge ${upload.status}`}>{uploadStatusLabel(upload.status, language)}</span>
+                      <small>{formatUploadDate(upload.created_at)}</small>
+                      {pipeline && (
+                        <p className="datasource-pipeline-note">
+                          {pipeline.project_assets.length > 0
+                            ? (language === 'ko' ? `연결 자산 ${pipeline.project_assets.length}개` : `${pipeline.project_assets.length} linked asset(s)`)
+                            : (language === 'ko' ? '연결 자산 대기 중' : 'Waiting for linked asset')}
+                          {' · '}
+                          {pipeline.next_actions.length > 0 ? pipeline.next_actions.join(', ') : (language === 'ko' ? '다음 작업 없음' : 'No pending action')}
+                        </p>
+                      )}
+                    </article>
+                  )
+                })}
               </div>
             )}
           </section>

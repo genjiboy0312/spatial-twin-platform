@@ -8953,6 +8953,59 @@ a {
   font-size: 0.8rem;
 }
 
+.datasource-upload-row-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.datasource-pipeline-badge {
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(39, 39, 42, 0.72);
+  color: var(--text) !important;
+  padding: 4px 8px;
+  font-size: 0.68rem !important;
+  font-weight: 900;
+}
+
+.datasource-pipeline-badge.ready,
+.datasource-pipeline-badge.uploaded {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac !important;
+}
+
+.datasource-pipeline-badge.processing {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.12);
+  color: #fde68a !important;
+}
+
+.datasource-pipeline-badge.failed {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5 !important;
+}
+
+.datasource-pipeline-note {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.datasource-snapshot-card {
+  display: grid;
+  gap: 10px;
+}
+
+.datasource-save-snapshot-button {
+  justify-content: center;
+  width: 100%;
+}
+
 .form-row {
   margin-top: 12px;
 }
