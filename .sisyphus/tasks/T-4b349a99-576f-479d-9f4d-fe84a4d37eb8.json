@@ -1,0 +1,10 @@
+{
+  "id": "T-4b349a99-576f-479d-9f4d-fe84a4d37eb8",
+  "subject": "Port building-editor AlignmentPage design + functionality",
+  "description": "Full port of building-editor's AlignmentPage (1417 lines + alignment/ module with 12 hooks, 5 components, context, types) to the current project. Adapt to existing store/infrastructure where building-editor-specific APIs don't exist.",
+  "status": "in_progress",
+  "activeForm": "Porting building-editor AlignmentPage",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

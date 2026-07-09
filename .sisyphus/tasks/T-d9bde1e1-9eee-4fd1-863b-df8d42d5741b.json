@@ -1,0 +1,12 @@
+{
+  "id": "T-d9bde1e1-9eee-4fd1-863b-df8d42d5741b",
+  "subject": "Port OSMAlignmentPanel + OSMOriginPickerPopup",
+  "description": "Create the step-based OSM alignment panel (659 lines) and origin picker popup (628 lines) adapted for current project's UI patterns",
+  "status": "pending",
+  "activeForm": "Porting OSM alignment panel",
+  "blocks": [
+    "T-4b349a99-576f-479d-9f4d-fe84a4d37eb8"
+  ],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

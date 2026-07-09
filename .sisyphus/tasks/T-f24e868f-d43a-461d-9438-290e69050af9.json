@@ -1,0 +1,10 @@
+{
+  "id": "T-f24e868f-d43a-461d-9438-290e69050af9",
+  "subject": "Fix OSMOriginPickerPopup: resize + auto-set admin regions",
+  "description": "Increase popup canvas and form dimensions, auto-set province/district/town dropdowns on map click and search result selection",
+  "status": "completed",
+  "activeForm": "Fixing OSMOriginPickerPopup",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

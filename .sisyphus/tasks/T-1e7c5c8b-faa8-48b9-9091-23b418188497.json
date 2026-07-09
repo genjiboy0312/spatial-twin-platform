@@ -1,0 +1,10 @@
+{
+  "id": "T-1e7c5c8b-faa8-48b9-9091-23b418188497",
+  "subject": "Refactor AlignmentPage with reference building-editor workflow",
+  "description": "Integrate existing AnchorPointWorkflow component, clean up inline controls, improve UI layout matching reference building-editor alignment page patterns.",
+  "status": "completed",
+  "activeForm": "Refactoring AlignmentPage layout",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

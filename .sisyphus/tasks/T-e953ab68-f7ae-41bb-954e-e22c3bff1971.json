@@ -1,0 +1,10 @@
+{
+  "id": "T-e953ab68-f7ae-41bb-954e-e22c3bff1971",
+  "subject": "Fix 3D view to show OSM map tiles instead of grid-only",
+  "description": "Modify AlignmentOsm3DViewer in AlignmentPage.tsx to composite OSM raster tiles onto an offscreen canvas, apply as Three.js CanvasTexture on the ground plane, so the 3D scene shows a real map beneath the building model and anchor markers.",
+  "status": "completed",
+  "activeForm": "Implementing OSM tile texture in 3D view",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

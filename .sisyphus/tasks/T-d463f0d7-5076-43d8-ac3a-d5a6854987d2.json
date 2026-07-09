@@ -1,0 +1,11 @@
+{
+  "id": "T-d463f0d7-5076-43d8-ac3a-d5a6854987d2",
+  "subject": "Review alignment 3D viewer changes for code quality",
+  "description": "Inspect changed Alignment3DViewer.tsx, AlignmentCenterViewerPanel.tsx, AlignmentPage.tsx and related patterns, then return PASS/FAIL with severity-ranked findings and blockers.",
+  "status": "completed",
+  "activeForm": "Completed code quality review of alignment viewer changes",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "gpt-5.5",
+  "threadID": "ses_0bb37c48cffeeRUp5AdQpMIzu5"
+}

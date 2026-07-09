@@ -1076,23 +1076,74 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ---
 
-## Codex UI Migration Progress (2026-07-07)
+## Codex UI 마이그레이션 진행 현황 (2026-07-07)
 
-- [x] Home page: imported start/workflow concepts and adapted to current black/gray shell.
-- [x] Projects page: imported project selection and floor-management layout.
-- [x] Data Sources page: imported floor selector, status panel, and five separate upload branches for Image, DXF/DWG, IFC, GLB/GLTF, and PointCloud with source-specific options; branch cards now only select the source type, the upload zone centers the emoji, target upload label, example flow, supported formats, DXF/DWG and GLB/GLTF guide notes, and the file picker opens from the dedicated Choose File button with reset placed beside it.
-- [x] 3D Editor page: restructured to match the reference editor scene with left floor/building panel, center 2D/3D/split viewport, floating tools, view-mode bar, right settings/properties panel, Beta all-floors popup, reference-style upload/export popup flows, removed layer reset, added security-device refresh, and upgraded placed 3D device markers with glow/light effects.
-- [x] App workflow controls: moved Build workflow progress to the top of the content area and changed the bottom bar to Previous / Next / End Workflow navigation only.
-- [x] GPS Alignment page: rebuilt reference-style OSM/Cesium alignment workspace with method separation, view-mode switching, model anchor picking, OSM tile map panel, Origin/Point1/Point2 GPS marking, and alignment compute/apply flow.
-- [x] Validation page: rebuilt score panel and validation checklist.
-- [x] Dashboard page: rebuilt reference-style SOC dashboard with four KPI cards, building inventory grid backed by the current buildings API, recent events feed, model/device/alignment readiness signals, and black/gray responsive styling.
-- [x] Model Management page: rebuilt the reference-style model source hub with building context selector, Image/DXF/IFC/GLB source status cards, PointCloud gateway, floor separation results table, editor/data-source actions, and current uploads/floors API integration.
-- [x] PointCloud page: re-imported the reference page layout with building/floor selectors, four status cards, workflow guide, upload/connected tabs, connected source cards, next-step editor card, and maintained LAS/LAZ/PLY upload through the current backend upload API.
-- [x] Device Management page: rebuilt the reference-style operations handoff with KPI cards, editor-linked inventory, type distribution, selected-device detail, placement guide, cleaned device labels, and replaced CAM/SNS/ALM/ACS abbreviations with editor-matched device icons.
-- [x] Anchor/Map page: rebuilt anchor table, OSM tile map panel with real GPS marker positions, and alignment summary using the shared OSM/Cesium-style map renderer.
-- [x] Monitor page: rebuilt reference-style operations console with top control bar, building/floor tree, spatial monitor viewport, device/event right tabs, bottom logs/camera panel, layer toggles, and realtime demo events.
-- [x] Backend reference migration started: analyzed the comparison backend and added current-project FastAPI endpoints for building updates, OSM map settings, building/floor spatial settings, and GPS three-point/single/batch affine alignment with pytest coverage.
-- [x] PointCloud maintenance: hardened backend file upload validation/status handling and connected uploaded PointCloud assets to Editor pointcloud/3D scene object generation.
-- [x] PointCloud rendering cap: updated Editor pointcloud generation to cap at 500,000 generated points and animate point creation while assets load.
-- [x] Editor all-floors popup maintenance: rebuilt the Beta floor stacking popup with reference-style floor list, stacked preview, X/Z/R adjustment mode, drag/wheel/hold controls, bright-view toggle, reference point picking, marker size control, and reset flow.
-- [x] Page header polish: unified all page title/description headers into a compact modern command-bar style aligned with the black/gray UI.
+- [x] 홈 페이지: 시작/워크플로우 개념을 가져와 현재 블랙/그레이 셸에 적용
+- [x] 프로젝트 페이지: 프로젝트 선택 및 층 관리 레이아웃 도입
+- [x] 데이터 소스 페이지: 층 선택기, 상태 패널, Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 5개 업로드 분기 도입 (소스별 옵션 포함); 분기 카드는 소스 유형만 선택, 업로드 존에 이모지/대상 업로드 라벨/예시 플로우/지원 포맷/DXF-DWG 및 GLB-GLTF 가이드 노트 배치, 파일 선택기는 전용 Choose File 버튼으로 열리고 리셋 버튼이 옆에 위치
+- [x] 3D 에디터 페이지: 좌측 층/건물 패널, 중앙 2D/3D/분할 뷰포트, 플로팅 도구, 뷰모드 바, 우측 설정/속성 패널, Beta 전체층 팝업, 참조형 업로드/내보내기 팝업 플로우로 재구성, 레이어 리셋 제거, 보안장치 새로고침 추가, 배치된 3D 장치 마커에 글로우/조명 효과 업그레이드
+- [x] 앱 워크플로우 컨트롤: Build 워크플로우 진행 상황을 콘텐츠 영역 상단으로 이동, 하단 바는 Previous/Next/End Workflow 내비게이션만 표시
+- [x] GPS 정렬 페이지: 메서드 분리, 뷰모드 전환, 모델 앵커 선택, OSM 타일 맵 패널, Origin/Point1/Point2 GPS 마킹, 정렬 계산/적용 플로우를 갖춘 참조형 OSM/Cesium 정렬 워크스페이스로 재구축
+- [x] 검증 페이지: 점수 패널 및 검증 체크리스트 재구축
+- [x] 대시보드 페이지: 4개 KPI 카드, buildings API 기반 건물 인벤토리 그리드, 최근 이벤트 피드, 모델/장치/정렬 준비 상태 신호, 블랙/그레이 반응형 스타일의 참조형 SOC 대시보드로 재구축
+- [x] 모델 관리 페이지: 건물 컨텍스트 선택기, Image/DXF/IFC/GLB 소스 상태 카드, PointCloud 게이트웨이, 층 분리 결과 테이블, 에디터/데이터소스 액션, 업로드/층 API 연동을 갖춘 참조형 모델 소스 허브로 재구축
+- [x] PointCloud 페이지: 건물/층 선택기, 4개 상태 카드, 워크플로우 가이드, 업로드/연결 탭, 연결된 소스 카드, 다음 단계 에디터 카드를 갖춘 참조 페이지 레이아웃 재도입, 현재 백엔드 업로드 API를 통한 LAS/LAZ/PLY 업로드 유지
+- [x] 장치 관리 페이지: KPI 카드, 에디터 연결 인벤토리, 유형 분포, 선택 장치 상세, 배치 가이드, 정리된 장치 라벨, CAM/SNS/ALM/ACS 약어를 에디터 매칭 장치 아이콘으로 대체한 참조형 운영 핸드오프로 재구축
+- [x] 앵커/맵 페이지: 앵커 테이블, 실제 GPS 마커 위치의 OSM 타일 맵 패널, 공통 OSM/Cesium 스타일 맵 렌더러를 사용한 정렬 요약 재구축
+- [x] 모니터 페이지: 상단 컨트롤 바, 건물/층 트리, 공간 모니터 뷰포트, 장치/이벤트 우측 탭, 하단 로그/카메라 패널, 레이어 토글, 실시간 데모 이벤트를 갖춘 참조형 운영 콘솔로 재구축
+- [x] 백엔드 참조 마이그레이션 시작: 비교 백엔드 분석 및 현재 프로젝트 FastAPI 엔드포인트 추가 (건물 업데이트, OSM 맵 설정, 건물/층 공간 설정, GPS 3포인트/단일/배치 어파인 정렬, pytest 커버리지)
+- [x] PointCloud 유지보수: 백엔드 파일 업로드 검증/상태 처리 강화, 업로드된 PointCloud 자산을 에디터 포인트클라우드/3D 씬 객체 생성에 연결
+- [x] PointCloud 렌더링 상한: 에디터 포인트클라우드 생성 시 500,000 포인트 상한 설정, 자산 로딩 중 포인트 생성 애니메이션 추가
+- [x] 에디터 전체층 팝업 유지보수: 참조형 층 목록, 적층 미리보기, X/Z/R 조정 모드, 드래그/휠/홀드 컨트롤, 밝기 토글, 기준점 선택, 마커 크기 제어, 리셋 플로우를 갖춘 Beta 층 적층 팝업 재구축
+- [x] 페이지 헤더 정리: 모든 페이지 제목/설명 헤더를 블랙/그레이 UI에 맞춘 컴팩트한 모던 커맨드바 스타일로 통일
+- [x] 백엔드 프로젝트 데이터 설계/개발: Image/DXF/DWG/IFC/PointCloud/보안장치의 건물 범위 자산 메타데이터 및 객체 배치 스토리지 추가, 객체별 변환값 및 프로젝트 요약 API
+- [x] Docker LAN 접근: 프론트엔드/API 컴포즈 포트를 `0.0.0.0`으로 개방, Postgres/Redis는 로컬 전용 유지, 백엔드 LAN CORS 정규식 추가, `http://<HOST_PC_IP>:5174`를 통한 동일 네트워크 접근 문서화
+- [x] 임시 인터넷 접근: 백엔드/데이터베이스 포트를 비공개로 유지하면서 임시 `trycloudflare.com` HTTPS URL을 통해 외부 네트워크에서 로컬 Docker UI에 접근 가능한 Cloudflare Tunnel 컴포즈 오버레이 추가
+- [x] 에디터 뷰 분리: PointCloud 자산을 일반 3D 뷰에서 분리, PointCloud 객체 생성을 전용 PointCloud 뷰로 이동, 에디터 좌측 패널의 중복 건물/레이어 섹션 제거
+- [x] 에디터 사이드바/렌더 안정화: 라이브 Docker UI에서 좌측 빌딩 블록이 한 번만 렌더링됨을 확인, 외부 drei HDR 환경 프리셋 제거로 HDR 자산 로드 실패 시 3D 씬 충돌 방지
+- [x] GPS 정렬 페이지 재구성: 뷰모드 분할 컨트롤 제거, 중앙을 3D 모델 오버레이가 있는 단일 OSM 맵으로 재구축, Set Reference Points 버튼으로 열리는 Reference Point 팝업 추가, 시/도/구/동 선택과 맵 클릭 좌표가 동기화되도록 연결
+
+## 외부 접근 / 공용 경로 계획
+
+- [x] 동일 네트워크 접근: Docker Compose가 프론트엔드와 API만 `0.0.0.0`으로 노출하여, 동일 LAN의 다른 PC에서 `http://<HOST_PC_IP>:5174`로 접근 가능
+- [x] 임시 외부 접근: Cloudflare Tunnel 지원을 위한 `workspace/docker-compose.tunnel.yml` 추가. `docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build` 실행 후 `cloudflared` 로그에서 `https://....trycloudflare.com` URL 복사
+- [x] 백엔드/API 경로 보존: 외부 터널이 프론트엔드 컨테이너를 가리키고, 프론트엔드가 Docker 내부 백엔드로 `/api` 프록시 유지. Postgres/Redis 노출 및 백엔드/데이터베이스 포트의 직접적인 인터넷 개방 방지
+- [ ] 영구 공용 도메인: 실제 도메인을 Cloudflare에 연결, named tunnel 생성, `https://spatial.example.com`과 같은 호스트명을 `http://frontend:5173`에 매핑
+- [ ] HTTPS 프로덕션 게이트웨이: Vite 개발 서버를 영구 노출하는 대신 HTTPS, 압축, 보안 헤더, 정적 프론트엔드 서빙을 갖춘 프로덕션 리버스 프록시 프로필 추가
+- [ ] 접근 제어: 영구 외부 URL 공유 전에 로그인/세션 또는 토큰 기반 접근 추가
+- [ ] 환경 분리: local, tunnel-demo, staging, production 환경 파일을 분리하여 CORS, URL, 업로드 제한, 데이터베이스 설정이 혼용되지 않도록 함
+
+## 다음 개발 권장 사항
+
+- [ ] 인증 및 권한 부여: 사용자 로그인, 역할 권한, 프로젝트 수준 접근 제어, 건물/프로젝트 데이터 API 가드 추가
+- [ ] 영구 파일 파이프라인: 업로드된 Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 파일을 메타데이터, 처리 상태, 썸네일, 파생 지오메트리 레코드와 함께 저장
+- [ ] 실제 객체 배치 영속화: 에디터 보안장치/객체 배치 변경사항을 새로운 백엔드 객체 배치 API에 직접 연결 (실행취소/재실행 히스토리 포함)
+- [ ] 프로젝트 저장/로드 워크플로우: 모든 건물 프로젝트가 층, 업로드, 모델 자산, 장치 위치, 정렬 상태, 앵커/맵 데이터, 대시보드 상태를 백엔드 스토리지에서 복원하도록 보장
+- [ ] Cesium/OSM 프로덕션 강화: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
+- [ ] WebSocket 실시간 레이어: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
+- [ ] 내보내기 파이프라인: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
+- [ ] 데이터베이스 마이그레이션: 자동 테이블 생성 방식을 Alembic 마이그레이션으로 대체하여 안전한 스키마 진화
+- [ ] 보안 기준: 속도 제한, 요청 로깅, 업로드 바이러스/유형 검증, 소스 유형별 파일 크기 제한, 시크릿 관리 추가
+- [ ] 프로덕션 Docker 프로필: 빌드된 프론트엔드 자산, non-root 컨테이너, 헬스체크, 재시작 정책, 백업 볼륨을 갖춘 프로덕션 컴포즈 파일 추가
+- [ ] CI 품질 게이트: 모든 PR에서 백엔드 pytest/ruff 및 프론트엔드 lint/build/playwright 검사 실행
+
+## Recent Corrections
+
+- [x] Alignment build repair: removed stale comparison-project imports from the current Alignment page, restored it to the existing OSM alignment components/hooks, kept the 3-column alignment workspace, and confirmed the frontend production build now passes.
+- [x] Project persistence priority 1/2 backend foundation: added building-level project snapshot save/load API for editor/alignment/view state restoration, automatic project asset registration from uploads, upload pipeline status tracking, linked asset status synchronization, and frontend API clients for project data/snapshot/pipeline usage.
+- [x] Validation comparison UI transplant: rebuilt the current validation page into the comparison project's KPI + floor checklist + central 3D validation preview + right summary/issue panel layout, while keeping the current project's real editor/alignment validation calculations and black/gray theme.
+- [x] GPS Alignment 3D correction: replaced the fake 2D OSM/object overlay with a real Three.js 3D alignment view containing an OSM-style ground plane, road/grid layers, model object, orbit controls, and GPS reference markers.
+- [x] PointCloud real-file rendering: exposed uploaded pointcloud file/preview URLs from the backend, added a cached LAS Float32 preview endpoint capped at 500,000 points, and changed the editor PointCloud View to render sampled points from the actual uploaded LAS/PLY data instead of synthetic spiral/circle placeholders.
+- [x] PointCloud LAS RGB 색상 반영: 백엔드 프리뷰를 `XYZRGB` 바이너리로 확장하고, 3D PointCloud View에서 업로드 파일의 색상 정보를 vertex color로 표시하도록 수정.
+- [x] PointCloud 원본 LAS fallback 색상 반영: 프리뷰 API를 사용할 수 없는 경우에도 브라우저 LAS 파서가 RGB 필드를 읽어 표시하도록 보강.
+- [x] PointCloud 연결 목록 유지보수: 업로드된 파일 카드에 선택/해제 가능한 체크박스, 전체 선택/해제, 단일 삭제 버튼을 추가하고 삭제 시 원본 파일 및 프리뷰 캐시를 정리하도록 백엔드 API 추가.
+- [x] PointCloud 객체 생성 안정화: 대용량 RGB 프리뷰 생성 중 화면이 비지 않도록 1만 포인트 빠른 프리뷰를 먼저 표시하고 이후 최대 50만 포인트 프리뷰로 교체하는 progressive 로딩 및 LAS 메모리맵 샘플링 적용.
+- [x] PointCloud 200만 포인트 및 색상 보정: LAS point format 3/5 RGB 오프셋을 28번으로 수정, 잘못된 이전 RGB 캐시를 피하도록 preview cache v2 적용, 최대 2,000,000점 렌더링으로 상향, 원본 RGB가 더 선명하게 보이도록 포인트 투명 블렌딩 제거 및 렌더 DPR 최적화.
+- [x] Alignment OSM panel restore: alignment page center view now keeps the OSM tile map visible with a dedicated reference map panel, and the right panel is restored to a previous-style 3-step OSM alignment workflow for origin selection, 3-point matching, and apply/save review.
+- [x] Alignment comparison UI transplant: rebuilt the alignment page into the comparison project's 3-column workflow layout with left method/floor/view controls, a central true 3D OSM/model view, and a right OSM alignment workflow panel styled for the current black/gray interface.
+- [x] Alignment UI polish: forced the GPS alignment page back onto the current black/gray design tokens, enlarged the central 3D OSM view, restored visible OSM fallback map rendering, rebuilt the right OSM workflow panel with locked step states and hover guidance, and aligned the left/view/right sections vertically.
+- [x] Alignment view overlay fix: removed the full-canvas dark overlay caused by oversized coordinate/footer HUD elements, added a visible OSM fallback layer, and verified the map/model view is visible in the local Docker frontend.
+- [x] Alignment 3D map structure correction: removed the DOM/background map layer, restored a gray 3D scene background, and kept OSM imagery only as a textured Three.js ground-plane object under the building model.
+- [x] Alignment map plane visibility: added road/green/footprint details as thin Three.js plane geometry on top of the OSM ground plane so the map reads as a 3D floor object, not a screen background.
+- [x] Alignment OSM tile parity: added a backend OSM tile proxy and changed both the reference-point popup map and 3D alignment ground plane to use the same `/api/osm-tiles` imagery, removing the temporary synthetic map detail layer.
+- [x] Alignment map obstruction fix: removed the demo building floor slab that was covering the OSM ground-plane texture so the popup-equivalent tile imagery remains visible underneath the building walls/objects.

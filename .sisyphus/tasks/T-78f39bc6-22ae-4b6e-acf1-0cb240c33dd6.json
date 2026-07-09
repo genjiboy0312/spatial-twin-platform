@@ -1,0 +1,12 @@
+{
+  "id": "T-78f39bc6-22ae-4b6e-acf1-0cb240c33dd6",
+  "subject": "Port layout components + core hooks",
+  "description": "Create AlignmentLeftPanel, AlignmentCenterViewerPanel, AlignmentWorkflowPanel, useAlignmentDoAlign, useAlignmentHistory, useAlignmentPickAnchorMarkers",
+  "status": "pending",
+  "activeForm": "Porting layout components and hooks",
+  "blocks": [
+    "T-4b349a99-576f-479d-9f4d-fe84a4d37eb8"
+  ],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

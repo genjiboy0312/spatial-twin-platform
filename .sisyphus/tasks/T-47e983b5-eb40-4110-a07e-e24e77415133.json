@@ -1,0 +1,10 @@
+{
+  "id": "T-47e983b5-eb40-4110-a07e-e24e77415133",
+  "subject": "Inspect modal/dialog and upload action styles",
+  "description": "Find generic Modal/Dialog components, modal-related CSS in styles.css, and current .editor-upload-actions layout snippets.",
+  "status": "completed",
+  "activeForm": "Inspecting codebase for modal/dialog components and CSS snippets",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c044c009ffeetoOhEmk4MlCf6"
+}

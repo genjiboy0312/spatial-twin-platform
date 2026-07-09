@@ -1,0 +1,11 @@
+{
+  "id": "T-05c74b16-8591-4f41-a8cf-3101f91a494d",
+  "subject": "Fix Alignment3DViewer map scale",
+  "description": "Correct OSM texture composition so the map imagery scale matches meter-based marker and pick coordinates on the 300-unit plane.",
+  "status": "completed",
+  "activeForm": "Fixing OSM texture-to-meter scale",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb3f69e4ffeNygV3297XWY3Ae"
+}

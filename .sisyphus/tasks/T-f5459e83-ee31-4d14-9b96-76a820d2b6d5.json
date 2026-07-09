@@ -1,0 +1,10 @@
+{
+  "id": "T-f5459e83-ee31-4d14-9b96-76a820d2b6d5",
+  "subject": "Fix 3D viewer to show OSM map by default",
+  "description": "Fix Alignment3DViewer to always show OSM map (not grid) and fix origin pick black screen issue",
+  "status": "completed",
+  "activeForm": "Fixing 3D viewer OSM map display",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

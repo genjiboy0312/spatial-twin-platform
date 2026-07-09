@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     auto_create_tables: bool = False
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origin_regex: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 

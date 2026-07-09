@@ -1,0 +1,10 @@
+{
+  "id": "T-1232fee3-c4a6-478b-8b26-a6a7c3727d02",
+  "subject": "Remove monitor step from build workflow",
+  "description": "Remove 'monitor'/'운영' from scenarioSteps and WorkflowStep type. Keep Monitor page/route/sidebar as standalone.",
+  "status": "completed",
+  "activeForm": "Removing monitor step from build workflow",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

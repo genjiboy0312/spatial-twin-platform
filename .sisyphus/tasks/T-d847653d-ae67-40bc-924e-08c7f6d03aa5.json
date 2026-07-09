@@ -1,0 +1,12 @@
+{
+  "id": "T-d847653d-ae67-40bc-924e-08c7f6d03aa5",
+  "subject": "Create adapted alignment layout components",
+  "description": "Create AlignmentLeftPanel, AlignmentCenterViewerPanel, and AlignmentWorkflowPanel at the requested current-project paths with building-editor dependencies removed.",
+  "status": "completed",
+  "activeForm": "Creating adapted alignment layout components",
+  "blocks": [],
+  "blockedBy": [
+    "T-818da0b6-9fd6-4229-a6a4-f37f7bb90c3d"
+  ],
+  "threadID": "ses_0bb78431dffeC1bCGQdVf2sfft"
+}

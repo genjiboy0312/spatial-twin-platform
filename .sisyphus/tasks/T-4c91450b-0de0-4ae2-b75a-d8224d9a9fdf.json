@@ -1,0 +1,13 @@
+{
+  "id": "T-4c91450b-0de0-4ae2-b75a-d8224d9a9fdf",
+  "subject": "Validate rewritten AnchorsPage",
+  "description": "Run diagnostics and applicable frontend checks for the rewritten AnchorsPage.tsx, then fix any issues found.",
+  "status": "in_progress",
+  "activeForm": "Validating rewritten AnchorsPage",
+  "blocks": [],
+  "blockedBy": [
+    "T-ea126ad6-6b7c-427c-bfa4-8e7f25d2b1fd"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb910ab0ffeBo5adMoEp4pMwB"
+}

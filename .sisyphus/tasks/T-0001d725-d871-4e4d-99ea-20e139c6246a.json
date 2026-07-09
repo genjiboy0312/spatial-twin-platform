@@ -1,0 +1,13 @@
+{
+  "id": "T-0001d725-d871-4e4d-99ea-20e139c6246a",
+  "subject": "Extract modal requirements",
+  "description": "Read the matching sections and capture required inputs, submission/export flows, settings, triggers, and closing behavior.",
+  "status": "completed",
+  "activeForm": "Extracting modal requirements",
+  "blocks": [],
+  "blockedBy": [
+    "T-ce15465e-9fa8-441f-b743-c1693dd22dd3"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c044c905ffe6I6kVtg2I6gjQi"
+}
