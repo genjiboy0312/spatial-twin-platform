@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db import Base, engine
-from app.routers import buildings, geometry, gps_alignment, security_devices, uploads, workflow
+from app.routers import buildings, geometry, gps_alignment, osm_tiles, project_data, security_devices, uploads, workflow
 from app.settings import get_settings
 
 
@@ -23,6 +23,7 @@ def create_app() -> FastAPI:
     api.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -41,6 +42,8 @@ def create_app() -> FastAPI:
     api.include_router(buildings.router)
     api.include_router(geometry.router)
     api.include_router(gps_alignment.router)
+    api.include_router(osm_tiles.router)
+    api.include_router(project_data.router)
     api.include_router(security_devices.router)
     api.include_router(uploads.router)
     api.include_router(workflow.router)

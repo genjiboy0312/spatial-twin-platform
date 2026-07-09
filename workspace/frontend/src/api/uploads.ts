@@ -8,12 +8,36 @@ export type UploadAsset = {
   floor_id: number | null
   status: string
   message: string | null
+  file_url: string | null
+  pointcloud_preview_url: string | null
   created_at: string | null
 }
 
+export type ProjectAsset = {
+  id: number
+  building_id: number
+  floor_id: number | null
+  upload_asset_id: number | null
+  asset_type: string
+  name: string
+  status: string
+  file_uri: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type UploadPipeline = {
+  upload: UploadAsset
+  project_assets: ProjectAsset[]
+  next_actions: string[]
+}
+
+export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'failed'
+
 export type UploadAssetCreate = {
   filename: string
-  source_type: 'dxf' | 'image' | 'ifc' | 'glb' | 'pointcloud' | 'unknown'
+  source_type: 'dxf' | 'dwg' | 'image' | 'ifc' | 'glb' | 'pointcloud' | 'unknown'
   building_id?: number
   floor_id?: number
 }
@@ -28,6 +52,17 @@ export function listUploadsByBuilding(buildingId: number): Promise<UploadAsset[]
 
 export function createUpload(payload: UploadAssetCreate): Promise<UploadAsset> {
   return sendJson<UploadAsset, UploadAssetCreate>('/api/uploads', 'POST', payload)
+}
+
+export function getUploadPipeline(uploadId: number): Promise<UploadPipeline> {
+  return getJson<UploadPipeline>(`/api/uploads/${uploadId}/pipeline`)
+}
+
+export function updateUploadStatus(uploadId: number, status: UploadStatus, message?: string): Promise<UploadPipeline> {
+  return sendJson<UploadPipeline, { status: UploadStatus; message?: string }>(`/api/uploads/${uploadId}/status`, 'PATCH', {
+    status,
+    ...(message === undefined ? {} : { message }),
+  })
 }
 
 export async function uploadFile(
@@ -51,4 +86,14 @@ export async function uploadFile(
     throw new Error(`Upload failed with ${response.status}`)
   }
   return response.json() as Promise<UploadAsset>
+}
+
+export async function deleteUpload(uploadId: number): Promise<void> {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  const response = await fetch(`${baseUrl}/api/uploads/${uploadId}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(`Delete upload failed with ${response.status}`)
+  }
 }

@@ -8,7 +8,7 @@ export async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export async function sendJson<TResponse, TPayload>(path: string, method: 'POST' | 'PATCH', payload: TPayload): Promise<TResponse> {
+export async function sendJson<TResponse, TPayload>(path: string, method: 'POST' | 'PATCH' | 'PUT', payload: TPayload): Promise<TResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },

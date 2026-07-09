@@ -115,7 +115,7 @@ class GpsBatchTransformPointResponse(BaseModel):
 
 class UploadAssetCreate(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
-    source_type: Literal["dxf", "image", "ifc", "glb", "pointcloud", "unknown"] = "unknown"
+    source_type: Literal["dxf", "dwg", "image", "ifc", "glb", "pointcloud", "unknown"] = "unknown"
     building_id: int | None = None
     floor_id: int | None = None
 
@@ -124,9 +124,16 @@ class UploadAssetRead(UploadAssetCreate):
     id: int
     status: str
     message: str | None = None
+    file_url: str | None = None
+    pointcloud_preview_url: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UploadAssetStatusUpdate(BaseModel):
+    status: Literal["pending", "uploaded", "processing", "ready", "failed"]
+    message: str | None = None
 
 
 class WorkflowRead(BaseModel):
@@ -141,6 +148,88 @@ class WorkflowUpdate(BaseModel):
 
 
 # ── Geometry ──
+
+
+AssetType = Literal["image", "dxf", "dwg", "ifc", "glb", "gltf", "pointcloud", "security_device", "object", "unknown"]
+
+
+class ProjectAssetCreate(BaseModel):
+    asset_type: AssetType
+    name: str = Field(min_length=1, max_length=255)
+    floor_id: int | None = None
+    upload_asset_id: int | None = None
+    status: str = Field(default="registered", min_length=1, max_length=30)
+    file_uri: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class ProjectAssetUpdate(BaseModel):
+    asset_type: AssetType | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    floor_id: int | None = None
+    upload_asset_id: int | None = None
+    status: str | None = Field(default=None, min_length=1, max_length=30)
+    file_uri: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class ProjectAssetRead(ProjectAssetCreate):
+    id: int
+    building_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class UploadPipelineRead(BaseModel):
+    upload: UploadAssetRead
+    project_assets: list[ProjectAssetRead]
+    next_actions: list[str]
+
+
+class ObjectTransform(BaseModel):
+    position_x: float = 0.0
+    position_y: float = 0.0
+    position_z: float = 0.0
+    rotation_x: float = 0.0
+    rotation_y: float = 0.0
+    rotation_z: float = 0.0
+    scale_x: float = Field(default=1.0, gt=0)
+    scale_y: float = Field(default=1.0, gt=0)
+    scale_z: float = Field(default=1.0, gt=0)
+
+
+class ObjectPlacementCreate(ObjectTransform):
+    object_type: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=255)
+    floor_id: int | None = None
+    source_asset_id: int | None = None
+    status: str = Field(default="active", min_length=1, max_length=30)
+    metadata: dict[str, Any] | None = None
+
+
+class ObjectPlacementUpdate(BaseModel):
+    object_type: str | None = Field(default=None, min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    floor_id: int | None = None
+    source_asset_id: int | None = None
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+    rotation_x: float | None = None
+    rotation_y: float | None = None
+    rotation_z: float | None = None
+    scale_x: float | None = Field(default=None, gt=0)
+    scale_y: float | None = Field(default=None, gt=0)
+    scale_z: float | None = Field(default=None, gt=0)
+    status: str | None = Field(default=None, min_length=1, max_length=30)
+    metadata: dict[str, Any] | None = None
+
+
+class ObjectPlacementRead(ObjectPlacementCreate):
+    id: int
+    building_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class WallCreate(BaseModel):
@@ -273,3 +362,24 @@ class SecurityDeviceRead(SecurityDeviceCreate):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectDataRead(BaseModel):
+    building: BuildingRead
+    floors: list[FloorRead]
+    uploads: list[UploadAssetRead]
+    project_assets: list[ProjectAssetRead]
+    object_placements: list[ObjectPlacementRead]
+    security_devices: list[SecurityDeviceRead]
+    asset_counts: dict[str, int]
+
+
+class ProjectSnapshotPayload(BaseModel):
+    version: int = Field(default=1, ge=1)
+    state: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectSnapshotRead(ProjectSnapshotPayload):
+    building_id: int
+    saved: bool = False
+    updated_at: datetime | None = None

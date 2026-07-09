@@ -36,6 +36,15 @@ class Building(Base):
         back_populates="building",
         cascade="all, delete-orphan",
     )
+    project_assets: Mapped[list["ProjectAsset"]] = relationship(back_populates="building", cascade="all, delete-orphan")
+    object_placements: Mapped[list["ObjectPlacement"]] = relationship(
+        back_populates="building",
+        cascade="all, delete-orphan",
+    )
+    project_snapshot: Mapped["ProjectSnapshot | None"] = relationship(
+        back_populates="building",
+        cascade="all, delete-orphan",
+    )
 
 
 class Floor(Base):
@@ -54,6 +63,8 @@ class Floor(Base):
         back_populates="floor",
         cascade="all, delete-orphan",
     )
+    project_assets: Mapped[list["ProjectAsset"]] = relationship(back_populates="floor")
+    object_placements: Mapped[list["ObjectPlacement"]] = relationship(back_populates="floor")
 
 
 class BuildingMapSettings(Base):
@@ -115,6 +126,83 @@ class UploadAsset(Base):
     status: Mapped[str] = mapped_column(String(20), default="uploaded")
     message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def file_url(self) -> str | None:
+        if not self.message:
+            return None
+        marker = " from " if " from " in self.message else " at "
+        if marker not in self.message:
+            return None
+        stored_name = self.message.split(marker, 1)[1].split(" ", 1)[0].strip()
+        if not stored_name:
+            return None
+        return f"/api/uploads/{self.id}/file"
+
+    @property
+    def pointcloud_preview_url(self) -> str | None:
+        if self.source_type != "pointcloud" or self.file_url is None:
+            return None
+        return f"/api/uploads/{self.id}/pointcloud-preview"
+
+
+class ProjectAsset(Base):
+    __tablename__ = "project_assets"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), index=True)
+    floor_id: Mapped[int | None] = mapped_column(ForeignKey("floors.id", ondelete="SET NULL"), index=True)
+    upload_asset_id: Mapped[int | None] = mapped_column(ForeignKey("upload_assets.id", ondelete="SET NULL"), index=True)
+    asset_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="registered")
+    file_uri: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="project_assets")
+    floor: Mapped[Floor | None] = relationship(back_populates="project_assets")
+
+
+class ObjectPlacement(Base):
+    __tablename__ = "object_placements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), index=True)
+    floor_id: Mapped[int | None] = mapped_column(ForeignKey("floors.id", ondelete="SET NULL"), index=True)
+    source_asset_id: Mapped[int | None] = mapped_column(ForeignKey("project_assets.id", ondelete="SET NULL"), index=True)
+    object_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    position_x: Mapped[float] = mapped_column(default=0.0)
+    position_y: Mapped[float] = mapped_column(default=0.0)
+    position_z: Mapped[float] = mapped_column(default=0.0)
+    rotation_x: Mapped[float] = mapped_column(default=0.0)
+    rotation_y: Mapped[float] = mapped_column(default=0.0)
+    rotation_z: Mapped[float] = mapped_column(default=0.0)
+    scale_x: Mapped[float] = mapped_column(default=1.0)
+    scale_y: Mapped[float] = mapped_column(default=1.0)
+    scale_z: Mapped[float] = mapped_column(default=1.0)
+    status: Mapped[str] = mapped_column(String(30), default="active")
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="object_placements")
+    floor: Mapped[Floor | None] = relationship(back_populates="object_placements")
+
+
+class ProjectSnapshot(Base):
+    __tablename__ = "project_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), unique=True, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    state_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="project_snapshot")
 
 
 class WorkflowProgress(Base):

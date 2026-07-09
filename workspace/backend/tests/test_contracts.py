@@ -71,6 +71,22 @@ def test_pointcloud_file_upload_creates_ready_asset() -> None:
     assert "PointCloud object ready" in body["message"]
 
 
+def test_delete_upload_removes_asset_record() -> None:
+    building = client.post("/api/buildings", json={"name": "Delete Upload Parent"}).json()
+    upload = client.post(
+        "/api/uploads/file",
+        data={"source_type": "pointcloud", "building_id": str(building["id"])},
+        files={"file": ("delete-me.ply", b"ply\nformat ascii 1.0\nend_header\n", "application/octet-stream")},
+    ).json()
+
+    delete_response = client.delete(f"/api/uploads/{upload['id']}")
+    assert delete_response.status_code == 204
+
+    list_response = client.get(f"/api/uploads/by-building/{building['id']}")
+    assert list_response.status_code == 200
+    assert all(asset["id"] != upload["id"] for asset in list_response.json())
+
+
 def test_file_upload_rejects_floor_from_other_building() -> None:
     first = client.post("/api/buildings", json={"name": "File Upload A"}).json()
     second = client.post("/api/buildings", json={"name": "File Upload B"}).json()
@@ -199,3 +215,146 @@ def test_gps_alignment_three_point_and_transform() -> None:
     )
     assert batch_response.status_code == 200
     assert batch_response.json()["gps_points"] == [[37.0, 127.0], [37.001, 127.001]]
+
+
+def test_project_data_assets_and_object_placements() -> None:
+    building = client.post("/api/buildings", json={"name": "Project Data Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+    upload = client.post(
+        "/api/uploads",
+        json={
+            "filename": "floor-01.dwg",
+            "source_type": "dwg",
+            "building_id": building["id"],
+            "floor_id": floor["id"],
+        },
+    ).json()
+
+    image_asset = client.post(
+        f"/api/buildings/{building['id']}/assets",
+        json={
+            "asset_type": "image",
+            "name": "Floor plan image",
+            "floor_id": floor["id"],
+            "file_uri": "uploads/floor.png",
+            "metadata": {"width": 1920, "height": 1080},
+        },
+    )
+    assert image_asset.status_code == 201
+    assert image_asset.json()["metadata"] == {"width": 1920, "height": 1080}
+
+    model_asset = client.post(
+        f"/api/buildings/{building['id']}/assets",
+        json={
+            "asset_type": "dwg",
+            "name": "DWG source",
+            "floor_id": floor["id"],
+            "upload_asset_id": upload["id"],
+            "metadata": {"unit": "meter"},
+        },
+    ).json()
+
+    placement_response = client.post(
+        f"/api/buildings/{building['id']}/object-placements",
+        json={
+            "object_type": "ifc_model",
+            "name": "Main IFC shell",
+            "floor_id": floor["id"],
+            "source_asset_id": model_asset["id"],
+            "position_x": 1.5,
+            "position_y": 0.0,
+            "position_z": -2.0,
+            "rotation_y": 45.0,
+            "scale_x": 1.2,
+            "scale_y": 1.2,
+            "scale_z": 1.2,
+            "metadata": {"snap": "origin"},
+        },
+    )
+    assert placement_response.status_code == 201
+    placement = placement_response.json()
+    assert placement["position_x"] == 1.5
+    assert placement["metadata"] == {"snap": "origin"}
+
+    device_response = client.post(
+        f"/api/floors/{floor['id']}/devices",
+        json={"name": "Lobby Camera", "device_type": "camera", "pos_x": 2.0, "pos_y": 3.0},
+    )
+    assert device_response.status_code == 201
+
+    summary_response = client.get(f"/api/buildings/{building['id']}/project-data")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["building"]["id"] == building["id"]
+    assert summary["asset_counts"]["image"] == 1
+    assert summary["asset_counts"]["dwg"] >= 1
+    assert summary["asset_counts"]["object"] == 1
+    assert summary["asset_counts"]["security_device"] == 1
+    assert summary["object_placements"][0]["name"] == "Main IFC shell"
+
+
+def test_project_asset_rejects_floor_from_other_building() -> None:
+    first = client.post("/api/buildings", json={"name": "Asset Scope A"}).json()
+    second = client.post("/api/buildings", json={"name": "Asset Scope B"}).json()
+    floor = client.post(f"/api/buildings/{first['id']}/floors", json={"floor_number": 1}).json()
+
+    response = client.post(
+        f"/api/buildings/{second['id']}/assets",
+        json={"asset_type": "ifc", "name": "Wrong floor asset", "floor_id": floor["id"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Floor does not belong to building"}
+
+
+def test_project_snapshot_round_trip() -> None:
+    building = client.post("/api/buildings", json={"name": "Snapshot Parent"}).json()
+
+    empty_response = client.get(f"/api/buildings/{building['id']}/project-snapshot")
+    assert empty_response.status_code == 200
+    assert empty_response.json()["saved"] is False
+    assert empty_response.json()["state"] == {}
+
+    payload = {
+        "version": 2,
+        "state": {
+            "selectedFloorId": 10,
+            "editor": {"view": "pointcloud", "deviceCount": 4},
+            "alignment": {"origin": [37.462, 127.037]},
+        },
+    }
+    save_response = client.put(f"/api/buildings/{building['id']}/project-snapshot", json=payload)
+    assert save_response.status_code == 200
+    assert save_response.json()["saved"] is True
+    assert save_response.json()["version"] == 2
+
+    load_response = client.get(f"/api/buildings/{building['id']}/project-snapshot")
+    assert load_response.status_code == 200
+    assert load_response.json()["state"] == payload["state"]
+
+
+def test_upload_pipeline_status_updates_linked_project_asset() -> None:
+    building = client.post("/api/buildings", json={"name": "Pipeline Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+    upload = client.post(
+        "/api/uploads/file",
+        data={"source_type": "ifc", "building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files={"file": ("model.ifc", b"ISO-10303-21;", "application/octet-stream")},
+    ).json()
+
+    pipeline_response = client.get(f"/api/uploads/{upload['id']}/pipeline")
+    assert pipeline_response.status_code == 200
+    pipeline = pipeline_response.json()
+    assert pipeline["upload"]["status"] == "ready"
+    assert pipeline["project_assets"][0]["asset_type"] == "ifc"
+    assert pipeline["project_assets"][0]["status"] == "ready"
+
+    failed_response = client.patch(
+        f"/api/uploads/{upload['id']}/status",
+        json={"status": "failed", "message": "IFC parser failed"},
+    )
+    assert failed_response.status_code == 200
+    failed_pipeline = failed_response.json()
+    assert failed_pipeline["upload"]["status"] == "failed"
+    assert failed_pipeline["project_assets"][0]["status"] == "failed"
+    assert "Allow retry" in " ".join(failed_pipeline["next_actions"])
