@@ -1,6 +1,8 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
+import { listBuildings } from '../api/buildings'
+import { getProjectSnapshot } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
 import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import { useAlignmentStore } from '../stores/alignmentStore'
@@ -52,6 +54,16 @@ type ValidationResult = {
   issueCount: number
   errorCount: number
   warningCount: number
+}
+
+function isEditorSnapshot(value: unknown): value is {
+  walls?: Wall2D[]
+  rooms?: Room2D[]
+  devices?: SecurityDevice[]
+  visibleLayers?: { walls: boolean; rooms: boolean; devices: boolean }
+  snapMode?: 'grid' | 'endpoint' | 'both' | 'none'
+} {
+  return typeof value === 'object' && value !== null
 }
 
 type ValidationIssueCopy = {
@@ -1110,6 +1122,7 @@ export function ValidationPage() {
   const walls = useEditorStore((state) => state.walls)
   const rooms = useEditorStore((state) => state.rooms)
   const devices = useEditorStore((state) => state.devices)
+  const loadEditorState = useEditorStore((state) => state.loadEditorState)
   const [selectedFloorId, setSelectedFloorId] = useState('1f')
   const [activeView, setActiveView] = useState<ValidationViewMode>('floor')
   const [selectedCategoryId, setSelectedCategoryId] = useState<ValidationCategoryId>('geometry')
@@ -1121,6 +1134,31 @@ export function ValidationPage() {
   const selectedFloorDeviceCount = selectedFloor.id === '1f' ? devices.length : 0
   const quickIssues = selectedCategory.issues.length > 0 ? selectedCategory.issues : allIssues.slice(0, 4)
   const hasValidationGeometry = rooms.length > 0 || walls.length > 0
+
+  useEffect(() => {
+    let cancelled = false
+    async function hydrateEditorSnapshot() {
+      const buildings = await listBuildings()
+      const building = buildings[0]
+      if (!building) return
+      const snapshot = await getProjectSnapshot(building.id).catch(() => null)
+      if (cancelled || !snapshot?.saved) return
+      const editorSnapshot = snapshot.state.editor
+      if (!isEditorSnapshot(editorSnapshot)) return
+      loadEditorState({
+        ...(Array.isArray(editorSnapshot.walls) ? { walls: editorSnapshot.walls } : {}),
+        ...(Array.isArray(editorSnapshot.rooms) ? { rooms: editorSnapshot.rooms } : {}),
+        ...(Array.isArray(editorSnapshot.devices) ? { devices: editorSnapshot.devices } : {}),
+        ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
+        ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
+      })
+    }
+
+    hydrateEditorSnapshot().catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [loadEditorState])
 
   return (
     <section className="page-grid spatial-page validation-page validation-workspace">
