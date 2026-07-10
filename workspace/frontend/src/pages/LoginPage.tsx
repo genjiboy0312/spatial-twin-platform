@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 
 import { type UserRole, useSessionStore } from '../stores/sessionStore'
@@ -26,6 +26,15 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const handleClose = () => navigate('/')
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') navigate('/')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate])
   const selectedRole = useMemo(() => roleOptions.find((option) => option.value === role) ?? roleOptions[0]!, [role])
 
   const fillAccount = (account: typeof TEST_ACCOUNTS[number]) => {
@@ -58,6 +67,21 @@ export function LoginPage() {
   return (
     <section className="login-page" style={{ minHeight: '100vh' }}>
       <div className="login-panel">
+        <button
+          type="button"
+          className="login-close"
+          aria-label="Close"
+          onClick={handleClose}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M3 3l10 10M13 3L3 13"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
         <div className="login-accent" aria-hidden="true" />
         <div className="login-header">
           <span className="login-icon" aria-hidden="true">
