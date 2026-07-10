@@ -1,0 +1,10 @@
+{
+  "id": "T-ca28c4eb-77b4-4e08-9942-e34930042df1",
+  "subject": "Move autosave pill into ViewToolbar right side",
+  "description": "Move the '방금 자동 저장됨' pill from EditorPage into ViewToolbar's .view-toolbar-right section",
+  "status": "completed",
+  "activeForm": "Moving autosave pill to ViewToolbar",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

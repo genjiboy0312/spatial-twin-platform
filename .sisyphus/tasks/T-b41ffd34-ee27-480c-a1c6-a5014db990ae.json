@@ -1,0 +1,12 @@
+{
+  "id": "T-b41ffd34-ee27-480c-a1c6-a5014db990ae",
+  "subject": "Rewrite MonitorPage.tsx with extracted components",
+  "description": "Refactor MonitorPage.tsx to use the new extracted component files, porting the polished UX from the reference project",
+  "status": "pending",
+  "activeForm": "Integrating MonitorPage",
+  "blocks": [],
+  "blockedBy": [
+    "T-f0c76c11-dc62-4b8a-8422-e3d3d1e7fe63"
+  ],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

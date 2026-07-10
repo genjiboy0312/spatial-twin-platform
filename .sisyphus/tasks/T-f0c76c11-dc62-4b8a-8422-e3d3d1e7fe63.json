@@ -1,0 +1,10 @@
+{
+  "id": "T-f0c76c11-dc62-4b8a-8422-e3d3d1e7fe63",
+  "subject": "Port monitor page from reference project",
+  "description": "Port the full monitor feature (components, utilities, page) from C:\\building-editor to C:\\spatial-twin-platform, adapting to target project's architecture and API patterns",
+  "status": "pending",
+  "activeForm": "Planning port of monitor feature",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

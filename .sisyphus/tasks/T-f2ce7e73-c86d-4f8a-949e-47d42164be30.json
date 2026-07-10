@@ -1,0 +1,10 @@
+{
+  "id": "T-f2ce7e73-c86d-4f8a-949e-47d42164be30",
+  "subject": "Replace GizmoViewport with Canvas 2D overlay axis indicator",
+  "description": "Replace drei GizmoHelper/GizmoViewport with a Canvas 2D overlay matching building-editor's AxisIndicator3D approach: circular dark bg, arrow heads, dim-away axes, Pretendard font",
+  "status": "completed",
+  "activeForm": "Reimplementing axis indicator",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

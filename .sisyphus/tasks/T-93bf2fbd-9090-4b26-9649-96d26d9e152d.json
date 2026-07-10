@@ -1,0 +1,10 @@
+{
+  "id": "T-93bf2fbd-9090-4b26-9649-96d26d9e152d",
+  "subject": "인증 및 권한 부여 시스템",
+  "description": "Critical Path - 사용자 로그인, 역할 권한, 프로젝트 수준 접근 제어, 건물/프로젝트 데이터 API 가드 추가",
+  "status": "in_progress",
+  "activeForm": "인증 시스템 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

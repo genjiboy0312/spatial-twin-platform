@@ -1,0 +1,10 @@
+{
+  "id": "T-cd4ba1a8-01e8-4ddc-8ae5-f6443c00762d",
+  "subject": "Redesign 3D axis indicator for SOC dark theme",
+  "description": "Customize GizmoHelper/GizmoViewport colors and font to match building-editor SOC design system; clean up stale CSS",
+  "status": "completed",
+  "activeForm": "Redesigning 3D axis indicator",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

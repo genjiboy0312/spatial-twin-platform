@@ -1,0 +1,10 @@
+{
+  "id": "T-905b9f95-6b63-45e3-ba4d-a0712e3fb05e",
+  "subject": "실제 객체 배치 영속화",
+  "description": "Critical Path - 에디터 보안장치/객체 배치 변경사항을 백엔드 객체 배치 API에 직접 연결 (Undo/Redo 히스토리 포함)",
+  "status": "in_progress",
+  "activeForm": "객체 배치 영속화 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

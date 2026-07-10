@@ -1,0 +1,10 @@
+{
+  "id": "T-58f7a949-82b2-4dc4-be8f-a3ff245aea82",
+  "subject": "Add 2D compass indicator and move all indicators to top-right",
+  "description": "Create CompassIndicator2D component for 2D view, move ThreeJSViewer axis indicator to top-right, add showAxisGizmo to editor 3D/pointcloud views",
+  "status": "completed",
+  "activeForm": "Adding indicators to editor views",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

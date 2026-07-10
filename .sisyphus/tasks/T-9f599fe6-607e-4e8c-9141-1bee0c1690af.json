@@ -1,0 +1,10 @@
+{
+  "id": "T-9f599fe6-607e-4e8c-9141-1bee0c1690af",
+  "subject": "프로젝트 저장/로드 워크플로우 완성",
+  "description": "Critical Path - 모든 건물 프로젝트가 층, 업로드, 모델 자산, 장치 위치, 정렬 상태, 앵커/맵 데이터, 대시보드 상태를 백엔드 스토리지에서 완전히 복원하도록 보장",
+  "status": "in_progress",
+  "activeForm": "프로젝트 저장/로드 워크플로우 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}
