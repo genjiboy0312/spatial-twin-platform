@@ -17,10 +17,25 @@ export type BuildingCreate = {
   origin_latitude?: number
 }
 
+export type BuildingMapSettings = {
+  building_id: number
+  origin_latitude: number
+  origin_longitude: number
+  osm_zoom: number
+  osm_scale: number
+  osm_opacity: number
+  saved: boolean
+  updated_at?: string | null
+}
+
 export function listBuildings(): Promise<Building[]> {
   return getJson<Building[]>('/api/buildings')
 }
 
 export function createBuilding(payload: BuildingCreate): Promise<Building> {
   return sendJson<Building, BuildingCreate>('/api/buildings', 'POST', payload)
+}
+
+export function getBuildingMapSettings(buildingId: number): Promise<BuildingMapSettings> {
+  return getJson<BuildingMapSettings>(`/api/buildings/${buildingId}/map-settings`)
 }
