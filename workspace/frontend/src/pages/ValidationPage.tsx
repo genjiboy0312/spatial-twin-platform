@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { usePreferences } from '../app/preferences'
@@ -7,6 +7,10 @@ import { useAlignmentStore } from '../stores/alignmentStore'
 import { useEditorStore, type SecurityDevice, type SecurityDeviceType } from '../stores/editorStore'
 import type { AnchorPoint } from '../utils/alignmentUtils'
 import { PageHeader } from './PageHeader'
+
+const ThreeJSViewer = lazy(() =>
+  import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
+)
 
 type ValidationStatus = 'pass' | 'warning' | 'error'
 type ValidationCategoryId = 'geometry' | 'space' | 'security' | 'alignment'
@@ -1003,6 +1007,7 @@ type ValidationUiCopy = {
   coverage: string
   risk: string
   emptyScene: string
+  loadingScene: string
 }
 
 const validationUiCopy: Record<'en' | 'ko', ValidationUiCopy> = {
@@ -1042,6 +1047,7 @@ const validationUiCopy: Record<'en' | 'ko', ValidationUiCopy> = {
     coverage: 'Coverage map preview',
     risk: 'Risk markers and threat paths',
     emptyScene: 'Upload a drawing or place geometry to preview validation.',
+    loadingScene: 'Loading validation 3D scene...',
   },
   ko: {
     pageTitle: '검증',
@@ -1079,6 +1085,7 @@ const validationUiCopy: Record<'en' | 'ko', ValidationUiCopy> = {
     coverage: '커버리지 맵 프리뷰',
     risk: '위험 마커 및 위협 경로',
     emptyScene: '도면을 업로드하거나 구조를 배치하면 검증 프리뷰가 표시됩니다.',
+    loadingScene: '검증 3D 씬을 불러오는 중...',
   },
 }
 
@@ -1088,30 +1095,6 @@ const validationFloors: ValidationFloor[] = [
   { id: '1f', name: '1F', height: '3m', sourceCategory: 'geometry' },
 ]
 
-function getPlanBounds(walls: Wall2D[], rooms: Room2D[], devices: SecurityDevice[]) {
-  const xs = [
-    ...walls.flatMap((wall) => [wall.x1, wall.x2]),
-    ...rooms.flatMap((room) => [room.x, room.x + room.w]),
-    ...devices.map((device) => device.x),
-  ]
-  const ys = [
-    ...walls.flatMap((wall) => [wall.y1, wall.y2]),
-    ...rooms.flatMap((room) => [room.y, room.y + room.h]),
-    ...devices.map((device) => device.y),
-  ]
-
-  if (xs.length === 0 || ys.length === 0) {
-    return { minX: -8, maxX: 18, minY: -8, maxY: 18 }
-  }
-
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-  const pad = Math.max(2, Math.max(maxX - minX, maxY - minY) * 0.18)
-
-  return { minX: minX - pad, maxX: maxX + pad, minY: minY - pad, maxY: maxY + pad }
-}
 
 function statusIcon(status: ValidationStatus): string {
   if (status === 'pass') return 'OK'
@@ -1135,14 +1118,9 @@ export function ValidationPage() {
   const selectedFloor = validationFloors.find((floor) => floor.id === selectedFloorId) ?? validationFloors[2]!
   const selectedCategory = validation.categories.find((category) => category.id === selectedCategoryId) ?? validation.categories[0]!
   const allIssues = validation.categories.flatMap((category) => category.issues.map((issue) => ({ ...issue, category: category.id })))
-  const bounds = useMemo(() => getPlanBounds(walls, rooms, devices), [devices, rooms, walls])
-  const rangeX = Math.max(bounds.maxX - bounds.minX, 1)
-  const rangeY = Math.max(bounds.maxY - bounds.minY, 1)
   const selectedFloorDeviceCount = selectedFloor.id === '1f' ? devices.length : 0
   const quickIssues = selectedCategory.issues.length > 0 ? selectedCategory.issues : allIssues.slice(0, 4)
-
-  const toLeft = (x: number) => ((x - bounds.minX) / rangeX) * 100
-  const toTop = (y: number) => ((y - bounds.minY) / rangeY) * 100
+  const hasValidationGeometry = rooms.length > 0 || walls.length > 0
 
   return (
     <section className="page-grid spatial-page validation-page validation-workspace">
@@ -1270,71 +1248,20 @@ export function ValidationPage() {
               {ui.issueMarkers} <strong>{showIssueMarkers ? ui.off : ui.on}</strong>
             </button>
 
-            <div className="validation-scene">
-              <div className="validation-scene-grid" />
-              <div className="validation-floor-plate">
-                {rooms.length === 0 && walls.length === 0 ? (
-                  <div className="validation-empty-scene">{ui.emptyScene}</div>
-                ) : (
-                  <>
-                    {rooms.map((room, index) => (
-                      <div
-                        key={`${room.label ?? 'room'}-${index}`}
-                        className="validation-room-block"
-                        style={{
-                          left: `${toLeft(room.x)}%`,
-                          top: `${toTop(room.y)}%`,
-                          width: `${Math.max((room.w / rangeX) * 100, 7)}%`,
-                          height: `${Math.max((room.h / rangeY) * 100, 7)}%`,
-                        }}
-                      >
-                        <span>{room.label ?? `R${index + 1}`}</span>
-                      </div>
-                    ))}
-                    {walls.map((wall, index) => {
-                      const x1 = toLeft(wall.x1)
-                      const y1 = toTop(wall.y1)
-                      const x2 = toLeft(wall.x2)
-                      const y2 = toTop(wall.y2)
-                      const length = Math.hypot(x2 - x1, y2 - y1)
-                      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
+            <div className="validation-3d-scene">
+              {hasValidationGeometry ? (
+                <Suspense fallback={<div className="validation-viewer-placeholder">{ui.loadingScene}</div>}>
+                  <ThreeJSViewer walls={walls} rooms={rooms} devices={devices} showAxisGizmo />
+                </Suspense>
+              ) : (
+                <div className="validation-empty-scene">{ui.emptyScene}</div>
+              )}
 
-                      return (
-                        <span
-                          key={`wall-${index}`}
-                          className="validation-wall-line"
-                          style={{
-                            left: `${x1}%`,
-                            top: `${y1}%`,
-                            width: `${length}%`,
-                            transform: `rotate(${angle}deg)`,
-                          }}
-                        />
-                      )
-                    })}
-                    {devices.map((device, index) => (
-                      <span
-                        key={device.id}
-                        className={`validation-device-marker ${device.device_type}`}
-                        style={{ left: `${toLeft(device.x)}%`, top: `${toTop(device.y)}%` }}
-                        title={device.name || `${device.device_type} ${index + 1}`}
-                      >
-                        {device.device_type.slice(0, 1).toUpperCase()}
-                      </span>
-                    ))}
-                    {showIssueMarkers && quickIssues.slice(0, 3).map((issue, index) => (
-                      <span key={issue.id} className={`validation-issue-marker ${issue.severity} marker-${index + 1}`}>
-                        {statusIcon(issue.severity)}
-                      </span>
-                    ))}
-                  </>
-                )}
-              </div>
-              <div className="validation-axis-widget">
-                <span>X</span>
-                <span>Y</span>
-                <span>Z</span>
-              </div>
+              {hasValidationGeometry && showIssueMarkers && quickIssues.slice(0, 3).map((issue, index) => (
+                <span key={issue.id} className={`validation-issue-marker ${issue.severity} marker-${index + 1}`}>
+                  {statusIcon(issue.severity)}
+                </span>
+              ))}
             </div>
           </div>
         </main>
