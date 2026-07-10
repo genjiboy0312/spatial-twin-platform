@@ -42,6 +42,13 @@ const markerColors = {
   picked: '#22c55e',
 } satisfies Record<NonNullable<AlignmentMarker['tone']>, string>
 
+const MARKER_RING_INNER_RADIUS = 2.2
+const MARKER_RING_OUTER_RADIUS = 3.5
+const MARKER_SPHERE_RADIUS = 1.18
+const MARKER_SPHERE_HEIGHT = 1.0
+const MARKER_LABEL_HEIGHT = 3.35
+const MARKER_LABEL_DISTANCE_FACTOR = 10
+
 function clampZoom(zoom: number) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(zoom)))
 }
@@ -329,15 +336,15 @@ function AlignmentMarkerObject({ marker, center }: { marker: AlignmentMarker; ce
 
   return (
     <group position={position}>
-      <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.3, 2.1, 56]} />
-        <meshBasicMaterial color={color} transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[0, 0.11, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[MARKER_RING_INNER_RADIUS, MARKER_RING_OUTER_RADIUS, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={0.42} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, 0.62, 0]}>
-        <sphereGeometry args={[0.72, 32, 20]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.55} roughness={0.28} />
+      <mesh position={[0, MARKER_SPHERE_HEIGHT, 0]}>
+        <sphereGeometry args={[MARKER_SPHERE_RADIUS, 36, 24]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.72} roughness={0.25} />
       </mesh>
-      <Html position={[0, 2.25, 0]} center distanceFactor={13} style={{ pointerEvents: 'none' }}>
+      <Html position={[0, MARKER_LABEL_HEIGHT, 0]} center distanceFactor={MARKER_LABEL_DISTANCE_FACTOR} style={{ pointerEvents: 'none' }}>
         <span className="alignment-3d-label">
           {marker.label}
         </span>

@@ -1163,3 +1163,4 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Alignment map plane visibility: added road/green/footprint details as thin Three.js plane geometry on top of the OSM ground plane so the map reads as a 3D floor object, not a screen background.
 - [x] Alignment OSM tile parity: added a backend OSM tile proxy and changed both the reference-point popup map and 3D alignment ground plane to use the same `/api/osm-tiles` imagery, removing the temporary synthetic map detail layer.
 - [x] Alignment map obstruction fix: removed the demo building floor slab that was covering the OSM ground-plane texture so the popup-equivalent tile imagery remains visible underneath the building walls/objects.
+- [x] Alignment 3D marker visibility: enlarged GPS origin/Point1/Point2 marker rings, spheres, glow intensity, and text labels so picked reference and 3-point alignment targets are easier to read in the 3D view.
