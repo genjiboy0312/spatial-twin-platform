@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload, Download } from '../components/Icons'
 import { ViewToolbar } from '../components/ViewToolbar'
@@ -26,6 +26,14 @@ import { FloorPositionModal } from '../components/FloorPositionModal'
 
 import { SnapType, type SnapConfig } from '../utils/objectSnap'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
+import {
+  createObjectPlacement,
+  deleteObjectPlacement,
+  getProjectSnapshot,
+  listObjectPlacements,
+  saveProjectSnapshot,
+  type ObjectPlacement,
+} from '../api/projectData'
 const ThreeJSViewer = lazy(() =>
   import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
 )
@@ -84,6 +92,7 @@ const copy = {
 } as const
 
 type ViewMode = '2d' | 'split' | '3d' | 'pointcloud' | 'ifc'
+type EditorSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 
 const viewModes: ViewMode[] = ['2d', '3d', 'split', 'pointcloud', 'ifc']
 const POINTCLOUD_MAX_POINTS = 2_000_000
@@ -94,6 +103,71 @@ function floorLabel(floor: Floor, suffix: string) {
 
 function formatPointCount(value: number) {
   return new Intl.NumberFormat('ko-KR').format(value)
+}
+
+function isEditorSnapshot(value: unknown): value is {
+  walls?: Wall2D[]
+  rooms?: Array<{ x: number; y: number; w: number; h: number; label?: string }>
+  devices?: SecurityDevice[]
+  visibleLayers?: { walls: boolean; rooms: boolean; devices: boolean }
+  snapMode?: 'grid' | 'endpoint' | 'both' | 'none'
+  viewMode?: ViewMode
+  selectedFloorId?: number | ''
+} {
+  return typeof value === 'object' && value !== null
+}
+
+function placementFromDevice(device: SecurityDevice, floorId: number | '') {
+  return {
+    object_type: 'security_device',
+    name: device.name || device.device_type,
+    floor_id: floorId === '' ? null : floorId,
+    position_x: device.x,
+    position_y: 0,
+    position_z: device.y,
+    rotation_y: device.angle ?? 0,
+    status: 'active',
+    metadata: {
+      editor_source: 'editor-device',
+      editor_id: device.id,
+      device_type: device.device_type,
+    },
+  }
+}
+
+function deviceFromPlacement(placement: ObjectPlacement): SecurityDevice | null {
+  const metadata = placement.metadata ?? {}
+  if (metadata.editor_source !== 'editor-device') return null
+  const deviceType = metadata.device_type
+  if (deviceType !== 'camera' && deviceType !== 'sensor' && deviceType !== 'alarm' && deviceType !== 'access') return null
+  return {
+    id: typeof metadata.editor_id === 'string' ? metadata.editor_id : `placement-${placement.id}`,
+    name: placement.name,
+    device_type: deviceType,
+    x: placement.position_x,
+    y: placement.position_z,
+    angle: placement.rotation_y,
+  }
+}
+
+function editorSaveLabel(status: EditorSaveStatus, language: 'en' | 'ko') {
+  const labels = {
+    en: {
+      idle: 'Project sync ready',
+      loading: 'Loading project state...',
+      saving: 'Saving project state...',
+      saved: 'Autosaved just now',
+      error: 'Autosave failed',
+    },
+    ko: {
+      idle: '프로젝트 동기화 준비',
+      loading: '프로젝트 상태 불러오는 중...',
+      saving: '프로젝트 상태 저장 중...',
+      saved: '방금 자동 저장됨',
+      error: '자동 저장 실패',
+    },
+  } as const
+  return labels[language][status]
 }
 
 function PointCloudGenerationMeter({ uploads }: { uploads: UploadAsset[] }) {
@@ -148,6 +222,9 @@ export function EditorPage() {
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const [editorHydrated, setEditorHydrated] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<EditorSaveStatus>('idle')
+  const autosaveTimerRef = useRef<number | null>(null)
   const [snapConfig, setSnapConfig] = useState<SnapConfig>({
     enabled: true,
     types: [SnapType.ENDPOINT, SnapType.MIDPOINT, SnapType.GRID],
@@ -182,6 +259,7 @@ export function EditorPage() {
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
   const setSnapMode = useEditorStore((state) => state.setSnapMode)
+  const loadEditorState = useEditorStore((state) => state.loadEditorState)
 
   const toggleSnapEnabled = useCallback(() => {
     setSnapConfig(prev => ({ ...prev, enabled: !prev.enabled }))
@@ -229,21 +307,59 @@ export function EditorPage() {
     }
   }, [])
 
+  const syncDevicePlacements = useCallback(async (buildingId: number, floorId: number | '', nextDevices: SecurityDevice[]) => {
+    const placements = await listObjectPlacements(buildingId)
+    const editorDevicePlacements = placements.filter((placement) => placement.metadata?.editor_source === 'editor-device')
+    await Promise.all(editorDevicePlacements.map((placement) => deleteObjectPlacement(placement.id)))
+    await Promise.all(nextDevices.map((device) => createObjectPlacement(buildingId, placementFromDevice(device, floorId))))
+  }, [])
+
   const loadBuildingFloors = useCallback(async (buildingId: number) => {
+    setEditorHydrated(false)
+    setSaveStatus('loading')
     try {
-      const [data, uploads] = await Promise.all([listFloors(buildingId), listUploadsByBuilding(buildingId)])
+      const [data, uploads, snapshot, placements] = await Promise.all([
+        listFloors(buildingId),
+        listUploadsByBuilding(buildingId),
+        getProjectSnapshot(buildingId).catch(() => null),
+        listObjectPlacements(buildingId).catch(() => [] as ObjectPlacement[]),
+      ])
       setFloors(data)
       setPointCloudUploads(uploads.filter((upload) => upload.source_type === 'pointcloud'))
+      const editorSnapshot = snapshot?.saved ? snapshot.state.editor : null
+      const placementDevices = placements.map(deviceFromPlacement).filter((device): device is SecurityDevice => device !== null)
+      if (isEditorSnapshot(editorSnapshot)) {
+        loadEditorState({
+          ...(Array.isArray(editorSnapshot.walls) ? { walls: editorSnapshot.walls } : {}),
+          ...(Array.isArray(editorSnapshot.rooms) ? { rooms: editorSnapshot.rooms } : {}),
+          devices: Array.isArray(editorSnapshot.devices) ? editorSnapshot.devices : placementDevices,
+          ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
+          ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
+        })
+        if (editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
+      } else {
+        loadSample()
+        if (placementDevices.length > 0) {
+          loadEditorState({ devices: placementDevices })
+        }
+      }
       setSelectedFloorId((current) => {
+        if (isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)) {
+          return editorSnapshot.selectedFloorId
+        }
         if (current && data.some((floor) => floor.id === current)) return current
         return data[0]?.id ?? ''
       })
+      setEditorHydrated(true)
+      setSaveStatus(snapshot?.saved ? 'saved' : 'idle')
     } catch {
       setFloors([])
       setPointCloudUploads([])
       setSelectedFloorId('')
+      setEditorHydrated(false)
+      setSaveStatus('error')
     }
-  }, [])
+  }, [loadEditorState, loadSample])
 
   useEffect(() => { loadBuildings() }, [loadBuildings])
 
@@ -254,6 +370,7 @@ export function EditorPage() {
       setFloors([])
       setPointCloudUploads([])
       setSelectedFloorId('')
+      setEditorHydrated(false)
     }
   }, [loadBuildingFloors, selectedBuildingId])
 
@@ -263,11 +380,49 @@ export function EditorPage() {
   }, [pointCloudUploads, selectedFloorId])
 
   useEffect(() => {
-    if (!initialized) {
-      loadSample()
-      setInitialized(true)
+    if (selectedBuildingId !== '' || initialized) return
+    loadSample()
+    setInitialized(true)
+  }, [initialized, loadSample, selectedBuildingId])
+
+  useEffect(() => {
+    if (selectedBuildingId === '' || !editorHydrated) return undefined
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = window.setTimeout(() => {
+      setSaveStatus('saving')
+      saveProjectSnapshot(selectedBuildingId, {
+        editor: {
+          walls,
+          rooms,
+          devices,
+          visibleLayers,
+          snapMode,
+          viewMode,
+          selectedFloorId,
+          pointCloudUploadIds: visiblePointCloudUploads.map((upload) => upload.id),
+          updatedAt: new Date().toISOString(),
+        },
+      })
+        .then(() => syncDevicePlacements(selectedBuildingId, selectedFloorId, devices))
+        .then(() => setSaveStatus('saved'))
+        .catch(() => setSaveStatus('error'))
+    }, 900)
+    return () => {
+      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     }
-  }, [initialized, loadSample])
+  }, [
+    devices,
+    editorHydrated,
+    rooms,
+    selectedBuildingId,
+    selectedFloorId,
+    snapMode,
+    syncDevicePlacements,
+    viewMode,
+    visibleLayers,
+    visiblePointCloudUploads,
+    walls,
+  ])
 
   const handleAddFloor = async () => {
     if (selectedBuildingId === '') return
@@ -489,6 +644,9 @@ export function EditorPage() {
         <main className="editor-scene-main">
           {/* Top toolbar: Undo/Redo */}
           <ViewToolbar />
+          <div className={`editor-autosave-pill ${saveStatus}`}>
+            {editorSaveLabel(saveStatus, language)}
+          </div>
           {/* Viewport */}
           <div className="editor-scene-viewport" data-fit-trigger={fitViewTrigger}>
             {renderViewport()}

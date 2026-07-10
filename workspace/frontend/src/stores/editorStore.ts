@@ -85,6 +85,7 @@ type Actions = {
   undo: () => void
   redo: () => void
   pushHistory: () => void
+  loadEditorState: (state: Partial<Pick<State, 'walls' | 'rooms' | 'devices' | 'visibleLayers' | 'snapMode'>>) => void
 }
 
 const SAMPLE_WALLS: Wall2D[] = [
@@ -268,5 +269,20 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
       devices: entry.devices.map((d) => ({ ...d })),
       historyIdx: historyIdx + 1,
     })
+  },
+
+  loadEditorState: (state) => {
+    set((current) => ({
+      walls: state.walls?.map((wall) => ({ ...wall })) ?? current.walls,
+      rooms: state.rooms?.map((room) => ({ ...room })) ?? current.rooms,
+      devices: state.devices?.map((device) => ({ ...device })) ?? current.devices,
+      visibleLayers: state.visibleLayers ? { ...state.visibleLayers } : current.visibleLayers,
+      snapMode: state.snapMode ?? current.snapMode,
+      selectedWallIdx: null,
+      selectedRoomIdx: null,
+      selectedDeviceIdx: null,
+      history: [],
+      historyIdx: -1,
+    }))
   },
 }))
