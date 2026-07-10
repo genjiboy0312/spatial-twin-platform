@@ -346,8 +346,12 @@ def test_upload_pipeline_status_updates_linked_project_asset() -> None:
     assert pipeline_response.status_code == 200
     pipeline = pipeline_response.json()
     assert pipeline["upload"]["status"] == "ready"
+    assert pipeline["current_stage"] == "BIM extraction"
+    assert pipeline["progress"] == 100
+    assert "floor separation metadata" in pipeline["details"]["derived_outputs"]
     assert pipeline["project_assets"][0]["asset_type"] == "ifc"
     assert pipeline["project_assets"][0]["status"] == "ready"
+    assert pipeline["project_assets"][0]["metadata"]["pipeline_stage"] == "BIM extraction"
 
     failed_response = client.patch(
         f"/api/uploads/{upload['id']}/status",
@@ -357,4 +361,5 @@ def test_upload_pipeline_status_updates_linked_project_asset() -> None:
     failed_pipeline = failed_response.json()
     assert failed_pipeline["upload"]["status"] == "failed"
     assert failed_pipeline["project_assets"][0]["status"] == "failed"
+    assert failed_pipeline["details"]["failure_reason"] == "IFC parser failed"
     assert "Allow retry" in " ".join(failed_pipeline["next_actions"])

@@ -100,6 +100,7 @@ const copy = {
     glbModeHint: 'GLB/GLTF files are uploaded as replacement 3D assets for the selected floor.',
     pointCloudHint: 'LAS, LAZ, and PLY files are registered for later alignment and inspection.',
     statusPanel: 'Connection Status',
+    pipelineStage: 'Pipeline',
     selectedFloor: 'Selected Floor',
     noSelection: 'No selection',
     connected: 'Connected',
@@ -205,6 +206,7 @@ const copy = {
     glbModeHint: 'GLB/GLTF는 선택한 층의 대체 3D 자산으로 업로드됩니다.',
     pointCloudHint: 'LAS, LAZ, PLY 파일은 이후 정합과 검토에 사용할 수 있도록 등록됩니다.',
     statusPanel: '연결 상태',
+    pipelineStage: '파이프라인',
     selectedFloor: '선택된 층',
     noSelection: '선택 없음',
     connected: '연결됨',
@@ -310,16 +312,24 @@ function uploadStatusLabel(status: string, language: 'en' | 'ko') {
     en: {
       pending: 'Pending',
       uploaded: 'Uploaded',
+      validating: 'Validating',
       processing: 'Processing',
+      converting: 'Converting',
+      preview_ready: 'Preview Ready',
       ready: 'Ready',
       failed: 'Failed',
+      queued: 'Queued',
     },
     ko: {
       pending: '대기',
       uploaded: '업로드됨',
+      validating: '검증 중',
       processing: '처리 중',
+      converting: '변환 중',
+      preview_ready: '미리보기 준비',
       ready: '준비 완료',
       failed: '실패',
+      queued: '대기열',
     },
   } as const
   const normalized = status in labels.en ? status as keyof typeof labels.en : 'pending'
@@ -862,9 +872,15 @@ export function DataSourcesPage() {
                             ? (language === 'ko' ? `연결 자산 ${pipeline.project_assets.length}개` : `${pipeline.project_assets.length} linked asset(s)`)
                             : (language === 'ko' ? '연결 자산 대기 중' : 'Waiting for linked asset')}
                           {' · '}
-                          {pipeline.next_actions.length > 0 ? pipeline.next_actions.join(', ') : (language === 'ko' ? '다음 작업 없음' : 'No pending action')}
+                          {pipeline.current_stage}
                         </p>
                       )}
+                      {pipeline && (
+                        <div className="datasource-pipeline-progress" aria-label={`${labels.pipelineStage}: ${pipeline.progress}%`}>
+                          <i style={{ width: `${Math.max(4, Math.min(100, pipeline.progress))}%` }} />
+                        </div>
+                      )}
+                      {pipeline?.next_actions[0] && <small className="datasource-next-action">{pipeline.next_actions[0]}</small>}
                     </article>
                   )
                 })}

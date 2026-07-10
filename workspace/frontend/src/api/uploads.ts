@@ -31,9 +31,12 @@ export type UploadPipeline = {
   upload: UploadAsset
   project_assets: ProjectAsset[]
   next_actions: string[]
+  current_stage: string
+  progress: number
+  details: Record<string, unknown>
 }
 
-export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'failed'
+export type UploadStatus = 'queued' | 'pending' | 'uploaded' | 'validating' | 'processing' | 'converting' | 'preview_ready' | 'ready' | 'failed'
 
 export type UploadAssetCreate = {
   filename: string

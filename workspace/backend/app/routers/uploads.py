@@ -20,18 +20,110 @@ router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 ALLOWED_SOURCE_TYPES = {"dxf", "dwg", "image", "ifc", "glb", "pointcloud", "unknown"}
 POINTCLOUD_EXTENSIONS = {".las", ".laz", ".ply"}
 READY_SOURCE_TYPES = {"image", "dxf", "dwg", "ifc", "glb", "pointcloud"}
+PIPELINE_PROGRESS = {
+    "queued": 5,
+    "pending": 10,
+    "uploaded": 25,
+    "validating": 38,
+    "processing": 52,
+    "converting": 68,
+    "preview_ready": 82,
+    "ready": 100,
+    "failed": 100,
+}
+
+SOURCE_PIPELINE_GUIDES = {
+    "image": {
+        "stage_label": "Image preview",
+        "derived_outputs": ["thumbnail", "floor-plan preview", "scale metadata"],
+        "supported_formats": ["PNG", "JPG", "JPEG"],
+    },
+    "dxf": {
+        "stage_label": "CAD conversion",
+        "derived_outputs": ["layer summary", "unit scale metadata", "geometry extraction queue"],
+        "supported_formats": ["DXF", "DWG"],
+    },
+    "dwg": {
+        "stage_label": "CAD conversion",
+        "derived_outputs": ["layer summary", "unit scale metadata", "DXF conversion queue"],
+        "supported_formats": ["DWG", "DXF"],
+    },
+    "ifc": {
+        "stage_label": "BIM extraction",
+        "derived_outputs": ["floor separation metadata", "space/object extraction queue", "model preview"],
+        "supported_formats": ["IFC"],
+    },
+    "glb": {
+        "stage_label": "3D model preview",
+        "derived_outputs": ["scene bounds", "material/texture manifest", "render transform metadata"],
+        "supported_formats": ["GLB", "GLTF"],
+    },
+    "pointcloud": {
+        "stage_label": "PointCloud preview",
+        "derived_outputs": ["LAS/PLY preview", "point-count header", "RGB availability", "editor render reference"],
+        "supported_formats": ["LAS", "LAZ", "PLY"],
+    },
+    "unknown": {
+        "stage_label": "Manual review",
+        "derived_outputs": ["source registration"],
+        "supported_formats": [],
+    },
+}
 
 
 def metadata_for_upload(upload: UploadAsset, *, stored_name: str | None = None, size_bytes: int | None = None) -> str:
-    metadata: dict[str, str | int] = {
+    pipeline = pipeline_details_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes)
+    metadata: dict[str, object] = {
         "source_type": upload.source_type,
         "pipeline_status": upload.status,
+        "pipeline_stage": pipeline["current_stage"],
+        "pipeline_progress": pipeline["progress"],
+        "derived_outputs": pipeline["derived_outputs"],
+        "supported_formats": pipeline["supported_formats"],
     }
     if stored_name is not None:
         metadata["stored_name"] = stored_name
     if size_bytes is not None:
         metadata["size_bytes"] = size_bytes
     return json.dumps(metadata, ensure_ascii=False)
+
+
+def pipeline_details_for_upload(
+    upload: UploadAsset,
+    *,
+    stored_name: str | None = None,
+    size_bytes: int | None = None,
+) -> dict[str, object]:
+    guide = SOURCE_PIPELINE_GUIDES.get(upload.source_type, SOURCE_PIPELINE_GUIDES["unknown"])
+    current_stage = "failed" if upload.status == "failed" else str(guide["stage_label"])
+    progress = PIPELINE_PROGRESS.get(upload.status, 20)
+    details: dict[str, object] = {
+        "current_stage": current_stage,
+        "progress": progress,
+        "source_type": upload.source_type,
+        "status": upload.status,
+        "supported_formats": guide["supported_formats"],
+        "derived_outputs": guide["derived_outputs"],
+        "has_preview": upload.source_type in READY_SOURCE_TYPES and upload.status in {"preview_ready", "ready"},
+        "failure_reason": upload.message if upload.status == "failed" else None,
+    }
+    if stored_name is not None:
+        details["stored_name"] = stored_name
+    if size_bytes is not None:
+        details["size_bytes"] = size_bytes
+    if upload.source_type == "pointcloud":
+        details["max_render_points"] = 2_000_000
+        details["rgb_supported"] = True
+        details["preview_url"] = upload.pointcloud_preview_url
+    elif upload.source_type == "image":
+        details["thumbnail_status"] = "planned"
+    elif upload.source_type in {"dxf", "dwg"}:
+        details["cad_layers_status"] = "queued"
+    elif upload.source_type == "ifc":
+        details["floor_extraction_status"] = "queued"
+    elif upload.source_type == "glb":
+        details["scene_preview_status"] = "ready" if upload.status == "ready" else "queued"
+    return details
 
 
 def project_asset_to_read(asset: ProjectAsset) -> ProjectAssetRead:
@@ -91,7 +183,7 @@ def project_asset_status_for_upload(status_value: str) -> str:
         return "ready"
     if status_value == "failed":
         return "failed"
-    if status_value == "processing":
+    if status_value in {"validating", "processing", "converting", "preview_ready"}:
         return "processing"
     return "registered"
 
@@ -99,6 +191,12 @@ def project_asset_status_for_upload(status_value: str) -> str:
 def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> ProjectAsset | None:
     if upload.building_id is None or upload.source_type not in READY_SOURCE_TYPES:
         return None
+    stored_name = stored_filename_from_message(upload.message)
+    size_bytes: int | None = None
+    if upload.message and "(" in upload.message and " bytes)" in upload.message:
+        size_part = upload.message.rsplit("(", 1)[-1].split(" bytes)", 1)[0]
+        if size_part.isdigit():
+            size_bytes = int(size_part)
     existing = db.scalar(select(ProjectAsset).where(ProjectAsset.upload_asset_id == upload.id))
     if existing is not None:
         existing.floor_id = upload.floor_id
@@ -106,7 +204,7 @@ def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> Project
         existing.name = upload.filename
         existing.status = project_asset_status_for_upload(upload.status)
         existing.file_uri = upload.file_url
-        existing.metadata_json = metadata_for_upload(upload)
+        existing.metadata_json = metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes)
         return existing
 
     asset = ProjectAsset(
@@ -117,19 +215,23 @@ def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> Project
         name=upload.filename,
         status=project_asset_status_for_upload(upload.status),
         file_uri=upload.file_url,
-        metadata_json=metadata_for_upload(upload),
+        metadata_json=metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes),
     )
     db.add(asset)
     return asset
 
 
 def upload_next_actions(upload: UploadAsset) -> list[str]:
-    if upload.status == "pending":
+    if upload.status in {"queued", "pending"}:
         return ["Upload source file or attach an existing file", "Move status to processing when conversion starts"]
     if upload.status == "uploaded":
-        return ["Start source-specific processing", "Generate derived geometry/model metadata"]
-    if upload.status == "processing":
+        return ["Validate source file", "Start source-specific processing"]
+    if upload.status == "validating":
+        return ["Check format compatibility", "Extract source metadata"]
+    if upload.status in {"processing", "converting"}:
         return ["Poll pipeline status", "Create preview or derived model asset"]
+    if upload.status == "preview_ready":
+        return ["Review generated preview", "Promote source to ready when accepted"]
     if upload.status == "ready":
         return ["Load asset in editor/model pages", "Persist placement or alignment state"]
     if upload.status == "failed":
@@ -358,10 +460,14 @@ def get_upload_pipeline(upload_id: int, db: Session = Depends(get_db)) -> Upload
     if upload is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     assets = list(db.scalars(select(ProjectAsset).where(ProjectAsset.upload_asset_id == upload.id).order_by(ProjectAsset.id.desc())))
+    details = pipeline_details_for_upload(upload)
     return UploadPipelineRead(
         upload=UploadAssetRead.model_validate(upload),
         project_assets=[project_asset_to_read(asset) for asset in assets],
         next_actions=upload_next_actions(upload),
+        current_stage=str(details["current_stage"]),
+        progress=int(details["progress"]),
+        details=details,
     )
 
 
@@ -382,10 +488,14 @@ def update_upload_status(
     db.commit()
     db.refresh(upload)
     assets = list(db.scalars(select(ProjectAsset).where(ProjectAsset.upload_asset_id == upload.id).order_by(ProjectAsset.id.desc())))
+    details = pipeline_details_for_upload(upload)
     return UploadPipelineRead(
         upload=UploadAssetRead.model_validate(upload),
         project_assets=[project_asset_to_read(asset) for asset in assets],
         next_actions=upload_next_actions(upload),
+        current_stage=str(details["current_stage"]),
+        progress=int(details["progress"]),
+        details=details,
     )
 
 

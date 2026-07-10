@@ -1142,6 +1142,11 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Alignment autosave: added debounced snapshot persistence and compact save-state UI for GPS alignment workflow changes.
 - [x] PointCloud persistence expansion: restores selected building floor, active tab, checked upload IDs, and upload visibility context from project snapshots.
 - [x] PointCloud autosave: stores selected PointCloud upload IDs, ready upload IDs, active tab, selected floor, and updated timestamp for Editor/PointCloud view continuity.
+- [x] Upload pipeline step 1: expanded upload status contract with queued/validating/converting/preview_ready stages while preserving existing ready upload behavior.
+- [x] Upload pipeline step 2: added source-type pipeline metadata for Image, DXF/DWG, IFC, GLB/GLTF, and PointCloud including supported formats, derived outputs, preview readiness, and failure reason.
+- [x] Upload pipeline step 3: enriched project asset metadata with pipeline stage, progress, stored filename, file size, supported formats, and derived output records.
+- [x] Upload pipeline step 4: surfaced pipeline stage/progress in Data Sources, corrected Models status interpretation for ready/preview_ready assets, and expanded PointCloud status handling.
+- [x] Upload pipeline step 5: verified frontend build, backend pytest, backend ruff, and backend contract coverage for pipeline details/progress/failure metadata.
 - [x] Validation comparison UI transplant: rebuilt the current validation page into the comparison project's KPI + floor checklist + central 3D validation preview + right summary/issue panel layout, while keeping the current project's real editor/alignment validation calculations and black/gray theme.
 - [x] GPS Alignment 3D correction: replaced the fake 2D OSM/object overlay with a real Three.js 3D alignment view containing an OSM-style ground plane, road/grid layers, model object, orbit controls, and GPS reference markers.
 - [x] PointCloud real-file rendering: exposed uploaded pointcloud file/preview URLs from the backend, added a cached LAS Float32 preview endpoint capped at 500,000 points, and changed the editor PointCloud View to render sampled points from the actual uploaded LAS/PLY data instead of synthetic spiral/circle placeholders.

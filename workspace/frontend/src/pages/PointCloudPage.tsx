@@ -8,7 +8,7 @@ import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } fro
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
 
-type PointCloudStatus = 'uploaded' | 'ready' | 'converting' | 'failed'
+type PointCloudStatus = 'uploaded' | 'validating' | 'processing' | 'converting' | 'preview_ready' | 'ready' | 'failed'
 type PointCloudSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 type PointCloudIconName =
   | 'building'
@@ -62,6 +62,9 @@ const copy = {
     buildingLevel: 'Building level',
     status: {
       uploaded: 'Uploaded',
+      validating: 'Validating',
+      processing: 'Processing',
+      preview_ready: 'Preview Ready',
       ready: 'Ready',
       converting: 'Converting',
       failed: 'Failed',
@@ -105,6 +108,9 @@ const copy = {
     buildingLevel: '건물 단위',
     status: {
       uploaded: '업로드됨',
+      validating: '검증 중',
+      processing: '처리 중',
+      preview_ready: '미리보기 준비',
       ready: '준비 완료',
       converting: '변환 중',
       failed: '실패',
@@ -181,7 +187,14 @@ function PointCloudIcon({ name }: { name: PointCloudIconName }) {
 }
 
 function uploadStatus(asset: UploadAsset): PointCloudStatus {
-  if (asset.status === 'ready' || asset.status === 'converting' || asset.status === 'failed') return asset.status
+  if (
+    asset.status === 'ready'
+    || asset.status === 'preview_ready'
+    || asset.status === 'validating'
+    || asset.status === 'processing'
+    || asset.status === 'converting'
+    || asset.status === 'failed'
+  ) return asset.status
   return 'uploaded'
 }
 
@@ -233,8 +246,8 @@ export function PointCloudPage() {
 
   const stats = useMemo(() => {
     const totalPoints = pointClouds.reduce((sum, asset) => sum + estimatePoints(asset), 0)
-    const readyCount = pointClouds.filter((asset) => uploadStatus(asset) === 'ready' || uploadStatus(asset) === 'uploaded').length
-    const processingCount = pointClouds.filter((asset) => ['converting', 'failed'].includes(uploadStatus(asset))).length
+    const readyCount = pointClouds.filter((asset) => ['ready', 'preview_ready', 'uploaded'].includes(uploadStatus(asset))).length
+    const processingCount = pointClouds.filter((asset) => ['validating', 'processing', 'converting', 'failed'].includes(uploadStatus(asset))).length
     return { totalFiles: pointClouds.length, totalPoints, readyCount, processingCount }
   }, [pointClouds])
 
@@ -321,7 +334,7 @@ export function PointCloudPage() {
         active_tab: activeTab,
         selected_upload_ids: Array.from(selectedUploadIds),
         upload_ids: pointClouds.map((upload) => upload.id),
-        ready_upload_ids: pointClouds.filter((upload) => uploadStatus(upload) === 'ready' || uploadStatus(upload) === 'uploaded').map((upload) => upload.id),
+        ready_upload_ids: pointClouds.filter((upload) => ['ready', 'preview_ready', 'uploaded'].includes(uploadStatus(upload))).map((upload) => upload.id),
         updatedAt: new Date().toISOString(),
       })
         .then(() => setSaveStatus('saved'))
@@ -579,7 +592,7 @@ export function PointCloudPage() {
                               />
                               <span />
                             </label>
-                            <span className="pointcloud-source-status"><PointCloudIcon name={status === 'failed' ? 'warning' : status === 'converting' ? 'clock' : 'check'} /></span>
+                            <span className="pointcloud-source-status"><PointCloudIcon name={status === 'failed' ? 'warning' : ['validating', 'processing', 'converting'].includes(status) ? 'clock' : 'check'} /></span>
                             <div>
                               <div className="pointcloud-source-title">
                                 <strong>{asset.filename}</strong>
@@ -602,7 +615,7 @@ export function PointCloudPage() {
                                 {labels.storedAt}: {asset.floor_id ? `${labels.linkedFloor} ${floor ? floorLabel(floor) : `#${asset.floor_id}`}` : labels.buildingLevel}
                               </p>
                               {asset.message && <p className="pointcloud-upload-message">{asset.message}</p>}
-                              {status === 'converting' && (
+                              {['validating', 'processing', 'converting'].includes(status) && (
                                 <div className="pointcloud-progress-track"><i style={{ width: '48%' }} /></div>
                               )}
                             </div>

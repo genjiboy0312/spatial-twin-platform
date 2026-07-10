@@ -227,9 +227,13 @@ function fileNameFromPath(path: string | null | undefined) {
   return path.split('/').pop()?.split('\\').pop() ?? path
 }
 
+function isUploadReady(upload: UploadAsset) {
+  return upload.status === 'ready' || upload.status === 'preview_ready'
+}
+
 function sourceStatus(floors: Floor[], uploads: UploadAsset[]): SourceGroup['status'] {
   if (floors.length === 0 && uploads.length === 0) return 'empty'
-  const hasPendingUpload = uploads.some((upload) => upload.status !== 'completed')
+  const hasPendingUpload = uploads.some((upload) => !isUploadReady(upload))
   return hasPendingUpload ? 'partial' : 'ready'
 }
 
@@ -524,6 +528,7 @@ export function ModelsPage() {
                   const sourceType = floorSourceType(floor, uploads)
                   const upload = latestFloorUpload(floor, uploads)
                   const isConnected = hasFloorModelSource(floor, uploads)
+                  const isPipelineReady = upload ? isUploadReady(upload) : isConnected
                   const label = sourceType && sourceType in labels.sourceLabels
                     ? labels.sourceLabels[sourceType as keyof typeof labels.sourceLabels]
                     : labels.undefined
@@ -539,9 +544,9 @@ export function ModelsPage() {
                         <i className={isConnected ? 'ready' : ''}>{label}</i>
                       </span>
                       <span title={upload?.filename ?? undefined}>{fileNameFromPath(upload?.filename)}</span>
-                      <span className={`models-row-status ${isConnected ? 'ready' : 'waiting'}`}>
-                        <ModelIcon name={isConnected ? 'check' : 'clock'} />
-                        {isConnected ? labels.ready : labels.waiting}
+                      <span className={`models-row-status ${isPipelineReady ? 'ready' : isConnected ? 'partial' : 'waiting'}`}>
+                        <ModelIcon name={isPipelineReady ? 'check' : 'clock'} />
+                        {isPipelineReady ? labels.ready : isConnected ? labels.processing : labels.waiting}
                       </span>
                       <span className="models-row-actions">
                         <button className="models-ghost-action" type="button" onClick={() => navigate(isConnected ? '/editor' : '/data-sources')}>

@@ -132,7 +132,7 @@ class UploadAssetRead(UploadAssetCreate):
 
 
 class UploadAssetStatusUpdate(BaseModel):
-    status: Literal["pending", "uploaded", "processing", "ready", "failed"]
+    status: Literal["queued", "pending", "uploaded", "validating", "processing", "converting", "preview_ready", "ready", "failed"]
     message: str | None = None
 
 
@@ -184,6 +184,9 @@ class UploadPipelineRead(BaseModel):
     upload: UploadAssetRead
     project_assets: list[ProjectAssetRead]
     next_actions: list[str]
+    current_stage: str
+    progress: int = Field(ge=0, le=100)
+    details: dict[str, Any]
 
 
 class ObjectTransform(BaseModel):
