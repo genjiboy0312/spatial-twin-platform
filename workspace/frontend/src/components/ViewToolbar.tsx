@@ -1,7 +1,34 @@
 import { Undo2, Redo2 } from './Icons'
 import { useEditorStore } from '../stores/editorStore'
 
-export function ViewToolbar() {
+type EditorSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
+
+function saveLabel(status: EditorSaveStatus, language: 'en' | 'ko') {
+  const labels = {
+    en: {
+      idle: 'Project sync ready',
+      loading: 'Loading project state...',
+      saving: 'Saving project state...',
+      saved: 'Autosaved just now',
+      error: 'Autosave failed',
+    },
+    ko: {
+      idle: '프로젝트 동기화 준비',
+      loading: '프로젝트 상태 불러오는 중...',
+      saving: '프로젝트 상태 저장 중...',
+      saved: '방금 자동 저장됨',
+      error: '자동 저장 실패',
+    },
+  } as const
+  return labels[language][status]
+}
+
+interface Props {
+  saveStatus: EditorSaveStatus;
+  language: 'en' | 'ko';
+}
+
+export function ViewToolbar({ saveStatus, language }: Props) {
   const undo = useEditorStore((s) => s.undo)
   const redo = useEditorStore((s) => s.redo)
   const historyIdx = useEditorStore((s) => s.historyIdx)
@@ -31,6 +58,11 @@ export function ViewToolbar() {
           <Redo2 size={14} />
           <span>다시실행</span>
         </button>
+      </div>
+      <div className="view-toolbar-right">
+        <div className={`editor-autosave-pill ${saveStatus}`}>
+          {saveLabel(saveStatus, language)}
+        </div>
       </div>
     </div>
   )

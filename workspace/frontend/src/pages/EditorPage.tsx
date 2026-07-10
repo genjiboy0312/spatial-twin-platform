@@ -37,6 +37,7 @@ import {
 const ThreeJSViewer = lazy(() =>
   import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
 )
+import { CompassIndicator2D } from '../components/CompassIndicator2D'
 
 const copy = {
   en: {
@@ -150,25 +151,6 @@ function deviceFromPlacement(placement: ObjectPlacement): SecurityDevice | null 
   }
 }
 
-function editorSaveLabel(status: EditorSaveStatus, language: 'en' | 'ko') {
-  const labels = {
-    en: {
-      idle: 'Project sync ready',
-      loading: 'Loading project state...',
-      saving: 'Saving project state...',
-      saved: 'Autosaved just now',
-      error: 'Autosave failed',
-    },
-    ko: {
-      idle: '프로젝트 동기화 준비',
-      loading: '프로젝트 상태 불러오는 중...',
-      saving: '프로젝트 상태 저장 중...',
-      saved: '방금 자동 저장됨',
-      error: '자동 저장 실패',
-    },
-  } as const
-  return labels[language][status]
-}
 
 function PointCloudGenerationMeter({ uploads }: { uploads: UploadAsset[] }) {
   const [generatedPoints, setGeneratedPoints] = useState(0)
@@ -470,6 +452,7 @@ export function EditorPage() {
         rooms={rooms}
         devices={devices}
         selectedDeviceIdx={selectedDeviceIdx}
+        showAxisGizmo
       />
     </Suspense>
   )
@@ -488,7 +471,7 @@ export function EditorPage() {
       <>
         <div className="editor-pointcloud-stage">
           <Suspense fallback={<div className="viewer-placeholder">{labels.loading3d}</div>}>
-            <ThreeJSViewer pointClouds={visiblePointCloudUploads} />
+            <ThreeJSViewer pointClouds={visiblePointCloudUploads} showAxisGizmo />
           </Suspense>
           <div className="editor-pointcloud-object-list">
             {visiblePointCloudUploads.map((upload, index) => (
@@ -513,6 +496,7 @@ export function EditorPage() {
           <div className="editor-view-pane single">
             <span className="editor-view-label">2D</span>
             {renderCanvas2d()}
+            <CompassIndicator2D />
           </div>
         )
       case '3d':
@@ -528,6 +512,7 @@ export function EditorPage() {
             <div className="editor-view-pane">
               <span className="editor-view-label">2D</span>
               {renderCanvas2d()}
+              <CompassIndicator2D />
             </div>
             <div className="editor-view-divider" />
             <div className="editor-view-pane">
@@ -548,6 +533,7 @@ export function EditorPage() {
           <div className="editor-ifc-scene">
             <span className="editor-view-label">IFC</span>
             <strong>IFC model viewport</strong>
+            <CompassIndicator2D />
           </div>
         )
       default:
@@ -641,10 +627,7 @@ export function EditorPage() {
         {/* ── Center: Viewport ── */}
         <main className="editor-scene-main">
           {/* Top toolbar: Undo/Redo */}
-          <ViewToolbar />
-          <div className={`editor-autosave-pill ${saveStatus}`}>
-            {editorSaveLabel(saveStatus, language)}
-          </div>
+          <ViewToolbar saveStatus={saveStatus} language={language} />
           {/* Viewport */}
           <div className="editor-scene-viewport" data-fit-trigger={fitViewTrigger}>
             {renderViewport()}
