@@ -1,6 +1,7 @@
 import { Fragment, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
+import { type UserRole, useSessionStore } from '../../stores/sessionStore'
 import { useWorkflowStore, type WorkflowStep } from '../../stores/workflowStore'
 import { setPreference, type Language, usePreferences } from '../preferences'
 
@@ -58,6 +59,9 @@ const APP_LABELS = {
       caution: 'Caution',
       normal: 'Normal',
       close: 'Close notifications',
+      account: 'Account',
+      addAccount: 'Add Account',
+      resetSession: 'Reset session',
     },
     groups: {
       workspace: 'Workspace',
@@ -77,6 +81,7 @@ const APP_LABELS = {
       Anchors: 'Anchor/Map',
       Monitor: 'Monitor',
       Settings: 'Settings',
+      Login: 'Login',
     },
   },
   ko: {
@@ -103,6 +108,9 @@ const APP_LABELS = {
       caution: '주의',
       normal: '정상',
       close: '알림 닫기',
+      account: '계정',
+      addAccount: '계정 추가',
+      resetSession: '세션 초기화',
     },
     groups: {
       workspace: '워크스페이스',
@@ -122,6 +130,7 @@ const APP_LABELS = {
       Anchors: 'Anchor/Map',
       Monitor: '모니터',
       Settings: '설정',
+      Login: '로그인',
     },
   },
 } as const
@@ -143,7 +152,17 @@ const routeTitleKeys: Record<string, NavLabel> = {
   '/anchors': 'Anchors',
   '/monitor': 'Monitor',
   '/settings': 'Settings',
+  '/login': 'Login',
 }
+
+const roleLabels: Record<UserRole, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  editor: 'Editor',
+  viewer: 'Viewer',
+}
+
+const accountRoles: UserRole[] = ['admin', 'manager', 'editor', 'viewer']
 
 const scenarioSteps: Array<{ id: WorkflowStep; label: NavLabel; shortEn: string; shortKo: string; to: string }> = [
   { id: 'projects', label: 'Projects', shortEn: 'Project', shortKo: '프로젝트', to: '/projects' },
@@ -261,7 +280,7 @@ function SidebarToggleIcon() {
   )
 }
 
-function TopbarIcon({ name }: { name: 'settings' | 'theme' | 'bell' | 'close' }) {
+function TopbarIcon({ name }: { name: 'settings' | 'theme' | 'bell' | 'close' | 'user' }) {
   const common = {
     fill: 'none',
     stroke: 'currentColor',
@@ -280,6 +299,12 @@ function TopbarIcon({ name }: { name: 'settings' | 'theme' | 'bell' | 'close' })
     theme: <path {...common} d="M12 3a7 7 0 1 0 7 7 5.8 5.8 0 0 1-7-7ZM5 20h14" />,
     bell: <path {...common} d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
     close: <path {...common} d="M6 6l12 12M18 6 6 18" />,
+    user: (
+      <>
+        <circle {...common} cx="12" cy="8" r="3.2" />
+        <path {...common} d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </>
+    ),
   }
 
   return (
@@ -292,10 +317,14 @@ function TopbarIcon({ name }: { name: 'settings' | 'theme' | 'bell' | 'close' })
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false)
   const { language, theme } = usePreferences()
   const location = useLocation()
   const navigate = useNavigate()
   const labels = APP_LABELS[language]
+  const user = useSessionStore((state) => state.user)
+  const setRole = useSessionStore((state) => state.setRole)
+  const logout = useSessionStore((state) => state.logout)
   const workflowCurrentStep = useWorkflowStore((state) => state.currentStep)
   const completedSteps = useWorkflowStore((state) => state.completedSteps)
   const setWorkflowCurrentStep = useWorkflowStore((state) => state.setCurrentStep)
@@ -328,6 +357,16 @@ export function AppShell() {
   const endWorkflow = () => {
     resetWorkflow()
     navigate('/home')
+  }
+
+  const goLogin = () => {
+    setRoleMenuOpen(false)
+    navigate('/login')
+  }
+
+  const resetSession = () => {
+    logout()
+    setRoleMenuOpen(false)
   }
 
   return (
@@ -390,6 +429,55 @@ export function AppShell() {
               <TopbarIcon name="bell" />
               <span className="notification-dot" />
             </button>
+            <div className="topbar-account">
+              <button
+                className={`topbar-account-button ${roleMenuOpen ? 'active' : ''}`}
+                type="button"
+                title={labels.actions.account}
+                aria-label={labels.actions.account}
+                aria-expanded={roleMenuOpen}
+                onClick={() => setRoleMenuOpen((current) => !current)}
+              >
+                <span className="topbar-account-avatar" aria-hidden="true">
+                  <TopbarIcon name="user" />
+                </span>
+                <span className="topbar-account-copy">
+                  <strong>{user.username}</strong>
+                  <small>{roleLabels[user.role]}</small>
+                </span>
+                <span className={`topbar-account-chevron ${roleMenuOpen ? 'open' : ''}`} aria-hidden="true">⌄</span>
+              </button>
+
+              {roleMenuOpen && (
+                <div className="topbar-account-menu" role="menu">
+                  <div className="topbar-account-menu-header">
+                    <strong>{user.username}</strong>
+                    <span>{roleLabels[user.role]}</span>
+                  </div>
+                  {accountRoles.map((role) => (
+                    <button
+                      key={role}
+                      className={user.role === role ? 'active' : ''}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setRole(role)
+                        setRoleMenuOpen(false)
+                      }}
+                    >
+                      <TopbarIcon name="user" />
+                      <span>{roleLabels[role]}</span>
+                    </button>
+                  ))}
+                  <button className="add-account" type="button" role="menuitem" onClick={goLogin}>
+                    + {labels.actions.addAccount}
+                  </button>
+                  <button className="muted-action" type="button" role="menuitem" onClick={resetSession}>
+                    {labels.actions.resetSession}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

@@ -12,6 +12,7 @@ const DevicesPage = lazy(() => import('../pages/DevicesPage').then((module) => (
 const EditorPage = lazy(() => import('../pages/EditorPage').then((module) => ({ default: module.EditorPage })))
 const ExportPage = lazy(() => import('../pages/ExportPage').then((module) => ({ default: module.ExportPage })))
 const HomePage = lazy(() => import('../pages/HomePage').then((module) => ({ default: module.HomePage })))
+const LoginPage = lazy(() => import('../pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const ModelsPage = lazy(() => import('../pages/ModelsPage').then((module) => ({ default: module.ModelsPage })))
 const MonitorPage = lazy(() => import('../pages/MonitorPage').then((module) => ({ default: module.MonitorPage })))
 const PathfindingPage = lazy(() => import('../pages/PathfindingPage').then((module) => ({ default: module.PathfindingPage })))
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: HomePage },
       { path: 'home', Component: HomePage },
+      { path: 'login', Component: LoginPage },
       { path: 'dashboard', Component: DashboardPage },
       { path: 'projects', Component: ProjectsPage },
       { path: 'data-sources', Component: DataSourcesPage },
