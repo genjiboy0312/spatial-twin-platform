@@ -23,12 +23,15 @@ const ValidationPage = lazy(() => import('../pages/ValidationPage').then((module
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    Component: LoginPage,
+  },
+  {
     path: '/',
     Component: AppShell,
     children: [
       { index: true, Component: HomePage },
       { path: 'home', Component: HomePage },
-      { path: 'login', Component: LoginPage },
       { path: 'dashboard', Component: DashboardPage },
       { path: 'projects', Component: ProjectsPage },
       { path: 'data-sources', Component: DataSourcesPage },

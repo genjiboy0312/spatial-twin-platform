@@ -1165,3 +1165,4 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Alignment map obstruction fix: removed the demo building floor slab that was covering the OSM ground-plane texture so the popup-equivalent tile imagery remains visible underneath the building walls/objects.
 - [x] Alignment 3D marker visibility: enlarged GPS origin/Point1/Point2 marker rings, spheres, glow intensity, and text labels so picked reference and 3-point alignment targets are easier to read in the 3D view.
 - [x] Login/account UI transplant: added a current-project styled LoginPage, local account/session role store, `/login` route, and topbar account dropdown with role switching and Add Account entry.
+- [x] Login route separation: moved `/login` outside the AppShell so Add Account opens a standalone full-screen login page without the main sidebar/topbar, matching the comparison project flow.

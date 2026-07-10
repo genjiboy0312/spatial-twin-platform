@@ -56,7 +56,7 @@ export function LoginPage() {
   }
 
   return (
-    <section className="login-page">
+    <section className="login-page" style={{ minHeight: '100vh' }}>
       <div className="login-panel">
         <div className="login-accent" aria-hidden="true" />
         <div className="login-header">
