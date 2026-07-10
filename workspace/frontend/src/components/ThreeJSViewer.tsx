@@ -1,5 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid } from '@react-three/drei'
+import { AxisIndicator3D } from './AxisIndicator3D'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Wall2D, Room2D } from './Canvas2DViewer'
@@ -15,6 +16,7 @@ type Props = {
   onSelectDevice?: (idx: number) => void
   viewMode?: '2d' | '3d'
   pointClouds?: UploadAsset[]
+  showAxisGizmo?: boolean
 }
 
 const FLOOR_HEIGHT = 0.15
@@ -576,10 +578,12 @@ function Scene({ walls, rooms, devices, selectedDeviceIdx, pointClouds }: Props)
   )
 }
 
-export function ThreeJSViewer({ walls = [], rooms = [], devices = [], selectedDeviceIdx = null, pointClouds = [] }: Props) {
+export function ThreeJSViewer({ walls = [], rooms = [], devices = [], selectedDeviceIdx = null, pointClouds = [], showAxisGizmo = false }: Props) {
+  const axisRef = useRef<HTMLCanvasElement | null>(null);
   return (
     <div
       style={{
+        position: 'relative',
         width: '100%',
         height: '100%',
         borderRadius: '22px',
@@ -591,8 +595,39 @@ export function ThreeJSViewer({ walls = [], rooms = [], devices = [], selectedDe
       <Canvas camera={{ position: [12, 12, 12], fov: 50 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <color attach="background" args={['#111113']} />
         <Scene walls={walls} rooms={rooms} devices={devices} selectedDeviceIdx={selectedDeviceIdx} pointClouds={pointClouds} />
-        <OrbitControls enableDamping dampingFactor={0.15} minDistance={3} maxDistance={60} maxPolarAngle={Math.PI / 2.2} />
+        <OrbitControls
+          makeDefault={showAxisGizmo}
+          enableDamping
+          dampingFactor={0.15}
+          minDistance={3}
+          maxDistance={60}
+          maxPolarAngle={Math.PI / 2.2}
+          mouseButtons={{
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
+        {showAxisGizmo && <AxisIndicator3D canvasRef={axisRef} />}
       </Canvas>
+
+      {showAxisGizmo && (
+        <canvas
+          ref={axisRef}
+          width={64}
+          height={64}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 72,
+            height: 72,
+            pointerEvents: 'none',
+            zIndex: 40,
+          }}
+        />
+      )}
     </div>
   )
 }
