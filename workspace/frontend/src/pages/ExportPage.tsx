@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { PageHeader } from './PageHeader'
 import type { Wall2D, Room2D } from '../components/Canvas2DViewer'
-import { exportDxfWithFallback } from '../api/exportApi'
+import { exportDxfWithFallback, exportPackage } from '../api/exportApi'
 import { useEditorStore, type SecurityDevice } from '../stores/editorStore'
 import { downloadBlob, exportToCsv, exportToObj, exportToPdf } from '../utils/exportUtils'
 
-type ExportFormat = 'obj' | 'dxf' | 'csv' | 'pdf'
+type ExportFormat = 'obj' | 'dxf' | 'csv' | 'package' | 'pdf'
 
 type PreviewBounds = {
   minX: number
@@ -22,6 +22,7 @@ const FORMAT_CARDS: { format: ExportFormat; title: string; description: string; 
   { format: 'obj', title: 'OBJ', description: '3D floor, wall quads, and device crosses for modeling tools.', extension: '.obj' },
   { format: 'dxf', title: 'DXF', description: 'CAD linework with WALLS, ROOMS, and DEVICES layers.', extension: '.dxf' },
   { format: 'csv', title: 'CSV', description: 'Device inventory with coordinates and room labels.', extension: '.csv' },
+  { format: 'package', title: 'Package', description: 'Backend JSON package with geometry, devices, and summary metadata.', extension: '.json' },
   { format: 'pdf', title: 'PDF', description: 'Open the browser print dialog for print-to-PDF output.', extension: 'print' },
 ]
 
@@ -106,6 +107,10 @@ export function ExportPage() {
       } else if (selectedFormat === 'csv') {
         downloadBlob(exportToCsv(devices, rooms), `${filenameBase}.csv`, 'text/csv')
         setStatus('Downloaded CSV successfully.')
+      } else if (selectedFormat === 'package') {
+        const blob = await exportPackage({ walls, rooms, devices })
+        downloadBlob(await blob.text(), `${filenameBase}.json`, 'application/json')
+        setStatus('Downloaded backend project package successfully.')
       } else {
         exportToPdf().print()
         setStatus('Print dialog triggered for PDF export.')
@@ -231,7 +236,7 @@ export function ExportPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginBottom: 14 }}>
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', marginBottom: 14 }}>
           {FORMAT_CARDS.map((card) => {
             const isSelected = selectedFormat === card.format
             return (

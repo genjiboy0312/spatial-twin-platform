@@ -31,9 +31,8 @@ export function useMonitorEvents(language: string): MonitorEventsState {
     return () => window.clearInterval(timer)
   }, [language])
 
-  // WebSocket connection attempt
   useEffect(() => {
-    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://localhost:3000/ws`
+    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/realtime/ws`
     let socket: WebSocket | null = null
     try {
       socket = new WebSocket(url)

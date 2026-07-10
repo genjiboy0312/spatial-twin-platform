@@ -71,9 +71,11 @@ type Actions = {
   clearSelection: () => void
   deleteWallAt: (worldX: number, worldY: number) => void
   addRoom: (room: Room2D) => void
+  updateRoom: (idx: number, room: Partial<Room2D>) => void
   loadSample: () => void
   selectDevice: (idx: number | null) => void
   addDevice: (device: SecurityDevice) => void
+  updateDevice: (idx: number, device: Partial<SecurityDevice>) => void
   removeDevice: (idx: number) => void
   clearAll: () => void
   // Snapping
@@ -147,6 +149,7 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
   },
 
   updateWall: (idx, partial) => {
+    get().pushHistory()
     set((s) => {
       const walls = [...s.walls]
       if (idx >= 0 && idx < walls.length) {
@@ -176,11 +179,32 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => ({ rooms: [...s.rooms, room] }))
   },
 
+  updateRoom: (idx, partial) => {
+    get().pushHistory()
+    set((s) => {
+      const rooms = [...s.rooms]
+      if (idx >= 0 && idx < rooms.length) {
+        rooms[idx] = { ...rooms[idx]!, ...partial } as Room2D
+      }
+      return { rooms }
+    })
+  },
+
   // Device actions
   selectDevice: (idx) => set({ selectedDeviceIdx: idx, selectedWallIdx: null, selectedRoomIdx: null }),
   addDevice: (device) => {
     get().pushHistory()
     set((s) => ({ devices: [...s.devices, device] }))
+  },
+  updateDevice: (idx, partial) => {
+    get().pushHistory()
+    set((s) => {
+      const devices = [...s.devices]
+      if (idx >= 0 && idx < devices.length) {
+        devices[idx] = { ...devices[idx]!, ...partial }
+      }
+      return { devices }
+    })
   },
   removeDevice: (idx) => {
     const { devices } = get()

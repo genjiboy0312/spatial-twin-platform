@@ -233,6 +233,9 @@ export function EditorPage() {
   const selectDevice = useEditorStore((state) => state.selectDevice)
   const deleteWallAt = useEditorStore((state) => state.deleteWallAt)
   const removeDevice = useEditorStore((state) => state.removeDevice)
+  const updateDevice = useEditorStore((state) => state.updateDevice)
+  const updateRoom = useEditorStore((state) => state.updateRoom)
+  const updateWall = useEditorStore((state) => state.updateWall)
   const loadSample = useEditorStore((state) => state.loadSample)
   const clearAll = useEditorStore((state) => state.clearAll)
   const moveWall = useEditorStore((state) => state.moveWall)
@@ -710,6 +713,9 @@ export function EditorPage() {
             selectedDevice={selectedDevice}
             selectedDeviceIdx={selectedDeviceIdx}
             deviceCount={devices.length}
+            onUpdateWall={updateWall}
+            onUpdateRoom={updateRoom}
+            onUpdateDevice={updateDevice}
           />
         </aside>
       </div>

@@ -428,3 +428,29 @@ def test_upload_pipeline_status_updates_linked_project_asset() -> None:
     assert failed_pipeline["project_assets"][0]["status"] == "failed"
     assert failed_pipeline["details"]["failure_reason"] == "IFC parser failed"
     assert "Allow retry" in " ".join(failed_pipeline["next_actions"])
+
+
+def test_backend_export_dxf_and_package() -> None:
+    payload = {
+        "walls": [{"x1": 0, "y1": 0, "x2": 5, "y2": 0}],
+        "rooms": [{"x": 0, "y": 0, "w": 5, "h": 4, "label": "Lobby"}],
+        "devices": [{"id": "cam-1", "x": 2, "y": 1, "device_type": "camera", "name": "Lobby Camera"}],
+    }
+
+    dxf_response = client.post("/api/exports/dxf", json=payload)
+    assert dxf_response.status_code == 200
+    assert "SECTION" in dxf_response.text
+    assert "DEVICE_CAMERA" in dxf_response.text
+
+    package_response = client.post("/api/exports/package", json=payload)
+    assert package_response.status_code == 200
+    body = package_response.json()
+    assert body["summary"] == {"walls": 1, "rooms": 1, "devices": 1}
+    assert body["devices"][0]["name"] == "Lobby Camera"
+
+
+def test_realtime_websocket_connects() -> None:
+    with client.websocket_connect("/api/realtime/ws") as websocket:
+        message = websocket.receive_json()
+        assert message["source"] == "system"
+        assert message["severity"] == "info"

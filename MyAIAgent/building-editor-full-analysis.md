@@ -1109,9 +1109,22 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] 임시 외부 접근: Cloudflare Tunnel 지원을 위한 `workspace/docker-compose.tunnel.yml` 추가. `docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build` 실행 후 `cloudflared` 로그에서 `https://....trycloudflare.com` URL 복사
 - [x] 백엔드/API 경로 보존: 외부 터널이 프론트엔드 컨테이너를 가리키고, 프론트엔드가 Docker 내부 백엔드로 `/api` 프록시 유지. Postgres/Redis 노출 및 백엔드/데이터베이스 포트의 직접적인 인터넷 개방 방지
 - [ ] 영구 공용 도메인: 실제 도메인을 Cloudflare에 연결, named tunnel 생성, `https://spatial.example.com`과 같은 호스트명을 `http://frontend:5173`에 매핑
-- [ ] HTTPS 프로덕션 게이트웨이: Vite 개발 서버를 영구 노출하는 대신 HTTPS, 압축, 보안 헤더, 정적 프론트엔드 서빙을 갖춘 프로덕션 리버스 프록시 프로필 추가
-- [ ] 접근 제어: 영구 외부 URL 공유 전에 로그인/세션 또는 토큰 기반 접근 추가
-- [ ] 환경 분리: local, tunnel-demo, staging, production 환경 파일을 분리하여 CORS, URL, 업로드 제한, 데이터베이스 설정이 혼용되지 않도록 함
+- [x] HTTPS 프로덕션 게이트웨이: Vite 개발 서버를 영구 노출하는 대신 HTTPS, 압축, 보안 헤더, 정적 프론트엔드 서빙을 갖춘 프로덕션 리버스 프록시 프로필 추가
+- [x] 접근 제어: 영구 외부 URL 공유 전에 로그인/세션 또는 토큰 기반 접근 추가
+- [x] 환경 분리: local, tunnel-demo, staging, production 환경 파일을 분리하여 CORS, URL, 업로드 제한, 데이터베이스 설정이 혼용되지 않도록 함
+
+### 영구 도메인 연결 시 사용자 작업
+
+- [ ] 도메인 구매 또는 보유 도메인 준비
+- [ ] Cloudflare 계정에 도메인 추가
+- [ ] 도메인 등록기관에서 Cloudflare가 안내하는 네임서버로 변경
+- [ ] Cloudflare 대시보드 또는 `cloudflared` CLI에서 named tunnel 생성
+- [ ] 생성된 tunnel ID와 credentials JSON 파일을 확보
+- [ ] 연결할 실제 호스트명 결정 예: `spatial.example.com`
+- [ ] `workspace/cloudflare-tunnel.config.example.yml`의 `tunnel`, `credentials-file`, `hostname` 값을 실제 값으로 교체
+- [ ] `workspace/.env.production.example` 또는 실제 `.env.production`의 `CORS_ORIGIN_REGEX`, `API_ACCESS_TOKEN`, `POSTGRES_PASSWORD`를 운영 값으로 교체
+- [ ] Docker production/tunnel 실행 후 Cloudflare DNS에서 hostname이 tunnel로 연결되는지 확인
+- [ ] 외부 접속 테스트: `https://<실제도메인>` 접속, 로그인/API/업로드/모니터 WebSocket 동작 확인
 
 ## 향후 개발 권장 사항 (우선순위별)
 
@@ -1146,10 +1159,18 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 ### 🟢 Nice-to-Have (선택)
 
 - [ ] **Cesium/OSM 프로덕션 강화**: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
-- [ ] **Editor 패널 사용성 보강**: Properties 패널의 선택 객체별 편집 입력값, 좌표/크기 직접 수정, 디바이스 이름/타입 수정, 변경 즉시 자동 저장 UX 추가
-- [ ] **프로젝트 선택 일관성**: Alignment/Validation/Monitor가 첫 번째 building을 기본값으로 쓰는 흐름을 명시적 현재 프로젝트 선택/전역 프로젝트 컨텍스트로 통합
-- [ ] **WebSocket 실시간 레이어**: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
-- [ ] **내보내기 파이프라인**: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
+- [x] **Editor 패널 사용성 보강**: Properties 패널의 선택 객체별 편집 입력값, 좌표/크기 직접 수정, 디바이스 이름/타입 수정, 변경 즉시 자동 저장 UX 추가
+- [x] **프로젝트 선택 일관성**: Alignment/Validation/Monitor가 첫 번째 building을 기본값으로 쓰는 흐름을 명시적 현재 프로젝트 선택/전역 프로젝트 컨텍스트로 통합
+- [x] **WebSocket 실시간 레이어**: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
+- [x] **내보내기 파이프라인**: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
+
+### 2026-07-10 도메인 제외 운영 준비 반영
+
+- [x] `.env.local/.env.tunnel-demo/.env.staging/.env.production` 예시 파일과 Cloudflare named tunnel 설정 템플릿 추가
+- [x] Nginx 프로덕션 게이트웨이에 압축, 캐시, 보안 헤더, WebSocket upgrade 프록시 추가
+- [x] FastAPI `/api/realtime/ws` WebSocket 이벤트 채널과 모니터 WebSocket URL 연동
+- [x] FastAPI `/api/exports/{dxf,csv,package}` 백엔드 Export API와 프론트 Export Package 다운로드 연결
+- [x] Editor Properties 패널에서 벽/방/장치 이름, 타입, 좌표, 크기, 각도 직접 편집 및 기존 자동 저장 흐름 연동
 
 ## Recent Corrections
 
