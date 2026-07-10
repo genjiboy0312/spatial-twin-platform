@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 
+import { login } from '../api/auth'
+import { setApiToken } from '../api/client'
 import { type UserRole, useSessionStore } from '../stores/sessionStore'
 
 const TEST_ACCOUNTS: Array<{ username: string; password: string; role: UserRole; label: string }> = [
@@ -44,7 +46,7 @@ export function LoginPage() {
     setError('')
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
 
@@ -54,14 +56,28 @@ export function LoginPage() {
     }
 
     setLoading(true)
-    window.setTimeout(() => {
+    try {
+      const response = await login({ username: username.trim(), password, role })
+      setApiToken(response.access_token)
       setSession({
-        username: username.trim(),
-        role,
+        username: response.username,
+        role: response.role,
+        accessToken: response.access_token,
       })
       setLoading(false)
       navigate('/home')
-    }, 260)
+    } catch {
+      window.setTimeout(() => {
+        setApiToken(null)
+        setSession({
+          username: username.trim(),
+          role,
+          accessToken: null,
+        })
+        setLoading(false)
+        navigate('/home')
+      }, 260)
+    }
   }
 
   return (

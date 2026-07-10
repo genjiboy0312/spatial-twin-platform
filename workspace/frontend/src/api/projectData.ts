@@ -1,4 +1,4 @@
-import { getJson, sendJson } from './client'
+import { authHeaders, getJson, sendJson } from './client'
 import type { Building } from './buildings'
 import type { Floor } from './floors'
 import type { ProjectAsset, UploadAsset } from './uploads'
@@ -123,10 +123,22 @@ export function createObjectPlacement(
   return sendJson<ObjectPlacement, ObjectPlacementCreate>(`/api/buildings/${buildingId}/object-placements`, 'POST', payload)
 }
 
+export function syncObjectPlacements(
+  buildingId: number,
+  payload: {
+    metadata_scope_key: string
+    metadata_scope_value: string
+    placements: ObjectPlacementCreate[]
+  },
+): Promise<ObjectPlacement[]> {
+  return sendJson<ObjectPlacement[], typeof payload>(`/api/buildings/${buildingId}/object-placements/sync`, 'PUT', payload)
+}
+
 export async function deleteObjectPlacement(placementId: number): Promise<void> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
   const response = await fetch(`${baseUrl}/api/object-placements/${placementId}`, {
     method: 'DELETE',
+    headers: authHeaders(),
   })
   if (!response.ok) {
     throw new Error(`Delete object placement failed with ${response.status}`)

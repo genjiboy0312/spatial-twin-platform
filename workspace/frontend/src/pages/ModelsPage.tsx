@@ -6,6 +6,7 @@ import { listFloors, type Floor } from '../api/floors'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { useEditorStore } from '../stores/editorStore'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type SourceType = 'image' | 'dxf' | 'ifc' | 'glb'
@@ -332,6 +333,7 @@ export function ModelsPage() {
   const navigate = useNavigate()
   const { language } = usePreferences()
   const labels = copy[language]
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const walls = useEditorStore((state) => state.walls)
   const rooms = useEditorStore((state) => state.rooms)
   const devices = useEditorStore((state) => state.devices)
@@ -358,8 +360,9 @@ export function ModelsPage() {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((building) => building.id === current)) return current
-        return data[0]?.id ?? null
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next
       })
     } catch {
       setBuildings([])
@@ -411,7 +414,11 @@ export function ModelsPage() {
               <select
                 className="select-input models-building-select"
                 value={selectedBuildingId ?? ''}
-                onChange={(event) => setSelectedBuildingId(event.target.value ? Number(event.target.value) : null)}
+                onChange={(event) => {
+                  const next = event.target.value ? Number(event.target.value) : null
+                  setSelectedBuildingId(next)
+                  setGlobalSelectedBuildingId(next)
+                }}
                 aria-label={labels.selectBuilding}
               >
                 <option value="" disabled>

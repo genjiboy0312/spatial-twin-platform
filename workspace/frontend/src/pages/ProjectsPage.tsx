@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
 import { usePreferences } from '../app/preferences'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { CreateBuildingModal } from './CreateBuildingModal'
 import { PageHeader } from './PageHeader'
 
@@ -161,6 +162,7 @@ function floorLabel(floor: Floor, suffix: string) {
 export function ProjectsPage() {
   const { language } = usePreferences()
   const labels = copy[language]
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
@@ -183,8 +185,9 @@ export function ProjectsPage() {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((building) => building.id === current)) return current
-        return data[0]?.id ?? null
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load buildings')
@@ -295,7 +298,10 @@ export function ProjectsPage() {
                     key={building.id}
                     className={`project-building-item ${isSelected ? 'selected' : ''}`}
                     type="button"
-                    onClick={() => setSelectedBuildingId(building.id)}
+                    onClick={() => {
+                      setSelectedBuildingId(building.id)
+                      setGlobalSelectedBuildingId(building.id)
+                    }}
                   >
                     <span className="project-icon-box">
                       <ProjectIcon name="building" />

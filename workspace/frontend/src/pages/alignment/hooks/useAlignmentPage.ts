@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { listBuildings } from '../../../api/buildings';
 import { listFloors } from '../../../api/floors';
+import { preferredBuildingId, useProjectStore } from '../../../stores/projectStore';
 import type {
   AlignmentMethod,
   AnchorTuple,
@@ -133,7 +134,8 @@ export function useAlignmentPage(): UseAlignmentPageReturn {
   const loadProjectContext = useCallback(async () => {
     try {
       const buildings = await listBuildings();
-      const building = buildings[0];
+      const selectedId = preferredBuildingId(buildings, useProjectStore.getState().selectedBuildingId);
+      const building = buildings.find((candidate) => candidate.id === selectedId) ?? buildings[0];
       if (!building) {
         setCurrentBuilding(null);
         setFloors([]);
@@ -142,6 +144,7 @@ export function useAlignmentPage(): UseAlignmentPageReturn {
       }
 
       setCurrentBuilding({ id: building.id, name: building.name });
+      useProjectStore.getState().setSelectedBuildingId(building.id);
       const nextFloors = await listFloors(building.id);
       setFloors(nextFloors.map((floor) => ({
         id: floor.id,

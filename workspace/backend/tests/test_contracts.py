@@ -293,6 +293,56 @@ def test_project_data_assets_and_object_placements() -> None:
     assert summary["object_placements"][0]["name"] == "Main IFC shell"
 
 
+def test_object_placement_sync_replaces_scoped_editor_devices() -> None:
+    building = client.post("/api/buildings", json={"name": "Placement Sync Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+
+    first = client.put(
+        f"/api/buildings/{building['id']}/object-placements/sync",
+        json={
+            "metadata_scope_key": "editor_source",
+            "metadata_scope_value": "editor-device",
+            "placements": [
+                {
+                    "object_type": "security_device",
+                    "name": "Camera A",
+                    "floor_id": floor["id"],
+                    "position_x": 1,
+                    "position_z": 2,
+                    "metadata": {"editor_source": "editor-device", "editor_id": "cam-a"},
+                }
+            ],
+        },
+    )
+    assert first.status_code == 200
+    assert len(first.json()) == 1
+
+    second = client.put(
+        f"/api/buildings/{building['id']}/object-placements/sync",
+        json={
+            "metadata_scope_key": "editor_source",
+            "metadata_scope_value": "editor-device",
+            "placements": [
+                {
+                    "object_type": "security_device",
+                    "name": "Sensor B",
+                    "floor_id": floor["id"],
+                    "position_x": 4,
+                    "position_z": 5,
+                    "metadata": {"editor_source": "editor-device", "editor_id": "sensor-b"},
+                }
+            ],
+        },
+    )
+    assert second.status_code == 200
+    synced = second.json()
+    assert len(synced) == 1
+    assert synced[0]["name"] == "Sensor B"
+
+    placements = client.get(f"/api/buildings/{building['id']}/object-placements").json()
+    assert [placement["name"] for placement in placements] == ["Sensor B"]
+
+
 def test_project_asset_rejects_floor_from_other_building() -> None:
     first = client.post("/api/buildings", json={"name": "Asset Scope A"}).json()
     second = client.post("/api/buildings", json={"name": "Asset Scope B"}).json()

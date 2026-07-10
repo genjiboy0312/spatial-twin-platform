@@ -386,3 +386,22 @@ class ProjectSnapshotRead(ProjectSnapshotPayload):
     building_id: int
     saved: bool = False
     updated_at: datetime | None = None
+
+
+class ObjectPlacementSyncPayload(BaseModel):
+    metadata_scope_key: str = Field(min_length=1, max_length=80)
+    metadata_scope_value: str = Field(min_length=1, max_length=120)
+    placements: list[ObjectPlacementCreate] = Field(default_factory=list, max_length=1000)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=120)
+    role: Literal["admin", "manager", "editor", "viewer"] = "viewer"
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    username: str
+    role: Literal["admin", "manager", "editor", "viewer"]

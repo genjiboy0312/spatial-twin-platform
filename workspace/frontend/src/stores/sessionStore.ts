@@ -5,6 +5,7 @@ export type UserRole = 'admin' | 'manager' | 'editor' | 'viewer'
 export type SessionUser = {
   username: string
   role: UserRole
+  accessToken?: string | null
 }
 
 type SessionState = {
@@ -22,17 +23,22 @@ const DEFAULT_USER: SessionUser = {
 function readSession(): SessionUser {
   const username = localStorage.getItem('spatial_user_name') || DEFAULT_USER.username
   const role = localStorage.getItem('spatial_user_role')
+  const accessToken = localStorage.getItem('spatial_api_access_token')
   const safeRole: UserRole = role === 'manager' || role === 'editor' || role === 'viewer' || role === 'admin' ? role : DEFAULT_USER.role
 
   return {
     username,
     role: safeRole,
+    accessToken,
   }
 }
 
 function writeSession(user: SessionUser) {
   localStorage.setItem('spatial_user_name', user.username)
   localStorage.setItem('spatial_user_role', user.role)
+  if (user.accessToken) {
+    localStorage.setItem('spatial_api_access_token', user.accessToken)
+  }
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -48,6 +54,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({ user: next })
   },
   logout: () => {
+    localStorage.removeItem('spatial_api_access_token')
     writeSession(DEFAULT_USER)
     set({ user: DEFAULT_USER })
   },

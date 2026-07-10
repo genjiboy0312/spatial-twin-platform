@@ -27,13 +27,13 @@ import { FloorPositionModal } from '../components/FloorPositionModal'
 import { SnapType, type SnapConfig } from '../utils/objectSnap'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import {
-  createObjectPlacement,
-  deleteObjectPlacement,
   getProjectSnapshot,
   listObjectPlacements,
   saveProjectSnapshotSection,
+  syncObjectPlacements,
   type ObjectPlacement,
 } from '../api/projectData'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 const ThreeJSViewer = lazy(() =>
   import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
 )
@@ -193,6 +193,7 @@ export function EditorPage() {
   const labels = copy[language]
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | ''>('')
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedFloorId, setSelectedFloorId] = useState<number | ''>('')
   const [allFloorsView, setAllFloorsView] = useState(false)
@@ -281,8 +282,9 @@ export function EditorPage() {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((building) => building.id === current)) return current
-        return data[0]?.id ?? ''
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next ?? ''
       })
     } catch {
       setBuildings([])
@@ -290,10 +292,11 @@ export function EditorPage() {
   }, [])
 
   const syncDevicePlacements = useCallback(async (buildingId: number, floorId: number | '', nextDevices: SecurityDevice[]) => {
-    const placements = await listObjectPlacements(buildingId)
-    const editorDevicePlacements = placements.filter((placement) => placement.metadata?.editor_source === 'editor-device')
-    await Promise.all(editorDevicePlacements.map((placement) => deleteObjectPlacement(placement.id)))
-    await Promise.all(nextDevices.map((device) => createObjectPlacement(buildingId, placementFromDevice(device, floorId))))
+    await syncObjectPlacements(buildingId, {
+      metadata_scope_key: 'editor_source',
+      metadata_scope_value: 'editor-device',
+      placements: nextDevices.map((device) => placementFromDevice(device, floorId)),
+    })
   }, [])
 
   const loadBuildingFloors = useCallback(async (buildingId: number) => {

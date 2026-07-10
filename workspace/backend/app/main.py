@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db import Base, engine
-from app.routers import buildings, geometry, gps_alignment, osm_tiles, project_data, security_devices, uploads, workflow
+from app.routers import auth, buildings, geometry, gps_alignment, osm_tiles, project_data, security_devices, uploads, workflow
+from app.security import api_token_middleware
 from app.settings import get_settings
 
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    api.middleware("http")(api_token_middleware)
 
     @api.get("/health", tags=["health"])
     def health() -> dict[str, str]:
@@ -39,6 +41,7 @@ def create_app() -> FastAPI:
             connection.execute(text("select 1"))
         return {"status": "ready"}
 
+    api.include_router(auth.router)
     api.include_router(buildings.router)
     api.include_router(geometry.router)
     api.include_router(gps_alignment.router)

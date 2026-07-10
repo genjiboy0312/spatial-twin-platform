@@ -6,6 +6,7 @@ import { createFloor, listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection, type ProjectSnapshot } from '../api/projectData'
 import { getUploadPipeline, listUploadsByBuilding, uploadFile, type UploadAsset, type UploadPipeline } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type SourceType = 'image' | 'dxf' | 'ifc' | 'glb' | 'pointcloud'
@@ -345,6 +346,7 @@ function projectSnapshotLabel(snapshot: ProjectSnapshot | null, language: 'en' |
 export function DataSourcesPage() {
   const { language } = usePreferences()
   const labels = copy[language]
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
@@ -383,8 +385,9 @@ export function DataSourcesPage() {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((building) => building.id === current)) return current
-        return data[0]?.id ?? null
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next
       })
     } catch {
       setBuildings([])
@@ -435,7 +438,9 @@ export function DataSourcesPage() {
 
   const handleBuildingChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const value = event.target.value
-    setSelectedBuildingId(value ? Number(value) : null)
+    const next = value ? Number(value) : null
+    setSelectedBuildingId(next)
+    setGlobalSelectedBuildingId(next)
     setStatusMessage(null)
   }
 

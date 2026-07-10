@@ -7,6 +7,7 @@ import { usePreferences } from '../app/preferences'
 import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import { useAlignmentStore } from '../stores/alignmentStore'
 import { useEditorStore, type SecurityDevice, type SecurityDeviceType } from '../stores/editorStore'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import type { AnchorPoint } from '../utils/alignmentUtils'
 import { PageHeader } from './PageHeader'
 
@@ -1139,8 +1140,10 @@ export function ValidationPage() {
     let cancelled = false
     async function hydrateEditorSnapshot() {
       const buildings = await listBuildings()
-      const building = buildings[0]
+      const selectedId = preferredBuildingId(buildings, useProjectStore.getState().selectedBuildingId)
+      const building = buildings.find((candidate) => candidate.id === selectedId) ?? buildings[0]
       if (!building) return
+      useProjectStore.getState().setSelectedBuildingId(building.id)
       const snapshot = await getProjectSnapshot(building.id).catch(() => null)
       if (cancelled || !snapshot?.saved) return
       const editorSnapshot = snapshot.state.editor

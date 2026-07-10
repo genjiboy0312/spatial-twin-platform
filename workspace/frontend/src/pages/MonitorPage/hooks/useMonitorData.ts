@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listBuildings, type Building } from '../../../api/buildings'
 import { listFloors, type Floor } from '../../../api/floors'
 import { useEditorStore, type SecurityDevice } from '../../../stores/editorStore'
+import { preferredBuildingId, useProjectStore } from '../../../stores/projectStore'
 
 export interface MonitorDataState {
   buildings: Building[]
@@ -19,6 +20,7 @@ export interface MonitorDataState {
 
 export function useMonitorData(): MonitorDataState {
   const editorDevices = useEditorStore((state) => state.devices)
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const fallbackDevices = useEditorStore((state) => state.devices)
   const devices = editorDevices.length > 0 ? editorDevices : fallbackDevices
 
@@ -32,14 +34,20 @@ export function useMonitorData(): MonitorDataState {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((b) => b.id === current)) return current
-        return data[0]?.id ?? null
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next
       })
     } catch {
       setBuildings([])
       setSelectedBuildingId(null)
     }
-  }, [])
+  }, [setGlobalSelectedBuildingId])
+
+  const handleSelectedBuildingId = useCallback((id: number | null) => {
+    setSelectedBuildingId(id)
+    setGlobalSelectedBuildingId(id)
+  }, [setGlobalSelectedBuildingId])
 
   useEffect(() => {
     loadBuildings()
@@ -78,7 +86,7 @@ export function useMonitorData(): MonitorDataState {
     selectedFloor,
     devices,
     cameras,
-    setSelectedBuildingId,
+    setSelectedBuildingId: handleSelectedBuildingId,
     setSelectedFloorId,
     reloadBuildings: loadBuildings,
   }

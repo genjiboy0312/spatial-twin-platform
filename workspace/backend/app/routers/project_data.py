@@ -13,6 +13,7 @@ from app.schemas import (
     FloorRead,
     ObjectPlacementCreate,
     ObjectPlacementRead,
+    ObjectPlacementSyncPayload,
     ObjectPlacementUpdate,
     ProjectAssetCreate,
     ProjectAssetRead,
@@ -216,6 +217,59 @@ def create_object_placement(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid object placement") from exc
     db.refresh(placement)
     return _placement_to_read(placement)
+
+
+@router.put(
+    "/buildings/{building_id}/object-placements/sync",
+    response_model=list[ObjectPlacementRead],
+)
+def sync_object_placements(
+    building_id: int,
+    payload: ObjectPlacementSyncPayload,
+    db: Session = Depends(get_db),
+) -> list[ObjectPlacementRead]:
+    _get_building_or_404(db, building_id)
+    for placement_payload in payload.placements:
+        _validate_floor_scope(db, building_id, placement_payload.floor_id)
+        _validate_project_asset_scope(db, building_id, placement_payload.source_asset_id)
+
+    existing = db.scalars(select(ObjectPlacement).where(ObjectPlacement.building_id == building_id))
+    for placement in existing:
+        metadata = _json_load(placement.metadata_json) or {}
+        if metadata.get(payload.metadata_scope_key) == payload.metadata_scope_value:
+            db.delete(placement)
+
+    synced: list[ObjectPlacement] = []
+    for placement_payload in payload.placements:
+        placement = ObjectPlacement(
+            building_id=building_id,
+            floor_id=placement_payload.floor_id,
+            source_asset_id=placement_payload.source_asset_id,
+            object_type=placement_payload.object_type,
+            name=placement_payload.name,
+            position_x=placement_payload.position_x,
+            position_y=placement_payload.position_y,
+            position_z=placement_payload.position_z,
+            rotation_x=placement_payload.rotation_x,
+            rotation_y=placement_payload.rotation_y,
+            rotation_z=placement_payload.rotation_z,
+            scale_x=placement_payload.scale_x,
+            scale_y=placement_payload.scale_y,
+            scale_z=placement_payload.scale_z,
+            status=placement_payload.status,
+            metadata_json=_json_dump(placement_payload.metadata),
+        )
+        db.add(placement)
+        synced.append(placement)
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid object placement sync") from exc
+    for placement in synced:
+        db.refresh(placement)
+    return [_placement_to_read(placement) for placement in synced]
 
 
 @router.patch("/object-placements/{placement_id}", response_model=ObjectPlacementRead)

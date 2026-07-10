@@ -6,6 +6,7 @@ import { listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type PointCloudStatus = 'uploaded' | 'validating' | 'processing' | 'converting' | 'preview_ready' | 'ready' | 'failed'
@@ -223,6 +224,7 @@ function floorLabel(floor: Floor) {
 export function PointCloudPage() {
   const { language } = usePreferences()
   const labels = copy[language]
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [floors, setFloors] = useState<Floor[]>([])
@@ -256,8 +258,9 @@ export function PointCloudPage() {
       const data = await listBuildings()
       setBuildings(data)
       setSelectedBuildingId((current) => {
-        if (current && data.some((building) => building.id === current)) return current
-        return data[0]?.id ?? null
+        const next = preferredBuildingId(data, current)
+        setGlobalSelectedBuildingId(next)
+        return next
       })
     } catch {
       setBuildings([])
@@ -442,7 +445,15 @@ export function PointCloudPage() {
             <span className="pointcloud-icon-box"><PointCloudIcon name="building" /></span>
             <label>
               <span>{labels.building}</span>
-              <select className="select-input" value={selectedBuildingId ?? ''} onChange={(event) => setSelectedBuildingId(event.target.value ? Number(event.target.value) : null)}>
+              <select
+                className="select-input"
+                value={selectedBuildingId ?? ''}
+                onChange={(event) => {
+                  const next = event.target.value ? Number(event.target.value) : null
+                  setSelectedBuildingId(next)
+                  setGlobalSelectedBuildingId(next)
+                }}
+              >
                 <option value="">{labels.selectBuilding}</option>
                 {buildings.map((building) => (
                   <option key={building.id} value={building.id}>{building.name}</option>

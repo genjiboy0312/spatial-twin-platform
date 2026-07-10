@@ -1,4 +1,4 @@
-import { getJson, sendJson } from './client'
+import { authHeaders, getJson, sendJson } from './client'
 
 export type UploadAsset = {
   id: number
@@ -83,6 +83,7 @@ export async function uploadFile(
 
   const response = await fetch(`${baseUrl}/api/uploads/file`, {
     method: 'POST',
+    headers: authHeaders(),
     body: formData,
   })
   if (!response.ok) {
@@ -95,6 +96,7 @@ export async function deleteUpload(uploadId: number): Promise<void> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
   const response = await fetch(`${baseUrl}/api/uploads/${uploadId}`, {
     method: 'DELETE',
+    headers: authHeaders(),
   })
   if (!response.ok) {
     throw new Error(`Delete upload failed with ${response.status}`)
