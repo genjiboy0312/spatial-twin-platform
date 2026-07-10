@@ -1123,17 +1123,25 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ### 🟡 High Priority (우선)
 
-- [ ] **영구 파일 파이프라인**: 업로드된 Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 파일을 메타데이터, 처리 상태, 썸네일, 파생 지오메트리 레코드와 함께 저장
-- [ ] **프로덕션 Docker 프로필**: 빌드된 프론트엔드 자산, non-root 컨테이너, 헬스체크, 재시작 정책, 백업 볼륨을 갖춘 프로덕션 컴포즈 파일 추가
-- [ ] **보안 기준**: 속도 제한, 요청 로깅, 업로드 바이러스/유형 검증, 소스 유형별 파일 크기 제한, 시크릿 관리 추가
-- [ ] **데이터베이스 마이그레이션**: 자동 테이블 생성 방식을 Alembic 마이그레이션으로 대체하여 안전한 스키마 진화
-- [ ] **CI 품질 게이트**: 모든 PR에서 백엔드 pytest/ruff 및 프론트엔드 lint/build/playwright 검사 실행
+- [x] **영구 파일 파이프라인**: 업로드된 Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 파일을 메타데이터, 처리 상태, 썸네일, 파생 지오메트리 레코드와 함께 저장
+- [x] **프로덕션 Docker 프로필**: 빌드된 프론트엔드 자산, non-root 컨테이너, 헬스체크, 재시작 정책, 백업 볼륨을 갖춘 프로덕션 컴포즈 파일 추가
+- [x] **보안 기준**: 속도 제한, 요청 로깅, 업로드 바이러스/유형 검증, 소스 유형별 파일 크기 제한, 시크릿 관리 추가
+- [x] **데이터베이스 마이그레이션**: 자동 테이블 생성 방식을 Alembic 마이그레이션으로 대체하여 안전한 스키마 진화
+- [x] **CI 품질 게이트**: 모든 PR에서 백엔드 pytest/ruff 및 프론트엔드 lint/build/playwright 검사 실행
 
 ### 2026-07-10 필수 1~3 반영
 
 - [x] 현재 선택 건물 저장소(`projectStore`)를 추가하고 Projects/Data Sources/Editor/Alignment/Validation/Monitor/Models/PointCloud가 같은 건물 컨텍스트를 우선 사용하도록 연결
 - [x] 에디터 보안장치 배치를 `PUT /api/buildings/{building_id}/object-placements/sync`로 일괄 동기화하여 중간 실패 가능성을 줄이고 백엔드 객체 배치 API를 저장 기준으로 사용
 - [x] 로그인 API, 선택적 API 토큰 미들웨어, 프론트 API 토큰 헤더 연결, 인증/배치 동기화 백엔드 테스트 추가
+
+### 2026-07-10 우선 1~5 반영
+
+- [x] 업로드 파일 소스별 확장자/크기 검증, 파이프라인 `derivative_records`, 썸네일 URI, 영구 파일 URI 메타데이터 추가
+- [x] `docker-compose.prod.yml`, 백엔드/프론트 프로덕션 Dockerfile, nginx 정적 서빙/프록시, 헬스체크/재시작/백업 볼륨 구성 추가
+- [x] API 요청 로깅, IP 기반 분당 레이트리밋, 선택적 토큰 인증과 업로드 유형 검증을 보안 기준으로 반영
+- [x] Alembic 초기 구성 및 `0001_initial_schema` 마이그레이션 추가
+- [x] CI를 Node 24 기반 프론트 lint/test/build/e2e 및 백엔드 ruff/pytest 게이트로 확장
 
 ### 🟢 Nice-to-Have (선택)
 

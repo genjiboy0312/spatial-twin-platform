@@ -71,6 +71,18 @@ def test_pointcloud_file_upload_creates_ready_asset() -> None:
     assert "PointCloud object ready" in body["message"]
 
 
+def test_file_upload_rejects_wrong_source_extension() -> None:
+    building = client.post("/api/buildings", json={"name": "Extension Guard Parent"}).json()
+    response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "image", "building_id": str(building["id"])},
+        files={"file": ("floor.exe", b"not an image", "application/octet-stream")},
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported image file type" in response.json()["detail"]
+
+
 def test_delete_upload_removes_asset_record() -> None:
     building = client.post("/api/buildings", json={"name": "Delete Upload Parent"}).json()
     upload = client.post(
@@ -399,9 +411,12 @@ def test_upload_pipeline_status_updates_linked_project_asset() -> None:
     assert pipeline["current_stage"] == "BIM extraction"
     assert pipeline["progress"] == 100
     assert "floor separation metadata" in pipeline["details"]["derived_outputs"]
+    assert pipeline["details"]["persistent_file_uri"] == upload["file_url"]
+    assert any(record["kind"] == "floor-separation" for record in pipeline["details"]["derivative_records"])
     assert pipeline["project_assets"][0]["asset_type"] == "ifc"
     assert pipeline["project_assets"][0]["status"] == "ready"
     assert pipeline["project_assets"][0]["metadata"]["pipeline_stage"] == "BIM extraction"
+    assert pipeline["project_assets"][0]["metadata"]["derivative_records"]
 
     failed_response = client.patch(
         f"/api/uploads/{upload['id']}/status",

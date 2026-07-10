@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     api_auth_enabled: bool = False
     api_access_token: str = "local-dev-token"
     api_token_header: str = "X-API-Token"
+    request_logging_enabled: bool = True
+    rate_limit_per_minute: int = 240
+    upload_max_bytes_default: int = 100 * 1024 * 1024
+    upload_max_bytes_image: int = 25 * 1024 * 1024
+    upload_max_bytes_cad: int = 150 * 1024 * 1024
+    upload_max_bytes_model: int = 300 * 1024 * 1024
+    upload_max_bytes_pointcloud: int = 2 * 1024 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 

@@ -71,15 +71,34 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: workspace/frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript check
-        run: npx tsc -b --noEmit
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
 
       - name: Build
         run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5175 > vite-e2e.log 2>&1 &
+          SERVER_PID=$!
+          trap "kill $SERVER_PID" EXIT
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:5175 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          npm run e2e

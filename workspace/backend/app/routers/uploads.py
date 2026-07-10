@@ -1,5 +1,5 @@
-import mmap
 import json
+import mmap
 import struct
 from pathlib import Path
 from uuid import uuid4
@@ -18,7 +18,16 @@ from app.settings import get_settings
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
 ALLOWED_SOURCE_TYPES = {"dxf", "dwg", "image", "ifc", "glb", "pointcloud", "unknown"}
-POINTCLOUD_EXTENSIONS = {".las", ".laz", ".ply"}
+SOURCE_EXTENSIONS = {
+    "image": {".png", ".jpg", ".jpeg"},
+    "dxf": {".dxf", ".dwg"},
+    "dwg": {".dwg", ".dxf"},
+    "ifc": {".ifc"},
+    "glb": {".glb", ".gltf"},
+    "pointcloud": {".las", ".laz", ".ply"},
+    "unknown": set(),
+}
+POINTCLOUD_EXTENSIONS = SOURCE_EXTENSIONS["pointcloud"]
 READY_SOURCE_TYPES = {"image", "dxf", "dwg", "ifc", "glb", "pointcloud"}
 PIPELINE_PROGRESS = {
     "queued": 5,
@@ -79,7 +88,9 @@ def metadata_for_upload(upload: UploadAsset, *, stored_name: str | None = None, 
         "pipeline_stage": pipeline["current_stage"],
         "pipeline_progress": pipeline["progress"],
         "derived_outputs": pipeline["derived_outputs"],
+        "derivative_records": pipeline["derivative_records"],
         "supported_formats": pipeline["supported_formats"],
+        "thumbnail_uri": pipeline["thumbnail_uri"],
     }
     if stored_name is not None:
         metadata["stored_name"] = stored_name
@@ -104,8 +115,11 @@ def pipeline_details_for_upload(
         "status": upload.status,
         "supported_formats": guide["supported_formats"],
         "derived_outputs": guide["derived_outputs"],
+        "derivative_records": derivative_records_for_upload(upload),
         "has_preview": upload.source_type in READY_SOURCE_TYPES and upload.status in {"preview_ready", "ready"},
         "failure_reason": upload.message if upload.status == "failed" else None,
+        "thumbnail_uri": thumbnail_uri_for_upload(upload),
+        "persistent_file_uri": upload.file_url,
     }
     if stored_name is not None:
         details["stored_name"] = stored_name
@@ -124,6 +138,56 @@ def pipeline_details_for_upload(
     elif upload.source_type == "glb":
         details["scene_preview_status"] = "ready" if upload.status == "ready" else "queued"
     return details
+
+
+def derivative_records_for_upload(upload: UploadAsset) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = [
+        {"kind": "source", "status": upload.status, "uri": upload.file_url},
+    ]
+    if upload.source_type == "image":
+        records.append({"kind": "thumbnail", "status": "ready" if upload.status == "ready" else "queued"})
+    elif upload.source_type in {"dxf", "dwg"}:
+        records.append({"kind": "geometry-extraction", "status": "queued"})
+        records.append({"kind": "layer-summary", "status": "queued"})
+    elif upload.source_type == "ifc":
+        records.append({"kind": "floor-separation", "status": "queued"})
+        records.append({"kind": "space-object-extraction", "status": "queued"})
+    elif upload.source_type == "glb":
+        records.append({"kind": "scene-bounds", "status": "ready" if upload.status == "ready" else "queued"})
+    elif upload.source_type == "pointcloud":
+        records.append({"kind": "pointcloud-preview", "status": "ready" if upload.status == "ready" else "queued", "uri": upload.pointcloud_preview_url})
+    return records
+
+
+def thumbnail_uri_for_upload(upload: UploadAsset) -> str | None:
+    if upload.source_type in {"image", "glb", "ifc"} and upload.file_url is not None:
+        return f"{upload.file_url}?preview=thumbnail"
+    return None
+
+
+def max_upload_bytes_for_source(source_type: str) -> int:
+    settings = get_settings()
+    if source_type == "image":
+        return settings.upload_max_bytes_image
+    if source_type in {"dxf", "dwg"}:
+        return settings.upload_max_bytes_cad
+    if source_type in {"ifc", "glb"}:
+        return settings.upload_max_bytes_model
+    if source_type == "pointcloud":
+        return settings.upload_max_bytes_pointcloud
+    return settings.upload_max_bytes_default
+
+
+def validate_source_extension(source_type: str, filename: str | None) -> str:
+    ext = Path(filename or "unknown").suffix.lower()
+    allowed = SOURCE_EXTENSIONS.get(source_type, set())
+    if allowed and ext not in allowed:
+        allowed_list = ", ".join(sorted(allowed))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported {source_type} file type. Allowed: {allowed_list}",
+        )
+    return ext
 
 
 def project_asset_to_read(asset: ProjectAsset) -> ProjectAssetRead:
@@ -417,14 +481,18 @@ async def upload_file(
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    ext = Path(file.filename or "unknown").suffix if file.filename else ""
-    if source_type == "pointcloud" and ext.lower() not in POINTCLOUD_EXTENSIONS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported pointcloud file type")
+    ext = validate_source_extension(source_type, file.filename)
 
     unique_name = f"{uuid4().hex}{ext}"
     file_path = upload_dir / unique_name
 
     content = await file.read()
+    max_bytes = max_upload_bytes_for_source(source_type)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Upload exceeds {max_bytes} byte limit for {source_type}",
+        )
     file_path.write_bytes(content)
     status_value = "ready" if source_type in READY_SOURCE_TYPES else "uploaded"
     message = (

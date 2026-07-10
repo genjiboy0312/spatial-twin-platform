@@ -1,0 +1,84 @@
+name: spatial-twin-platform-prod
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: spatial-twin-platform-prod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: total_building_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d total_building_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: spatial-twin-platform-prod-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: spatial-twin-platform-backend-prod
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: spatial-twin-platform-prod-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/total_building_db
+      REDIS_URL: redis://redis:6379/0
+      AUTO_CREATE_TABLES: "false"
+      API_AUTH_ENABLED: ${API_AUTH_ENABLED:-true}
+      API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:-change-me-before-production}
+      CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-https?://.*}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - uploads_prod_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: spatial-twin-platform-frontend-prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: spatial-twin-platform-prod-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  uploads_prod_data:
