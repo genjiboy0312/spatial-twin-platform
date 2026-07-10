@@ -1,6 +1,16 @@
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { Html, OrbitControls } from '@react-three/drei'
+import * as THREE from 'three'
+
+import type { Building } from '../../../api/buildings'
+import type { Floor } from '../../../api/floors'
 import type { SecurityDevice } from '../../../stores/editorStore'
 
 export interface MonitorSpatialViewProps {
+  building: Building | null
+  floors: Floor[]
+  selectedFloorId: number | null
   devices: SecurityDevice[]
   selectedDeviceId: string | null
   showCoverage: boolean
@@ -9,8 +19,142 @@ export interface MonitorSpatialViewProps {
   onSelectDevice: (id: string) => void
 }
 
-function toX(x: number) { return 210 + x * 24 }
-function toY(y: number) { return 122 + y * 16 }
+type LatLngTuple = [number, number]
+
+const TILE_URL = '/api/osm-tiles/{z}/{x}/{y}.png'
+const DEFAULT_CENTER: LatLngTuple = [37.5665, 126.9784]
+const TILE_SIZE = 256
+const TILE_GRID_SIZE = 4
+const TEXTURE_SIZE = TILE_SIZE * TILE_GRID_SIZE
+const PLANE_SIZE = 400
+const MAP_ZOOM = 17
+
+function latLngToWorldPixel(latitude: number, longitude: number, zoom: number) {
+  const clippedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude))
+  const sinLat = Math.sin((clippedLatitude * Math.PI) / 180)
+  const scale = TILE_SIZE * 2 ** zoom
+  return {
+    wx: ((longitude + 180) / 360) * scale,
+    wy: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale,
+  }
+}
+
+function tileUrl(zoom: number, x: number, y: number) {
+  return TILE_URL.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y))
+}
+
+function loadImage(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error(`Failed to load OSM tile: ${url}`))
+    image.src = url
+  })
+}
+
+function drawFallbackMap(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = '#d9d8d3'
+  ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+
+  ctx.fillStyle = '#b8c69c'
+  ctx.beginPath()
+  ctx.moveTo(-80, 150)
+  ctx.lineTo(330, 70)
+  ctx.lineTo(TEXTURE_SIZE + 80, 150)
+  ctx.lineTo(TEXTURE_SIZE + 80, 210)
+  ctx.lineTo(340, 150)
+  ctx.lineTo(-80, 250)
+  ctx.closePath()
+  ctx.fill()
+
+  for (const [y, width] of [[250, 54], [410, 70], [610, 46]] as Array<[number, number]>) {
+    ctx.save()
+    ctx.translate(TEXTURE_SIZE / 2, y)
+    ctx.rotate(-0.08)
+    ctx.fillStyle = '#b9b9b9'
+    ctx.fillRect(-TEXTURE_SIZE, -width / 2, TEXTURE_SIZE * 2, width)
+    ctx.restore()
+  }
+
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.42)'
+  ctx.lineWidth = 4
+  ctx.strokeRect(104, 112, 168, 92)
+  ctx.strokeRect(612, 116, 126, 84)
+  ctx.strokeRect(214, 628, 210, 98)
+}
+
+function useOsmTexture(center: LatLngTuple, zoom: number) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const canvas = document.createElement('canvas')
+    canvas.width = TEXTURE_SIZE
+    canvas.height = TEXTURE_SIZE
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    drawFallbackMap(ctx)
+    const nextTexture = new THREE.CanvasTexture(canvas)
+    nextTexture.colorSpace = THREE.SRGBColorSpace
+    nextTexture.wrapS = THREE.ClampToEdgeWrapping
+    nextTexture.wrapT = THREE.ClampToEdgeWrapping
+    nextTexture.needsUpdate = true
+    setTexture((current) => {
+      current?.dispose()
+      return nextTexture
+    })
+    setIsLoading(true)
+
+    const { wx, wy } = latLngToWorldPixel(center[0], center[1], zoom)
+    const startTileX = Math.floor(wx / TILE_SIZE) - 1
+    const startTileY = Math.floor(wy / TILE_SIZE) - 1
+    const tileCount = 2 ** zoom
+    const jobs: Promise<void>[] = []
+
+    for (let col = 0; col < TILE_GRID_SIZE; col += 1) {
+      for (let row = 0; row < TILE_GRID_SIZE; row += 1) {
+        const rawX = startTileX + col
+        const rawY = startTileY + row
+        if (rawY < 0 || rawY >= tileCount) continue
+        const wrappedX = ((rawX % tileCount) + tileCount) % tileCount
+        jobs.push(
+          loadImage(tileUrl(zoom, wrappedX, rawY))
+            .then((image) => {
+              if (cancelled) return
+              ctx.drawImage(
+                image,
+                rawX * TILE_SIZE - wx + TEXTURE_SIZE / 2,
+                rawY * TILE_SIZE - wy + TEXTURE_SIZE / 2,
+                TILE_SIZE,
+                TILE_SIZE,
+              )
+              nextTexture.needsUpdate = true
+            })
+            .catch(() => {
+              nextTexture.needsUpdate = true
+            }),
+        )
+      }
+    }
+
+    Promise.allSettled(jobs).then(() => {
+      if (cancelled) return
+      nextTexture.needsUpdate = true
+      setIsLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [center, zoom])
+
+  useEffect(() => () => texture?.dispose(), [texture])
+
+  return { texture, isLoading }
+}
 
 function deviceColor(deviceType: SecurityDevice['device_type']) {
   if (deviceType === 'alarm') return '#ef4444'
@@ -19,7 +163,186 @@ function deviceColor(deviceType: SecurityDevice['device_type']) {
   return '#22c55e'
 }
 
+function MapGround({ texture }: { texture: THREE.Texture | null }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
+      {texture ? (
+        <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+      ) : (
+        <meshBasicMaterial color="#d9d8d3" side={THREE.DoubleSide} />
+      )}
+    </mesh>
+  )
+}
+
+function FloorStack({ floors, selectedFloorId }: { floors: Floor[]; selectedFloorId: number | null }) {
+  const sortedFloors = useMemo(
+    () => floors.slice().sort((a, b) => a.floor_number - b.floor_number),
+    [floors],
+  )
+  const renderFloors = sortedFloors.length > 0
+    ? sortedFloors
+    : Array.from({ length: 3 }, (_, index) => ({
+        id: -index - 1,
+        floor_number: index + 1,
+        floor_name: `${index + 1}F`,
+        height_meters: 3,
+      } as Floor))
+
+  return (
+    <group position={[0, 0.18, 0]} rotation={[0, -0.18, 0]}>
+      {renderFloors.map((floor, index) => {
+        const isSelected = floor.id === selectedFloorId || (selectedFloorId === null && index === 0)
+        const height = Math.max(2.4, floor.height_meters ?? 3)
+        const y = index * (height + 0.28) + height / 2
+        const opacity = isSelected ? 0.92 : 0.5
+        return (
+          <group key={floor.id} position={[0, y, 0]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[45, height, 32]} />
+              <meshStandardMaterial
+                color={isSelected ? '#e4e4e7' : '#a1a1aa'}
+                metalness={0.05}
+                roughness={0.78}
+                transparent
+                opacity={opacity}
+              />
+            </mesh>
+            <mesh position={[0, height / 2 + 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[42, 29]} />
+              <meshBasicMaterial color={isSelected ? '#f8fafc' : '#d4d4d8'} transparent opacity={isSelected ? 0.22 : 0.1} />
+            </mesh>
+            {isSelected && (
+              <Html position={[0, height / 2 + 2.8, -18]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+                <span className="monitor-3d-label">{floor.floor_name ?? `${floor.floor_number}F`}</span>
+              </Html>
+            )}
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
+function DeviceMarker({
+  device,
+  selected,
+  showCoverage,
+  onSelect,
+}: {
+  device: SecurityDevice
+  selected: boolean
+  showCoverage: boolean
+  onSelect: (id: string) => void
+}) {
+  const color = deviceColor(device.device_type)
+  const x = (device.x - 8) * 2.6
+  const z = (device.y - 7) * 2.2
+  const y = 5.2
+
+  const handleClick = useCallback(() => onSelect(device.id), [device.id, onSelect])
+
+  return (
+    <group position={[x, y, z]} onClick={handleClick}>
+      {showCoverage && device.device_type === 'camera' && (
+        <mesh position={[0, -4.85, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
+          <circleGeometry args={[selected ? 8.4 : 7.2, 56]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={selected ? 0.18 : 0.1} depthWrite={false} />
+        </mesh>
+      )}
+      <pointLight color={color} intensity={selected ? 1.8 : 0.95} distance={18} />
+      <mesh position={[0, -4.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.1, selected ? 2.8 : 2.2, 44]} />
+        <meshBasicMaterial color={color} transparent opacity={selected ? 0.48 : 0.3} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh castShadow>
+        <sphereGeometry args={[selected ? 1.1 : 0.85, 28, 20]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 0.72 : 0.4} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, -2.2, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 4.8, 12]} />
+        <meshBasicMaterial color={color} transparent opacity={0.58} />
+      </mesh>
+      <Html position={[0, 2.4, 0]} center distanceFactor={9} style={{ pointerEvents: 'none' }}>
+        <span className={'monitor-3d-device-label' + (selected ? ' selected' : '')}>{device.name}</span>
+      </Html>
+    </group>
+  )
+}
+
+function PointCloudHint() {
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[new Float32Array(Array.from({ length: 240 }, (_, i) => {
+            const pointIndex = Math.floor(i / 3)
+            if (i % 3 === 0) return -46 + ((pointIndex * 19) % 92)
+            if (i % 3 === 1) return 0.25 + (pointIndex % 7) * 0.06
+            return -32 + ((pointIndex * 31) % 64)
+          })), 3]}
+        />
+      </bufferGeometry>
+      <pointsMaterial color="#93c5fd" size={1.0} transparent opacity={0.26} sizeAttenuation />
+    </points>
+  )
+}
+
+function SceneLoader() {
+  return (
+    <Html center>
+      <div className="monitor-3d-loader">Loading OSM map...</div>
+    </Html>
+  )
+}
+
+function MonitorMapScene({
+  center,
+  floors,
+  selectedFloorId,
+  devices,
+  selectedDeviceId,
+  showCoverage,
+  showGps,
+  showPointCloud,
+  onSelectDevice,
+}: Omit<MonitorSpatialViewProps, 'building'> & { center: LatLngTuple }) {
+  const { texture, isLoading } = useOsmTexture(center, MAP_ZOOM)
+
+  return (
+    <>
+      <color attach="background" args={['#2a2a2d']} />
+      <fog attach="fog" args={['#2a2a2d', 210, 380]} />
+      <ambientLight intensity={0.92} />
+      <directionalLight position={[42, 70, 32]} intensity={1.35} castShadow />
+      <MapGround texture={texture} />
+      <FloorStack floors={floors} selectedFloorId={selectedFloorId} />
+      {showPointCloud && <PointCloudHint />}
+      {showGps && (
+        <Html position={[0, 16, -28]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+          <span className="monitor-3d-label success">GPS Origin</span>
+        </Html>
+      )}
+      {devices.map((device) => (
+        <DeviceMarker
+          key={device.id}
+          device={device}
+          selected={device.id === selectedDeviceId}
+          showCoverage={showCoverage}
+          onSelect={onSelectDevice}
+        />
+      ))}
+      {isLoading && <SceneLoader />}
+    </>
+  )
+}
+
 export function MonitorSpatialView({
+  building,
+  floors,
+  selectedFloorId,
   devices,
   selectedDeviceId,
   showCoverage,
@@ -27,107 +350,47 @@ export function MonitorSpatialView({
   showPointCloud,
   onSelectDevice,
 }: MonitorSpatialViewProps) {
+  const center = useMemo<LatLngTuple>(() => {
+    if (building?.origin_latitude != null && building.origin_longitude != null) {
+      return [building.origin_latitude, building.origin_longitude]
+    }
+    return DEFAULT_CENTER
+  }, [building])
+
   return (
-    <svg className="monitor-spatial-view" viewBox="0 0 780 520" role="img" aria-label="Monitor map view">
-      <defs>
-        <linearGradient id="monitor-map-plane" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f4f4f5" />
-          <stop offset="50%" stopColor="#d4d4d8" />
-          <stop offset="100%" stopColor="#a1a1aa" />
-        </linearGradient>
-        <linearGradient id="monitor-building-wall" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f4f4f5" />
-          <stop offset="100%" stopColor="#71717a" />
-        </linearGradient>
-        <filter id="monitor-soft-shadow" x="-30%" y="-30%" width="160%" height="180%">
-          <feDropShadow dx="0" dy="16" stdDeviation="12" floodColor="#000000" floodOpacity="0.42" />
-        </filter>
-        <filter id="monitor-label-shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#000000" floodOpacity="0.72" />
-        </filter>
-        <pattern id="monitor-road-grid" width="34" height="34" patternUnits="userSpaceOnUse">
-          <path d="M 34 0 L 0 0 0 34" fill="none" stroke="rgba(63,63,70,0.22)" strokeWidth="1" />
-        </pattern>
-      </defs>
-
-      <rect width="780" height="520" fill="transparent" />
-      <g className="monitor-map-scene" filter="url(#monitor-soft-shadow)">
-        <polygon
-          className="monitor-map-plane"
-          points="86,402 278,82 714,154 504,484"
-          fill="url(#monitor-map-plane)"
+    <div className="monitor-spatial-view" role="img" aria-label="Monitor OSM 3D map view">
+      <Canvas
+        camera={{ position: [58, 86, 58], fov: 43 }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        shadows
+      >
+        <Suspense fallback={<SceneLoader />}>
+          <MonitorMapScene
+            center={center}
+            floors={floors}
+            selectedFloorId={selectedFloorId}
+            devices={devices}
+            selectedDeviceId={selectedDeviceId}
+            showCoverage={showCoverage}
+            showGps={showGps}
+            showPointCloud={showPointCloud}
+            onSelectDevice={onSelectDevice}
+          />
+        </Suspense>
+        <OrbitControls
+          enableDamping
+          dampingFactor={0.14}
+          minDistance={24}
+          maxDistance={170}
+          maxPolarAngle={Math.PI / 2.14}
+          target={[0, 5, 0]}
+          makeDefault
         />
-        <polygon points="86,402 278,82 714,154 504,484" fill="url(#monitor-road-grid)" opacity="0.72" />
-        <path d="M180 344 C270 302 344 226 418 104" className="monitor-map-road wide" />
-        <path d="M312 466 C358 346 458 260 666 172" className="monitor-map-road wide" />
-        <path d="M132 389 C244 384 418 402 574 454" className="monitor-map-road" />
-        <path d="M282 96 C386 160 500 172 702 156" className="monitor-map-road" />
-        <path d="M240 386 L392 128 L444 136 L292 398 Z" className="monitor-map-green" />
-        <path d="M530 170 L636 184 L590 246 L488 230 Z" className="monitor-map-green muted" />
-
-        <g className="monitor-building-model">
-          <polygon points="294,308 410,214 562,242 446,350" fill="#e4e4e7" />
-          <polygon points="294,308 446,350 446,380 294,334" fill="#8b8b91" />
-          <polygon points="446,350 562,242 562,270 446,380" fill="#71717a" />
-          <polygon points="326,306 414,236 520,254 430,326" fill="#fafafa" stroke="#52525b" strokeWidth="1.5" />
-          <path d="M354 296 L422 244 M386 315 L454 260 M420 323 L488 268" className="monitor-building-line" />
-          <path d="M332 306 L428 324 L516 254" className="monitor-building-line strong" />
-          <rect x="472" y="248" width="28" height="40" rx="4" fill="url(#monitor-building-wall)" transform="rotate(12 486 268)" />
-          <rect x="408" y="274" width="22" height="34" rx="4" fill="url(#monitor-building-wall)" transform="rotate(12 419 291)" />
-          <rect x="372" y="288" width="22" height="28" rx="4" fill="url(#monitor-building-wall)" transform="rotate(12 383 302)" />
-        </g>
-
-        <g className="monitor-map-label" filter="url(#monitor-label-shadow)">
-          <rect x="104" y="90" width="132" height="28" rx="8" />
-          <text x="118" y="109">OSM Map 3D</text>
-        </g>
-        <g className="monitor-map-label focus" filter="url(#monitor-label-shadow)">
-          <rect x="396" y="184" width="88" height="30" rx="10" />
-          <text x="412" y="205">3D Model</text>
-        </g>
-      </g>
-
-      {showPointCloud && Array.from({ length: 120 }, (_, i) => (
-        <circle
-          key={i}
-          cx={188 + ((i * 41) % 430)}
-          cy={142 + ((i * 29) % 250)}
-          r={1.2 + (i % 4) * 0.4}
-          fill="#93c5fd"
-          opacity={0.08 + (i % 6) * 0.045}
-        />
-      ))}
-      {showGps && ([
-        [252, 150], [626, 178], [504, 430],
-      ] as Array<[number, number]>).map(([x, y], i) => (
-        <g key={`gps-${i}`} className="monitor-gps-marker">
-          <circle cx={x} cy={y} r="13" />
-          <circle cx={x} cy={y} r="5" />
-          <text x={x + 15} y={y - 10}>GPS-{i + 1}</text>
-        </g>
-      ))}
-      {devices.map((device) => {
-        const x = toX(device.x)
-        const y = toY(device.y)
-        const selected = device.id === selectedDeviceId
-        const color = deviceColor(device.device_type)
-        return (
-          <g key={device.id} className="monitor-device-node" onClick={() => onSelectDevice(device.id)}>
-            {showCoverage && device.device_type === 'camera' && (
-              <ellipse cx={x} cy={y + 8} rx="70" ry="32" fill="rgba(56,189,248,0.12)" stroke="rgba(56,189,248,0.22)" />
-            )}
-            <line x1={x} y1={y + 28} x2={x} y2={y + 7} stroke={color} strokeWidth="2" opacity="0.72" />
-            <ellipse cx={x} cy={y + 30} rx="14" ry="5" fill="#000000" opacity="0.34" />
-            <circle
-              cx={x} cy={y}
-              r={selected ? 15 : 11}
-              fill={color}
-              stroke="#f4f4f5" strokeWidth="1.5"
-            />
-            <text x={x + 15} y={y - 12} className={selected ? 'selected' : ''}>{device.name}</text>
-          </g>
-        )
-      })}
-    </svg>
+      </Canvas>
+      <div className="monitor-3d-coordinate">
+        Cesium 3D - {center[0].toFixed(6)}, {center[1].toFixed(6)} / z{MAP_ZOOM}
+      </div>
+    </div>
   )
 }

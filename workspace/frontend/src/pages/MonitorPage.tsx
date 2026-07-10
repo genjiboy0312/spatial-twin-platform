@@ -43,7 +43,7 @@ const copy = {
     refresh: 'Refresh',
     buildingFloors: 'Buildings / Floors',
     devices: 'Security Devices',
-    map: 'Map View',
+    map: 'OSM 3D Map',
     events: 'Events',
     stats: 'Stats',
     logs: 'System Logs',
@@ -258,6 +258,9 @@ export function MonitorPage() {
               </strong>
             </div>
             <MonitorSpatialView
+              building={selectedBuilding}
+              floors={floors}
+              selectedFloorId={selectedFloorId}
               devices={devices}
               selectedDeviceId={selectedDeviceId}
               showCoverage={showCoverage}

@@ -4839,6 +4839,7 @@ a {
 }
 
 .monitor-spatial-view {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
@@ -4848,97 +4849,64 @@ a {
     linear-gradient(180deg, #18181b 0%, #0a0a0c 100%);
 }
 
-.monitor-map-plane {
-  stroke: rgba(250, 250, 250, 0.42);
-  stroke-width: 1.5;
+.monitor-spatial-view canvas {
+  display: block;
+  cursor: grab;
 }
 
-.monitor-map-road {
-  fill: none;
-  stroke: rgba(82, 82, 91, 0.78);
-  stroke-linecap: round;
-  stroke-width: 12;
+.monitor-spatial-view canvas:active {
+  cursor: grabbing;
 }
 
-.monitor-map-road.wide {
-  stroke: rgba(63, 63, 70, 0.72);
-  stroke-width: 22;
-}
-
-.monitor-map-green {
-  fill: rgba(132, 204, 22, 0.28);
-  stroke: rgba(77, 124, 15, 0.24);
-}
-
-.monitor-map-green.muted {
-  fill: rgba(113, 113, 122, 0.24);
-}
-
-.monitor-building-model {
-  filter: drop-shadow(0 16px 12px rgba(0, 0, 0, 0.36));
-}
-
-.monitor-building-line {
-  fill: none;
-  stroke: rgba(39, 39, 42, 0.48);
-  stroke-width: 2;
-}
-
-.monitor-building-line.strong {
-  stroke: rgba(24, 24, 27, 0.72);
-}
-
-.monitor-map-label rect {
-  fill: rgba(24, 24, 27, 0.82);
-  stroke: rgba(228, 228, 231, 0.22);
-}
-
-.monitor-map-label text {
-  fill: #e4e4e7;
-  font-size: 11px;
+.monitor-3d-coordinate {
+  position: absolute;
+  top: 76px;
+  left: 18px;
+  z-index: 4;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(9, 9, 11, 0.74);
+  color: var(--muted);
+  padding: 7px 10px;
+  font-size: 0.68rem;
   font-weight: 900;
-  letter-spacing: 0.02em;
+  backdrop-filter: blur(10px);
 }
 
-.monitor-map-label.focus rect {
-  fill: rgba(39, 39, 42, 0.92);
+.monitor-3d-label,
+.monitor-3d-device-label,
+.monitor-3d-loader {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(244, 244, 245, 0.18);
+  border-radius: 999px;
+  background: rgba(9, 9, 11, 0.82);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: 7px 10px;
+  white-space: nowrap;
 }
 
-.monitor-gps-marker circle:first-child {
-  fill: rgba(34, 197, 94, 0.14);
-  stroke: rgba(134, 239, 172, 0.64);
+.monitor-3d-label.success {
+  border-color: rgba(34, 197, 94, 0.38);
+  color: #bbf7d0;
 }
 
-.monitor-gps-marker circle:nth-child(2) {
-  fill: #22c55e;
+.monitor-3d-device-label {
+  font-size: 0.66rem;
+  padding: 6px 8px;
 }
 
-.monitor-gps-marker text {
-  fill: #bbf7d0;
-  font-size: 12px;
-  font-weight: 900;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.72);
-  stroke-width: 3px;
+.monitor-3d-device-label.selected {
+  border-color: rgba(250, 204, 21, 0.48);
+  color: #fde68a;
 }
 
-.monitor-device-node {
-  cursor: pointer;
-}
-
-.monitor-device-node text {
-  fill: #f4f4f5;
-  font-size: 10px;
-  font-weight: 900;
-  paint-order: stroke;
-  pointer-events: none;
-  stroke: rgba(0, 0, 0, 0.74);
-  stroke-width: 3px;
-}
-
-.monitor-device-node text.selected {
-  fill: #ffffff;
-  font-size: 12px;
+.monitor-3d-loader {
+  color: var(--muted);
 }
 
 .monitor-tabbar,
