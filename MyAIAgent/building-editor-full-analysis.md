@@ -1113,57 +1113,67 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [ ] 접근 제어: 영구 외부 URL 공유 전에 로그인/세션 또는 토큰 기반 접근 추가
 - [ ] 환경 분리: local, tunnel-demo, staging, production 환경 파일을 분리하여 CORS, URL, 업로드 제한, 데이터베이스 설정이 혼용되지 않도록 함
 
-## 다음 개발 권장 사항
+## 향후 개발 권장 사항 (우선순위별)
 
-- [ ] 인증 및 권한 부여: 사용자 로그인, 역할 권한, 프로젝트 수준 접근 제어, 건물/프로젝트 데이터 API 가드 추가
-- [ ] 영구 파일 파이프라인: 업로드된 Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 파일을 메타데이터, 처리 상태, 썸네일, 파생 지오메트리 레코드와 함께 저장
-- [ ] 실제 객체 배치 영속화: 에디터 보안장치/객체 배치 변경사항을 새로운 백엔드 객체 배치 API에 직접 연결 (실행취소/재실행 히스토리 포함)
-- [ ] 프로젝트 저장/로드 워크플로우: 모든 건물 프로젝트가 층, 업로드, 모델 자산, 장치 위치, 정렬 상태, 앵커/맵 데이터, 대시보드 상태를 백엔드 스토리지에서 복원하도록 보장
-- [ ] Cesium/OSM 프로덕션 강화: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
-- [ ] WebSocket 실시간 레이어: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
-- [ ] 내보내기 파이프라인: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
-- [ ] 데이터베이스 마이그레이션: 자동 테이블 생성 방식을 Alembic 마이그레이션으로 대체하여 안전한 스키마 진화
-- [ ] 보안 기준: 속도 제한, 요청 로깅, 업로드 바이러스/유형 검증, 소스 유형별 파일 크기 제한, 시크릿 관리 추가
-- [ ] 프로덕션 Docker 프로필: 빌드된 프론트엔드 자산, non-root 컨테이너, 헬스체크, 재시작 정책, 백업 볼륨을 갖춘 프로덕션 컴포즈 파일 추가
-- [ ] CI 품질 게이트: 모든 PR에서 백엔드 pytest/ruff 및 프론트엔드 lint/build/playwright 검사 실행
+### 🔴 Critical Path (필수)
+
+- [ ] **프로젝트 저장/로드 워크플로우**: 모든 건물 프로젝트가 층, 업로드, 모델 자산, 장치 위치, 정렬 상태, 앵커/맵 데이터, 대시보드 상태를 백엔드 스토리지에서 복원하도록 보장
+- [ ] **실제 객체 배치 영속화**: 에디터 보안장치/객체 배치 변경사항을 새로운 백엔드 객체 배치 API에 직접 연결 (실행취소/재실행 히스토리 포함)
+- [ ] **인증 및 권한 부여**: 사용자 로그인, 역할 권한, 프로젝트 수준 접근 제어, 건물/프로젝트 데이터 API 가드 추가
+
+### 🟡 High Priority (우선)
+
+- [ ] **영구 파일 파이프라인**: 업로드된 Image/DXF/DWG/IFC/GLB/GLTF/PointCloud 파일을 메타데이터, 처리 상태, 썸네일, 파생 지오메트리 레코드와 함께 저장
+- [ ] **프로덕션 Docker 프로필**: 빌드된 프론트엔드 자산, non-root 컨테이너, 헬스체크, 재시작 정책, 백업 볼륨을 갖춘 프로덕션 컴포즈 파일 추가
+- [ ] **보안 기준**: 속도 제한, 요청 로깅, 업로드 바이러스/유형 검증, 소스 유형별 파일 크기 제한, 시크릿 관리 추가
+- [ ] **데이터베이스 마이그레이션**: 자동 테이블 생성 방식을 Alembic 마이그레이션으로 대체하여 안전한 스키마 진화
+- [ ] **CI 품질 게이트**: 모든 PR에서 백엔드 pytest/ruff 및 프론트엔드 lint/build/playwright 검사 실행
+
+### 🟢 Nice-to-Have (선택)
+
+- [ ] **Cesium/OSM 프로덕션 강화**: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
+- [ ] **WebSocket 실시간 레이어**: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
+- [ ] **내보내기 파이프라인**: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
 
 ## Recent Corrections
 
-- [x] Alignment build repair: removed stale comparison-project imports from the current Alignment page, restored it to the existing OSM alignment components/hooks, kept the 3-column alignment workspace, and confirmed the frontend production build now passes.
-- [x] Project persistence priority 1/2 backend foundation: added building-level project snapshot save/load API for editor/alignment/view state restoration, automatic project asset registration from uploads, upload pipeline status tracking, linked asset status synchronization, and frontend API clients for project data/snapshot/pipeline usage.
-- [x] Project persistence priority 1/2 frontend connection: wired Data Sources to load/save building project snapshots from the backend, display restored snapshot status, fetch upload pipeline details per recent source, and show linked asset/next-action state in the current black/gray UI.
-- [x] Editor persistence step 1: added frontend object placement API clients for list/create/delete so editor security device placements can use the backend `object_placements` storage.
-- [x] Editor persistence step 2: added editor store restore support for walls, rooms, security devices, visible layers, and snap mode without polluting undo/redo history.
-- [x] Editor persistence step 3: connected Editor page to backend project snapshots so building-level editor state, selected floor, view mode, and PointCloud upload references are restored on load.
-- [x] Editor persistence step 4: added debounced autosave from Editor to project snapshots and synchronized placed security devices into backend object placement records with transform metadata.
-- [x] Editor persistence step 5: added a compact editor autosave status pill and verified frontend build, backend pytest, and backend ruff after the persistence connection.
-- [x] Project snapshot section merge: changed frontend project snapshot writes to merge per-page sections so Data Sources, Editor, Alignment, and PointCloud state no longer overwrite each other.
-- [x] Alignment persistence expansion: loads the active building/floors, restores OSM origin, floor, camera mode, method, anchor picks, GPS inputs, matrix/RMSE, transformed GPS, and billboard state from project snapshots.
-- [x] Alignment autosave: added debounced snapshot persistence and compact save-state UI for GPS alignment workflow changes.
-- [x] PointCloud persistence expansion: restores selected building floor, active tab, checked upload IDs, and upload visibility context from project snapshots.
-- [x] PointCloud autosave: stores selected PointCloud upload IDs, ready upload IDs, active tab, selected floor, and updated timestamp for Editor/PointCloud view continuity.
-- [x] Upload pipeline step 1: expanded upload status contract with queued/validating/converting/preview_ready stages while preserving existing ready upload behavior.
-- [x] Upload pipeline step 2: added source-type pipeline metadata for Image, DXF/DWG, IFC, GLB/GLTF, and PointCloud including supported formats, derived outputs, preview readiness, and failure reason.
-- [x] Upload pipeline step 3: enriched project asset metadata with pipeline stage, progress, stored filename, file size, supported formats, and derived output records.
-- [x] Upload pipeline step 4: surfaced pipeline stage/progress in Data Sources, corrected Models status interpretation for ready/preview_ready assets, and expanded PointCloud status handling.
-- [x] Upload pipeline step 5: verified frontend build, backend pytest, backend ruff, and backend contract coverage for pipeline details/progress/failure metadata.
-- [x] Validation comparison UI transplant: rebuilt the current validation page into the comparison project's KPI + floor checklist + central 3D validation preview + right summary/issue panel layout, while keeping the current project's real editor/alignment validation calculations and black/gray theme.
-- [x] GPS Alignment 3D correction: replaced the fake 2D OSM/object overlay with a real Three.js 3D alignment view containing an OSM-style ground plane, road/grid layers, model object, orbit controls, and GPS reference markers.
-- [x] PointCloud real-file rendering: exposed uploaded pointcloud file/preview URLs from the backend, added a cached LAS Float32 preview endpoint capped at 500,000 points, and changed the editor PointCloud View to render sampled points from the actual uploaded LAS/PLY data instead of synthetic spiral/circle placeholders.
+- [x] Monitor 포트 연결 추적 및 문서화: Cloudflare Tunnel → Nginx (`monitor.nginx.conf`, port 8082) → monitor_frontend (`MONITOR_PORT=9011`) 경로 분석 완료. `workspace/nginx/monitor.nginx.conf`가 `/monitor/` 경로를 `http://monitor_frontend:9011`로 프록시하고, MONITOR_PORT가 docker-compose와 `.env.docker`를 통해 전달됨을 확인. tunnel 외부 접근 시 `/monitor/` 경로로 컨테이너 모니터링 UI 접근 가능.
+- [x] Alignment 빌드 수리: 현재 Alignment 페이지에서 오래된 비교 프로젝트 임포트 제거, 기존 OSM 정렬 컴포넌트/훅 복원, 3컬럼 정렬 워크스페이스 유지, 프론트엔드 프로덕션 빌드 통과 확인
+- [x] 프로젝트 영속화 우선 1/2 백엔드 기반: 에디터/정렬/뷰 상태 복원을 위한 건물 단위 프로젝트 스냅샷 저장/로드 API 추가, 업로드 시 자동 프로젝트 자산 등록, 업로드 파이프라인 상태 추적, 연결된 자산 상태 동기화, 프로젝트 데이터/스냅샷/파이프라인 사용을 위한 프론트엔드 API 클라이언트 추가
+- [x] 프로젝트 영속화 우선 1/2 프론트엔드 연결: Data Sources가 백엔드에서 건물 프로젝트 스냅샷을 로드/저장하도록 연결, 복원된 스냅샷 상태 표시, 소스별 업로드 파이프라인 상세 조회, 현재 블랙/그레이 UI에 연결된 자산/다음 액션 상태 표시
+- [x] 에디터 영속화 step 1: 에디터 보안 장치 배치가 백엔드 `object_placements` 저장소를 사용할 수 있도록 프론트엔드 객체 배치 API 클라이언트(list/create/delete) 추가
+- [x] 에디터 영속화 step 2: Undo/Redo 히스토리를 오염시키지 않도록 벽, 방, 보안 장치, 가시 레이어, 스냅 모드에 대한 에디터 스토어 복원 지원 추가
+- [x] 에디터 영속화 step 3: Editor 페이지를 백엔드 프로젝트 스냅샷에 연결하여 로드 시 건물 단위 에디터 상태, 선택된 층, 뷰 모드, PointCloud 업로드 참조가 복원되도록 함
+- [x] 에디터 영속화 step 4: Editor에서 프로젝트 스냅샷으로 디바운스 자동 저장 추가, 배치된 보안 장치를 변환 메타데이터와 함께 백엔드 객체 배치 레코드에 동기화
+- [x] 에디터 영속화 step 5: 컴팩트한 에디터 자동 저장 상태 표시줄 추가, 영속화 연결 후 프론트엔드 빌드, 백엔드 pytest, backend ruff 검증 완료
+- [x] 프로젝트 스냅샷 섹션 병합: 프론트엔드 프로젝트 스냅샷 쓰기를 페이지별 섹션 병합 방식으로 변경하여 Data Sources, Editor, Alignment, PointCloud 상태가 서로 덮어쓰지 않도록 함
+- [x] Alignment 영속화 확장: 활성 건물/층 로드, OSM 원점, 층, 카메라 모드, 정렬 방식, 앵커 선택, GPS 입력, 행렬/RMSE, 변환된 GPS, 빌보드 상태를 프로젝트 스냅샷에서 복원
+- [x] Alignment 자동 저장: GPS 정렬 워크플로우 변경사항에 대한 디바운스 스냅샷 영속화 및 컴팩트 저장 상태 UI 추가
+- [x] PointCloud 영속화 확장: 선택된 건물 층, 활성 탭, 체크된 업로드 ID, 업로드 가시성 컨텍스트를 프로젝트 스냅샷에서 복원
+- [x] PointCloud 자동 저장: 선택된 PointCloud 업로드 ID, 준비된 업로드 ID, 활성 탭, 선택된 층, 업데이트 타임스탬프를 저장하여 Editor/PointCloud 뷰 연속성 확보
+- [x] 업로드 파이프라인 step 1: 기존 업로드 동작을 유지하면서 queued/validating/converting/preview_ready 단계로 업로드 상태 계약 확장
+- [x] 업로드 파이프라인 step 2: Image, DXF/DWG, IFC, GLB/GLTF, PointCloud 소스 유형별 파이프라인 메타데이터 추가 (지원 포맷, 파생 출력물, 프리뷰 준비 상태, 실패 사유 포함)
+- [x] 업로드 파이프라인 step 3: 프로젝트 자산 메타데이터에 파이프라인 단계, 진행률, 저장 파일명, 파일 크기, 지원 포맷, 파생 출력 레코드 추가
+- [x] 업로드 파이프라인 step 4: Data Sources에 파이프라인 단계/진행률 표시, ready/preview_ready 자산의 Models 상태 해석 수정, PointCloud 상태 처리 확장
+- [x] 업로드 파이프라인 step 5: 파이프라인 상세/진행률/실패 메타데이터에 대한 프론트엔드 빌드, 백엔드 pytest, backend ruff, 백엔드 계약 커버리지 검증 완료
+- [x] Validation 비교 UI 이식: 현재 Validation 페이지를 비교 프로젝트의 KPI + 층 체크리스트 + 중앙 3D 검증 프리뷰 + 우측 요약/이슈 패널 레이아웃으로 재구축, 현재 프로젝트의 실제 에디터/정렬 검증 계산 및 블랙/그레이 테마 유지
+- [x] GPS 정렬 3D 보정: 가짜 2D OSM/객체 오버레이를 실제 Three.js 3D 정렬 뷰로 대체 (OSM 스타일 지면, 도로/그리드 레이어, 모델 객체, 궤도 컨트롤, GPS 참조 마커 포함)
+- [x] PointCloud 실제 파일 렌더링: 백엔드에서 업로드된 포인트클라우드 파일/프리뷰 URL 노출, 50만 포인트 제한의 캐시된 LAS Float32 프리뷰 엔드포인트 추가, 에디터 PointCloud 뷰가 합성 나선/원 플레이스홀더 대신 실제 업로드된 LAS/PLY 데이터에서 샘플링된 포인트를 렌더링하도록 변경
 - [x] PointCloud LAS RGB 색상 반영: 백엔드 프리뷰를 `XYZRGB` 바이너리로 확장하고, 3D PointCloud View에서 업로드 파일의 색상 정보를 vertex color로 표시하도록 수정.
 - [x] PointCloud 원본 LAS fallback 색상 반영: 프리뷰 API를 사용할 수 없는 경우에도 브라우저 LAS 파서가 RGB 필드를 읽어 표시하도록 보강.
 - [x] PointCloud 연결 목록 유지보수: 업로드된 파일 카드에 선택/해제 가능한 체크박스, 전체 선택/해제, 단일 삭제 버튼을 추가하고 삭제 시 원본 파일 및 프리뷰 캐시를 정리하도록 백엔드 API 추가.
 - [x] PointCloud 객체 생성 안정화: 대용량 RGB 프리뷰 생성 중 화면이 비지 않도록 1만 포인트 빠른 프리뷰를 먼저 표시하고 이후 최대 50만 포인트 프리뷰로 교체하는 progressive 로딩 및 LAS 메모리맵 샘플링 적용.
 - [x] PointCloud 200만 포인트 및 색상 보정: LAS point format 3/5 RGB 오프셋을 28번으로 수정, 잘못된 이전 RGB 캐시를 피하도록 preview cache v2 적용, 최대 2,000,000점 렌더링으로 상향, 원본 RGB가 더 선명하게 보이도록 포인트 투명 블렌딩 제거 및 렌더 DPR 최적화.
-- [x] Alignment OSM panel restore: alignment page center view now keeps the OSM tile map visible with a dedicated reference map panel, and the right panel is restored to a previous-style 3-step OSM alignment workflow for origin selection, 3-point matching, and apply/save review.
-- [x] Alignment comparison UI transplant: rebuilt the alignment page into the comparison project's 3-column workflow layout with left method/floor/view controls, a central true 3D OSM/model view, and a right OSM alignment workflow panel styled for the current black/gray interface.
-- [x] Alignment UI polish: forced the GPS alignment page back onto the current black/gray design tokens, enlarged the central 3D OSM view, restored visible OSM fallback map rendering, rebuilt the right OSM workflow panel with locked step states and hover guidance, and aligned the left/view/right sections vertically.
-- [x] Alignment view overlay fix: removed the full-canvas dark overlay caused by oversized coordinate/footer HUD elements, added a visible OSM fallback layer, and verified the map/model view is visible in the local Docker frontend.
-- [x] Alignment 3D map structure correction: removed the DOM/background map layer, restored a gray 3D scene background, and kept OSM imagery only as a textured Three.js ground-plane object under the building model.
-- [x] Alignment map plane visibility: added road/green/footprint details as thin Three.js plane geometry on top of the OSM ground plane so the map reads as a 3D floor object, not a screen background.
-- [x] Alignment OSM tile parity: added a backend OSM tile proxy and changed both the reference-point popup map and 3D alignment ground plane to use the same `/api/osm-tiles` imagery, removing the temporary synthetic map detail layer.
-- [x] Alignment map obstruction fix: removed the demo building floor slab that was covering the OSM ground-plane texture so the popup-equivalent tile imagery remains visible underneath the building walls/objects.
-- [x] Alignment 3D marker visibility: enlarged GPS origin/Point1/Point2 marker rings, spheres, glow intensity, and text labels so picked reference and 3-point alignment targets are easier to read in the 3D view.
-- [x] Login/account UI transplant: added a current-project styled LoginPage, local account/session role store, `/login` route, and topbar account dropdown with role switching and Add Account entry.
-- [x] Login route separation: moved `/login` outside the AppShell so Add Account opens a standalone full-screen login page without the main sidebar/topbar, matching the comparison project flow.
-- [x] Topbar account menu layering: raised the topbar stacking context and account dropdown z-index so the role/add-account menu renders above workflow/content UI and remains clickable.
+- [x] Alignment OSM 패널 복원: 정렬 페이지 중앙 뷰가 전용 참조 맵 패널과 함께 OSM 타일 맵을 표시하도록 유지, 우측 패널을 원점 선택 → 3점 매칭 → 적용/저장 검토의 이전 스타일 3단계 OSM 정렬 워크플로우로 복원
+- [x] Alignment 비교 UI 이식: 정렬 페이지를 비교 프로젝트의 3컬럼 워크플로우 레이아웃으로 재구축 (좌측 방식/층/뷰 컨트롤, 중앙 실제 3D OSM/모델 뷰, 우측 OSM 정렬 워크플로우 패널 - 현재 블랙/그레이 인터페이스 스타일 적용)
+- [x] Alignment UI 정리: GPS 정렬 페이지를 현재 블랙/그레이 디자인 토큰으로 강제 전환, 중앙 3D OSM 뷰 확대, OSM 폴백 맵 렌더링 복원, 잠긴 단계 상태 및 호버 가이드가 있는 우측 OSM 워크플로우 패널 재구축, 좌측/뷰/우측 섹션 수직 정렬
+- [x] Alignment 뷰 오버레이 수정: 과도하게 큰 좌표/푸터 HUD 요소로 인한 전체 캔버스 어두운 오버레이 제거, 가시적인 OSM 폴백 레이어 추가, 로컬 Docker 프론트엔드에서 맵/모델 뷰가 정상 표시됨을 확인
+- [x] Alignment 3D 맵 구조 수정: DOM/배경 맵 레이어 제거, 회색 3D 씬 배경 복원, OSM 이미지를 건물 모델 아래 텍스처 처리된 Three.js 지면 객체로만 유지
+- [x] Alignment 맵 평면 가시성: OSM 지면 위에 도로/녹지/건물 Footprint 세부 정보를 얇은 Three.js 평면 지오메트리로 추가하여 맵이 화면 배경이 아닌 3D 바닥 객체로 인식되도록 함
+- [x] Alignment OSM 타일 일관성: 백엔드 OSM 타일 프록시 추가, 참조 포인트 팝업 맵과 3D 정렬 지면이 동일한 `/api/osm-tiles` 이미지를 사용하도록 변경, 임시 합성 맵 디테일 레이어 제거
+- [x] Alignment 맵 가림 현상 수정: OSM 지면 텍스처를 가리고 있던 데모 건물 층 슬래브 제거, 건물 벽/객체 아래에서 팝업과 동일한 타일 이미지가 보이도록 함
+- [x] Alignment 3D 마커 가시성: GPS 원점/Point1/Point2 마커 링, 구체, 글로우 강도, 텍스트 라벨 확대하여 선택된 참조 및 3포인트 정렬 대상을 3D 뷰에서 더 쉽게 식별 가능하도록 개선
+- [x] 로그인/계정 UI 이식: 현재 프로젝트 스타일의 LoginPage, 로컬 계정/세션 역할 스토어, `/login` 라우트, 역할 전환 및 계정 추가 항목이 있는 상단바 계정 드롭다운 추가
+- [x] 로그인 라우트 분리: `/login`을 AppShell 외부로 이동하여 계정 추가 시 메인 사이드바/상단바 없이 독립적인 전체 화면 로그인 페이지가 열리도록 함 (비교 프로젝트 플로우와 일치)
+- [x] 상단바 계정 메뉴 레이어링: 상단바 스태킹 컨텍스트 및 계정 드롭다운 z-index 상향 조정하여 역할/계정 추가 메뉴가 워크플로우/콘텐츠 UI 위에 렌더링되고 클릭 가능하도록 함
+- [x] Monitor 비교 프로젝트 UI 이식: 완료 배너, 상단 컨트롤 바, 좌측 장치 검색/필터 패널, 중앙 공간 모니터 뷰포트, 우측 건물/층 및 실시간 이벤트 패널, 하단 로그/카메라 스트립 구조로 재구성하고 현재 블랙/그레이 디자인 시스템에 맞춤
