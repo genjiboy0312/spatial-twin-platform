@@ -38,7 +38,7 @@ export function MonitorEventsPanel({ events, labels, noEvents, formatTime }: Mon
 
   return (
     <>
-      <div className="monitor-tabbar">
+      <div className="monitor-tabbar monitor-event-filters">
         {SEVERITIES.map((severity) => (
           <button
             key={severity}
