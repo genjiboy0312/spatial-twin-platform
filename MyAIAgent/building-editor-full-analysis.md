@@ -1132,6 +1132,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 ### 🟢 Nice-to-Have (선택)
 
 - [ ] **Cesium/OSM 프로덕션 강화**: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
+- [ ] **Editor 패널 사용성 보강**: Properties 패널의 선택 객체별 편집 입력값, 좌표/크기 직접 수정, 디바이스 이름/타입 수정, 변경 즉시 자동 저장 UX 추가
+- [ ] **프로젝트 선택 일관성**: Alignment/Validation/Monitor가 첫 번째 building을 기본값으로 쓰는 흐름을 명시적 현재 프로젝트 선택/전역 프로젝트 컨텍스트로 통합
 - [ ] **WebSocket 실시간 레이어**: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
 - [ ] **내보내기 파이프라인**: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
 
@@ -1179,3 +1181,9 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Monitor 비교 프로젝트 UI 이식: 완료 배너, 상단 컨트롤 바, 좌측 장치 검색/필터 패널, 중앙 공간 모니터 뷰포트, 우측 건물/층 및 실시간 이벤트 패널, 하단 로그/카메라 스트립 구조로 재구성하고 현재 블랙/그레이 디자인 시스템에 맞춤
 - [x] Monitor 지도/이벤트 피드 개선: 중앙 공간뷰 명칭을 지도로 변경하고 OSM 지도 평면 위 3D 모델/장치가 올라간 형태로 재구성, 실시간 이벤트 필터와 피드 항목을 한 줄 중심의 슬림 UI로 리사이징하며 약 8개 높이의 내부 스크롤 목록으로 조정
 - [x] Monitor 지도 뷰 재수정: 잘못된 SVG 지도 목업을 제거하고 alignment 페이지와 동일한 OSM 타일 기반 Three.js/Cesium 스타일 바닥 평면 위에 층별 3D 오브젝트와 보안 장치 마커를 렌더링하도록 변경
+- [x] Monitor 지도 뷰 alignment 연동 보정: alignment의 `building_map_settings` 좌표/줌을 모니터에서 읽어 OSM 타일 바닥 이미지를 동일하게 표시하고, 임의 층 박스 대신 3D 편집의 벽/룸/장치 데이터를 지도 위 3D 오브젝트로 렌더링하도록 수정
+- [x] Monitor alignment 기준점 위치 반영: alignment 프로젝트 스냅샷의 `buildingOrigin`, `osmQuadZoom`, `osmQuadScale`, `alignmentMatrix`를 모니터에서 읽고, 3D 편집의 벽/룸/장치 좌표를 GPS 좌표로 변환한 뒤 OSM 지도 평면 위 위치로 재투영하도록 수정
+- [x] Alignment OSM 원점 선택 클릭 보정: 원점 선택 팝업에서 타일/마커 배치 기준과 클릭 좌표 계산 기준을 동일한 지도 실측 크기로 통일하고, 원점 선택 지도 최대 확대를 z19까지 올려 더 세밀한 기준점 선택이 가능하도록 수정
+- [x] Alignment 3D 모델 더미 제거: alignment 중앙 3D View의 `DemoBuildingModel`을 제거하고, 프로젝트 스냅샷의 `editor` 섹션에서 복원한 3D 편집 벽/룸/보안장치 데이터를 OSM 3D 지도 위에 실제 로컬 좌표계로 렌더링하도록 수정
+- [x] Validation 3D View 저장 모델 복원: validation 페이지 진입 시 첫 번째 building의 `project-snapshot.editor`를 직접 읽어 3D 편집 벽/룸/보안장치 데이터를 Editor store에 복원하고, editor 페이지를 먼저 방문하지 않아도 validation View 오브젝트가 생성되도록 수정
+- [x] Editor Properties 패널 폭 확장: editor 우측 패널 기본 폭을 320px에서 400px로 늘리고, Properties 내부 정보 행을 2열 그리드로 정리해 좌표/크기/ID 값이 좁게 잘리지 않도록 수정
