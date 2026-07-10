@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
+import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
+import { useEditorStore, type SecurityDevice } from '../stores/editorStore'
 import { PageHeader } from './PageHeader'
 import { AlignmentCenterViewerPanel } from './alignment/components/AlignmentCenterViewerPanel'
 import { AlignmentLeftPanel } from './alignment/components/AlignmentLeftPanel'
@@ -58,6 +60,16 @@ function isAlignmentSnapshot(value: unknown): value is {
   return typeof value === 'object' && value !== null
 }
 
+function isEditorSnapshot(value: unknown): value is {
+  walls?: Wall2D[]
+  rooms?: Room2D[]
+  devices?: SecurityDevice[]
+  visibleLayers?: { walls: boolean; rooms: boolean; devices: boolean }
+  snapMode?: 'grid' | 'endpoint' | 'both' | 'none'
+} {
+  return typeof value === 'object' && value !== null
+}
+
 function alignmentSaveLabel(status: AlignmentSaveStatus, language: Language) {
   const labels = {
     ko: {
@@ -81,6 +93,10 @@ function alignmentSaveLabel(status: AlignmentSaveStatus, language: Language) {
 export function AlignmentPage() {
   const { language } = usePreferences()
   const labels = pageCopy[language as Language] ?? pageCopy.ko
+  const walls = useEditorStore((state) => state.walls)
+  const rooms = useEditorStore((state) => state.rooms)
+  const devices = useEditorStore((state) => state.devices)
+  const loadEditorState = useEditorStore((state) => state.loadEditorState)
   const {
     viewMode,
     currentBuilding,
@@ -260,6 +276,16 @@ export function AlignmentPage() {
           if (typeof alignmentSnapshot.hasJustAligned === 'boolean') setHasJustAligned(alignmentSnapshot.hasJustAligned)
           if (alignmentSnapshot.selectedFloorId) handleFloorSelect(alignmentSnapshot.selectedFloorId)
         }
+        const editorSnapshot = snapshot.saved ? snapshot.state.editor : null
+        if (isEditorSnapshot(editorSnapshot)) {
+          loadEditorState({
+            ...(Array.isArray(editorSnapshot.walls) ? { walls: editorSnapshot.walls } : {}),
+            ...(Array.isArray(editorSnapshot.rooms) ? { rooms: editorSnapshot.rooms } : {}),
+            ...(Array.isArray(editorSnapshot.devices) ? { devices: editorSnapshot.devices } : {}),
+            ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
+            ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
+          })
+        }
         setAlignmentHydrated(true)
         setSaveStatus(snapshot.saved ? 'saved' : 'idle')
       })
@@ -275,6 +301,7 @@ export function AlignmentPage() {
   }, [
     currentBuilding,
     handleFloorSelect,
+    loadEditorState,
     setAlignmentMethod,
     setBuildingOrigin,
     setOsmQuadOpacity,
@@ -414,6 +441,9 @@ export function AlignmentPage() {
             handleOsmPick={handleOsmPick}
             handleOsmHoverPick={handleOsmHoverPick}
             pickMode={pickMode}
+            walls={walls}
+            rooms={rooms}
+            devices={devices}
             language={language}
           />
 

@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 
 import { Alignment3DViewer } from './Alignment3DViewer'
+import type { Room2D, Wall2D } from '../../../components/Canvas2DViewer'
+import type { SecurityDevice } from '../../../stores/editorStore'
 
 type AlignmentMethod = 'osm' | 'pointcloud'
 type PickMode = 'none' | 'origin' | 'point1' | 'point2' | 'display'
@@ -68,6 +70,9 @@ interface AlignmentCenterViewerPanelProps {
   handleOsmPick: (gps: [number, number], localPoint: AnchorTuple) => void
   handleOsmHoverPick: (gps: [number, number], localPoint: AnchorTuple) => void
   pickMode: PickMode
+  walls: Wall2D[]
+  rooms: Room2D[]
+  devices: SecurityDevice[]
   language?: Language
 }
 
@@ -110,6 +115,9 @@ export function AlignmentCenterViewerPanel({
   handleOsmPick,
   handleOsmHoverPick,
   pickMode,
+  walls,
+  rooms,
+  devices,
   language = 'ko',
 }: AlignmentCenterViewerPanelProps) {
   const t = labels[language]
@@ -171,6 +179,9 @@ export function AlignmentCenterViewerPanel({
             zoom={osmQuadZoom}
             markers={mapMarkers}
             cameraViewMode={cameraViewMode}
+            walls={walls}
+            rooms={rooms}
+            devices={devices}
             pickLabel={pickMode === 'none' ? t.mapTitle : `${t.pickMode}: ${pickMode}`}
             instruction={t.mapInstruction}
             onPick={handleMapPick}

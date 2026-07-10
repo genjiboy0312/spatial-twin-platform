@@ -346,11 +346,26 @@ export function OSMOriginPickerPopup({
   const isPanning = useRef(false)
   const panStart = useRef<{ x: number; y: number; center: [number, number] } | null>(null)
 
-  const MAX_ZOOM = 16
+  const MAX_ZOOM = 19
   const MIN_ZOOM = 10
   const REGION_ZOOM = 11
   const DISTRICT_ZOOM = 13
-  const TOWN_ZOOM = 16
+  const TOWN_ZOOM = 18
+
+  const updateMapSize = useCallback(() => {
+    if (!mapRef.current) return null
+    const rect = mapRef.current.getBoundingClientRect()
+    const nextSize = {
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height),
+    }
+    setMapSize((current) => (
+      Math.abs(current.width - nextSize.width) > 0.5 || Math.abs(current.height - nextSize.height) > 0.5
+        ? nextSize
+        : current
+    ))
+    return { rect, size: nextSize }
+  }, [])
 
   const currentRegion = useMemo(
     () => koreanRegions.find((region) => region.province === selectedRegion) ?? null,
@@ -379,18 +394,11 @@ export function OSMOriginPickerPopup({
   useEffect(() => {
     if (!open || !mapRef.current) return
     const element = mapRef.current
-    const updateSize = () => {
-      const rect = element.getBoundingClientRect()
-      setMapSize({
-        width: Math.max(1, rect.width),
-        height: Math.max(1, rect.height),
-      })
-    }
-    updateSize()
-    const observer = new ResizeObserver(updateSize)
+    updateMapSize()
+    const observer = new ResizeObserver(() => updateMapSize())
     observer.observe(element)
     return () => observer.disconnect()
-  }, [open])
+  }, [open, updateMapSize])
 
   useEffect(() => {
     if (open && currentOrigin) {
@@ -449,11 +457,14 @@ export function OSMOriginPickerPopup({
   const handleMapClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (isPanning.current || !mapRef.current) return
-      const rect = mapRef.current.getBoundingClientRect()
+      const measured = updateMapSize()
+      const rect = measured?.rect ?? mapRef.current.getBoundingClientRect()
+      const width = measured?.size.width ?? mapSize.width
+      const height = measured?.size.height ?? mapSize.height
       const px = event.clientX - rect.left
       const py = event.clientY - rect.top
-      const wx = tileInfo.centerWx + px - rect.width / 2
-      const wy = tileInfo.centerWy + py - rect.height / 2
+      const wx = tileInfo.centerWx + px - width / 2
+      const wy = tileInfo.centerWy + py - height / 2
       const { lat, lng } = worldPixelToLatLng(wx, wy, mapZoom)
       setPickedGps([lat, lng])
       setIsGeocoding(true)
@@ -477,7 +488,7 @@ export function OSMOriginPickerPopup({
         })
         .finally(() => setIsGeocoding(false))
     },
-    [applySelection, mapZoom, t.geocodeError, tileInfo],
+    [applySelection, mapSize.height, mapSize.width, mapZoom, t.geocodeError, tileInfo, updateMapSize],
   )
 
   const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {

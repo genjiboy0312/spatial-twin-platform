@@ -3,6 +3,9 @@ import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
+import type { Room2D, Wall2D } from '../../../components/Canvas2DViewer'
+import type { SecurityDevice } from '../../../stores/editorStore'
+
 type LatLngTuple = [number, number]
 
 type AlignmentMarker = {
@@ -21,6 +24,9 @@ interface Alignment3DViewerProps {
   instruction?: string | undefined
   readOnly?: boolean
   cameraViewMode?: 'top' | 'perspective'
+  walls?: Wall2D[]
+  rooms?: Room2D[]
+  devices?: SecurityDevice[]
   onPick?: ((latitude: number, longitude: number) => void) | undefined
   onViewChange?: ((center: LatLngTuple, zoom: number) => void) | undefined
 }
@@ -290,42 +296,74 @@ function CameraRig({ cameraViewMode }: { cameraViewMode: 'top' | 'perspective' }
   return null
 }
 
-function DemoBuildingModel() {
-  const walls = [
-    { position: [0, 0.42, -21], scale: [42, 0.84, 1.4] },
-    { position: [0, 0.42, 21], scale: [42, 0.84, 1.4] },
-    { position: [-21, 0.42, 0], scale: [1.4, 0.84, 42] },
-    { position: [21, 0.42, 0], scale: [1.4, 0.84, 42] },
-    { position: [-5, 0.42, 0], scale: [1.2, 0.84, 23] },
-    { position: [9, 0.42, -8], scale: [18, 0.84, 1.2] },
-  ] satisfies Array<{ position: [number, number, number]; scale: [number, number, number] }>
-  const blocks = [
-    [-11, 1.6, 9, 3.5, 3.2, 4.2],
-    [1, 1.8, 4, 4.8, 3.6, 3.6],
-    [11, 1.2, 7, 2.8, 2.4, 5.2],
-    [7, 1.3, -13, 7, 2.6, 2.2],
-    [-12, 1.1, -9, 3, 2.2, 8],
-    [17, 1.1, -3, 2.5, 2.2, 6],
-  ] satisfies Array<[number, number, number, number, number, number]>
+function deviceColor(deviceType: SecurityDevice['device_type']) {
+  if (deviceType === 'alarm') return '#ef4444'
+  if (deviceType === 'sensor') return '#38bdf8'
+  if (deviceType === 'access') return '#facc15'
+  return '#22c55e'
+}
+
+function EditorWallMesh({ wall }: { wall: Wall2D }) {
+  const dx = wall.x2 - wall.x1
+  const dz = wall.y2 - wall.y1
+  const length = Math.hypot(dx, dz)
+  if (length < 0.01) return null
+  const angle = Math.atan2(dz, dx)
+  return (
+    <mesh
+      position={[(wall.x1 + wall.x2) / 2, 1.45, (wall.y1 + wall.y2) / 2]}
+      rotation={[0, -angle, 0]}
+      castShadow
+      receiveShadow
+    >
+      <boxGeometry args={[length, 2.9, 0.32]} />
+      <meshStandardMaterial color="#e4e4e7" roughness={0.78} transparent opacity={0.94} />
+    </mesh>
+  )
+}
+
+function EditorRoomSlab({ room }: { room: Room2D }) {
+  return (
+    <mesh position={[room.x + room.w / 2, 0.04, room.y + room.h / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[Math.max(room.w - 0.1, 0.2), Math.max(room.h - 0.1, 0.2)]} />
+      <meshBasicMaterial color="#f4f4f5" transparent opacity={0.18} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+function EditorDeviceMarker({ device }: { device: SecurityDevice }) {
+  const color = deviceColor(device.device_type)
+  return (
+    <group position={[device.x, 4.2, device.y]}>
+      <pointLight color={color} intensity={1.1} distance={16} />
+      <mesh position={[0, -4.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.75, 1.65, 44]} />
+        <meshBasicMaterial color={color} transparent opacity={0.36} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh castShadow>
+        <sphereGeometry args={[0.62, 24, 18]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} roughness={0.32} />
+      </mesh>
+    </group>
+  )
+}
+
+function EditorBuildingModel({ walls, rooms, devices }: { walls: Wall2D[]; rooms: Room2D[]; devices: SecurityDevice[] }) {
+  const hasEditorModel = walls.length > 0 || rooms.length > 0 || devices.length > 0
+
+  if (!hasEditorModel) {
+    return (
+      <Html position={[0, 8, 0]} center distanceFactor={12} style={{ pointerEvents: 'none' }}>
+        <span className="alignment-3d-label">No editor model</span>
+      </Html>
+    )
+  }
 
   return (
     <group position={[0, 0.04, 0]}>
-      {walls.map((wall, index) => (
-        <mesh key={`wall-${index}`} position={wall.position} scale={wall.scale} castShadow receiveShadow>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color="#a8a8a3" roughness={0.76} transparent opacity={0.92} />
-        </mesh>
-      ))}
-      {blocks.map(([x, y, z, sx, sy, sz], index) => (
-        <mesh key={`block-${index}`} position={[x, y, z]} scale={[sx, sy, sz]} castShadow receiveShadow>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color="#b5b5b0" roughness={0.72} transparent opacity={0.92} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[5.4, 7.4, 48]} />
-        <meshBasicMaterial color="#a855f7" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
+      {rooms.map((room, index) => <EditorRoomSlab key={`editor-room-${index}`} room={room} />)}
+      {walls.map((wall, index) => <EditorWallMesh key={`editor-wall-${index}`} wall={wall} />)}
+      {devices.map((device) => <EditorDeviceMarker key={device.id} device={device} />)}
     </group>
   )
 }
@@ -389,12 +427,18 @@ function AlignmentScene({
   markers,
   readOnly,
   zoom,
+  walls,
+  rooms,
+  devices,
   onPick,
 }: {
   center: LatLngTuple
   markers: AlignmentMarker[]
   readOnly: boolean
   zoom: number
+  walls: Wall2D[]
+  rooms: Room2D[]
+  devices: SecurityDevice[]
   onPick?: ((latitude: number, longitude: number) => void) | undefined
 }) {
   const { texture, isLoading } = useOsmTexture(center, zoom)
@@ -404,7 +448,7 @@ function AlignmentScene({
       <ambientLight intensity={0.9} />
       <directionalLight position={[18, 26, 14]} intensity={1.2} castShadow />
       <GroundPlane center={center} texture={texture} readOnly={readOnly} onPick={onPick} />
-      <DemoBuildingModel />
+      <EditorBuildingModel walls={walls} rooms={rooms} devices={devices} />
       {isLoading && <SceneLoader />}
       {markers.map((marker) => <AlignmentMarkerObject key={marker.id} marker={marker} center={center} />)}
       <AxisGizmo />
@@ -420,6 +464,9 @@ export function Alignment3DViewer({
   instruction,
   readOnly = false,
   cameraViewMode = 'perspective',
+  walls = [],
+  rooms = [],
+  devices = [],
   onPick,
   onViewChange,
 }: Alignment3DViewerProps) {
@@ -443,7 +490,16 @@ export function Alignment3DViewer({
         <color attach="background" args={['#2a2a2d']} />
         <fog attach="fog" args={['#2a2a2d', 180, 340]} />
         <Suspense fallback={<SceneLoader />}>
-          <AlignmentScene center={viewerCenter} zoom={mapZoom} markers={markers} readOnly={readOnly} onPick={onPick} />
+          <AlignmentScene
+            center={viewerCenter}
+            zoom={mapZoom}
+            markers={markers}
+            readOnly={readOnly}
+            walls={walls}
+            rooms={rooms}
+            devices={devices}
+            onPick={onPick}
+          />
         </Suspense>
         <OrbitControls
           enableDamping
