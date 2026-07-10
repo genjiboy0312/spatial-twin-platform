@@ -95,6 +95,23 @@ export function saveProjectSnapshot(
   )
 }
 
+export async function saveProjectSnapshotSection(
+  buildingId: number,
+  section: string,
+  sectionState: Record<string, unknown>,
+  version = 1,
+): Promise<ProjectSnapshot> {
+  const current = await getProjectSnapshot(buildingId).catch(() => null)
+  return saveProjectSnapshot(
+    buildingId,
+    {
+      ...(current?.state ?? {}),
+      [section]: sectionState,
+    },
+    current?.version ?? version,
+  )
+}
+
 export function listObjectPlacements(buildingId: number): Promise<ObjectPlacement[]> {
   return getJson<ObjectPlacement[]>(`/api/buildings/${buildingId}/object-placements`)
 }

@@ -31,7 +31,7 @@ import {
   deleteObjectPlacement,
   getProjectSnapshot,
   listObjectPlacements,
-  saveProjectSnapshot,
+  saveProjectSnapshotSection,
   type ObjectPlacement,
 } from '../api/projectData'
 const ThreeJSViewer = lazy(() =>
@@ -390,18 +390,16 @@ export function EditorPage() {
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
       setSaveStatus('saving')
-      saveProjectSnapshot(selectedBuildingId, {
-        editor: {
-          walls,
-          rooms,
-          devices,
-          visibleLayers,
-          snapMode,
-          viewMode,
-          selectedFloorId,
-          pointCloudUploadIds: visiblePointCloudUploads.map((upload) => upload.id),
-          updatedAt: new Date().toISOString(),
-        },
+      saveProjectSnapshotSection(selectedBuildingId, 'editor', {
+        walls,
+        rooms,
+        devices,
+        visibleLayers,
+        snapMode,
+        viewMode,
+        selectedFloorId,
+        pointCloudUploadIds: visiblePointCloudUploads.map((upload) => upload.id),
+        updatedAt: new Date().toISOString(),
       })
         .then(() => syncDevicePlacements(selectedBuildingId, selectedFloorId, devices))
         .then(() => setSaveStatus('saved'))

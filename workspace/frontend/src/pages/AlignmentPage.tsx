@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
 import { AlignmentCenterViewerPanel } from './alignment/components/AlignmentCenterViewerPanel'
@@ -32,8 +33,50 @@ const pageCopy = {
 } as const
 
 type Language = keyof typeof pageCopy
+type AlignmentSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 
 const emptyAnchorSet = { origin: null, point1: null, point2: null }
+
+function isAlignmentSnapshot(value: unknown): value is {
+  selectedFloorId?: number | null
+  alignmentMethod?: 'osm' | 'pointcloud'
+  cameraViewMode?: 'top' | 'perspective'
+  buildingOrigin?: [number, number] | null
+  quadOriginInput?: { lat: string; lng: string }
+  osmQuadZoom?: number
+  osmQuadScale?: number
+  osmQuadOpacity?: number
+  pickMode?: PickMode
+  alignLocalPoints?: GpsAlignmentLocalPoints
+  alignGpsInputs?: GpsAlignmentInputs
+  alignmentMatrix?: number[][] | null
+  alignmentRmse?: number | null
+  transformedGps?: { lat: number; lng: number } | null
+  showAlignedGpsBillboardText?: boolean
+  hasJustAligned?: boolean
+} {
+  return typeof value === 'object' && value !== null
+}
+
+function alignmentSaveLabel(status: AlignmentSaveStatus, language: Language) {
+  const labels = {
+    ko: {
+      idle: '정합 동기화 준비',
+      loading: '정합 상태 불러오는 중...',
+      saving: '정합 상태 저장 중...',
+      saved: '정합 상태 저장됨',
+      error: '정합 저장 실패',
+    },
+    en: {
+      idle: 'Alignment sync ready',
+      loading: 'Loading alignment state...',
+      saving: 'Saving alignment state...',
+      saved: 'Alignment state saved',
+      error: 'Alignment save failed',
+    },
+  } as const
+  return labels[language][status]
+}
 
 export function AlignmentPage() {
   const { language } = usePreferences()
@@ -87,6 +130,9 @@ export function AlignmentPage() {
   const [transformedGps, setTransformedGps] = useState<{ lat: number; lng: number } | null>(null)
   const [showAlignedGpsBillboardText, setShowAlignedGpsBillboardText] = useState(true)
   const [hasJustAligned, setHasJustAligned] = useState(false)
+  const [alignmentHydrated, setAlignmentHydrated] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<AlignmentSaveStatus>('idle')
+  const autosaveTimerRef = useRef<number | null>(null)
 
   const {
     undoCount,
@@ -182,6 +228,112 @@ export function AlignmentPage() {
     [handleOsmHoverPick, pickMode],
   )
 
+  useEffect(() => {
+    if (!currentBuilding) {
+      setAlignmentHydrated(false)
+      return
+    }
+
+    let cancelled = false
+    setSaveStatus('loading')
+    getProjectSnapshot(currentBuilding.id)
+      .then((snapshot) => {
+        if (cancelled) return
+        const alignmentSnapshot = snapshot.state.alignment
+        if (snapshot.saved && isAlignmentSnapshot(alignmentSnapshot)) {
+          if (alignmentSnapshot.alignmentMethod) setAlignmentMethod(alignmentSnapshot.alignmentMethod)
+          if (alignmentSnapshot.cameraViewMode) setCameraViewMode(alignmentSnapshot.cameraViewMode)
+          if (alignmentSnapshot.buildingOrigin !== undefined) setBuildingOrigin(alignmentSnapshot.buildingOrigin)
+          if (alignmentSnapshot.quadOriginInput) setQuadOriginInput(alignmentSnapshot.quadOriginInput)
+          if (typeof alignmentSnapshot.osmQuadZoom === 'number') setOsmQuadZoom(alignmentSnapshot.osmQuadZoom)
+          if (typeof alignmentSnapshot.osmQuadScale === 'number') setOsmQuadScale(alignmentSnapshot.osmQuadScale)
+          if (typeof alignmentSnapshot.osmQuadOpacity === 'number') setOsmQuadOpacity(alignmentSnapshot.osmQuadOpacity)
+          if (alignmentSnapshot.pickMode) setPickMode(alignmentSnapshot.pickMode)
+          if (alignmentSnapshot.alignLocalPoints) setAlignLocalPoints(alignmentSnapshot.alignLocalPoints)
+          if (alignmentSnapshot.alignGpsInputs) setAlignGpsInputs(alignmentSnapshot.alignGpsInputs)
+          if (alignmentSnapshot.alignmentMatrix !== undefined) setAlignmentMatrix(alignmentSnapshot.alignmentMatrix)
+          if (alignmentSnapshot.alignmentRmse !== undefined) setAlignmentRmse(alignmentSnapshot.alignmentRmse)
+          if (alignmentSnapshot.transformedGps !== undefined) setTransformedGps(alignmentSnapshot.transformedGps)
+          if (typeof alignmentSnapshot.showAlignedGpsBillboardText === 'boolean') {
+            setShowAlignedGpsBillboardText(alignmentSnapshot.showAlignedGpsBillboardText)
+          }
+          if (typeof alignmentSnapshot.hasJustAligned === 'boolean') setHasJustAligned(alignmentSnapshot.hasJustAligned)
+          if (alignmentSnapshot.selectedFloorId) handleFloorSelect(alignmentSnapshot.selectedFloorId)
+        }
+        setAlignmentHydrated(true)
+        setSaveStatus(snapshot.saved ? 'saved' : 'idle')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setAlignmentHydrated(true)
+        setSaveStatus('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentBuilding,
+    handleFloorSelect,
+    setAlignmentMethod,
+    setBuildingOrigin,
+    setOsmQuadOpacity,
+    setOsmQuadScale,
+    setOsmQuadZoom,
+    setQuadOriginInput,
+  ])
+
+  useEffect(() => {
+    if (!currentBuilding || !alignmentHydrated) return undefined
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = window.setTimeout(() => {
+      setSaveStatus('saving')
+      saveProjectSnapshotSection(currentBuilding.id, 'alignment', {
+        selectedFloorId,
+        alignmentMethod,
+        cameraViewMode,
+        buildingOrigin,
+        quadOriginInput,
+        osmQuadZoom,
+        osmQuadScale,
+        osmQuadOpacity,
+        pickMode,
+        alignLocalPoints,
+        alignGpsInputs,
+        alignmentMatrix,
+        alignmentRmse,
+        transformedGps,
+        showAlignedGpsBillboardText,
+        hasJustAligned,
+        updatedAt: new Date().toISOString(),
+      })
+        .then(() => setSaveStatus('saved'))
+        .catch(() => setSaveStatus('error'))
+    }, 900)
+    return () => {
+      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    }
+  }, [
+    alignGpsInputs,
+    alignLocalPoints,
+    alignmentHydrated,
+    alignmentMatrix,
+    alignmentMethod,
+    alignmentRmse,
+    buildingOrigin,
+    cameraViewMode,
+    currentBuilding,
+    hasJustAligned,
+    osmQuadOpacity,
+    osmQuadScale,
+    osmQuadZoom,
+    pickMode,
+    quadOriginInput,
+    selectedFloorId,
+    showAlignedGpsBillboardText,
+    transformedGps,
+  ])
+
   const providerValue = {
     currentBuilding: currentBuilding ? { id: currentBuilding.id, name: currentBuilding.name } : null,
     selectedFloorId,
@@ -227,6 +379,9 @@ export function AlignmentPage() {
   return (
     <section className="page-grid spatial-page alignment-reference-page">
       <PageHeader eyebrow={labels.eyebrow} title={labels.title} description={labels.description} />
+      <div className={`alignment-autosave-pill ${saveStatus}`}>
+        {alignmentSaveLabel(saveStatus, language as Language)}
+      </div>
 
       <AlignmentProvider {...providerValue}>
         <div className="alignment-reference-stage">
@@ -286,4 +441,3 @@ export function AlignmentPage() {
     </section>
   )
 }
-

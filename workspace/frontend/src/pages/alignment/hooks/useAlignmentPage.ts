@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { listBuildings } from '../../../api/buildings';
+import { listFloors } from '../../../api/floors';
 import type {
   AlignmentMethod,
   AnchorTuple,
@@ -127,6 +129,48 @@ export function useAlignmentPage(): UseAlignmentPageReturn {
     () => floors.find((floor) => floor.id === selectedFloorId) ?? null,
     [floors, selectedFloorId]
   );
+
+  const loadProjectContext = useCallback(async () => {
+    try {
+      const buildings = await listBuildings();
+      const building = buildings[0];
+      if (!building) {
+        setCurrentBuilding(null);
+        setFloors([]);
+        setSelectedFloorId(null);
+        return;
+      }
+
+      setCurrentBuilding({ id: building.id, name: building.name });
+      const nextFloors = await listFloors(building.id);
+      setFloors(nextFloors.map((floor) => ({
+        id: floor.id,
+        floor_number: floor.floor_number,
+        floor_name: floor.floor_name,
+      })));
+      setSelectedFloorId((current) => {
+        if (current && nextFloors.some((floor) => floor.id === current)) return current;
+        return nextFloors[0]?.id ?? null;
+      });
+      const origin =
+        building.origin_latitude != null && building.origin_longitude != null
+          ? [building.origin_latitude, building.origin_longitude] as [number, number]
+          : DEFAULT_SEOUL_CITY_HALL_ORIGIN;
+      setBuildingOrigin((current) => current ?? origin);
+      setQuadOriginInput((current) => {
+        if (current.lat || current.lng) return current;
+        return { lat: String(origin[0]), lng: String(origin[1]) };
+      });
+    } catch {
+      setCurrentBuilding(null);
+      setFloors([]);
+      setSelectedFloorId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadProjectContext();
+  }, [loadProjectContext]);
 
   const applyQuadOriginInput = useCallback(() => {
     const lat = Number(quadOriginInput.lat);

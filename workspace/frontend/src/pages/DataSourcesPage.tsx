@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
-import { getProjectSnapshot, saveProjectSnapshot, type ProjectSnapshot } from '../api/projectData'
+import { getProjectSnapshot, saveProjectSnapshotSection, type ProjectSnapshot } from '../api/projectData'
 import { getUploadPipeline, listUploadsByBuilding, uploadFile, type UploadAsset, type UploadPipeline } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
@@ -471,18 +471,16 @@ export function DataSourcesPage() {
     setSavingSnapshot(true)
     setStatusMessage(null)
     try {
-      const savedSnapshot = await saveProjectSnapshot(selectedBuildingId, {
-        datasource: {
-          selected_floor_id: selectedFloorId,
-          active_source_type: activeTab,
-          upload_ids: uploads.map((upload) => upload.id),
-          options: {
-            scale_px_per_meter: scalePxPerMeter,
-            dxf_scale_factor: dxfScaleFactor,
-            dxf_height: dxfHeight,
-            invert_y_axis: invertYAxis,
-            ifc_floor_level: floorLevel,
-          },
+      const savedSnapshot = await saveProjectSnapshotSection(selectedBuildingId, 'datasource', {
+        selected_floor_id: selectedFloorId,
+        active_source_type: activeTab,
+        upload_ids: uploads.map((upload) => upload.id),
+        options: {
+          scale_px_per_meter: scalePxPerMeter,
+          dxf_scale_factor: dxfScaleFactor,
+          dxf_height: dxfHeight,
+          invert_y_axis: invertYAxis,
+          ifc_floor_level: floorLevel,
         },
       })
       setSnapshot(savedSnapshot)

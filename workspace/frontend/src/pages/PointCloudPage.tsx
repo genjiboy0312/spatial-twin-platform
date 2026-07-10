@@ -3,11 +3,13 @@ import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { listFloors, type Floor } from '../api/floors'
+import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { PageHeader } from './PageHeader'
 
 type PointCloudStatus = 'uploaded' | 'ready' | 'converting' | 'failed'
+type PointCloudSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 type PointCloudIconName =
   | 'building'
   | 'floor'
@@ -110,6 +112,34 @@ const copy = {
   },
 } as const
 
+function isPointCloudSnapshot(value: unknown): value is {
+  selected_floor_id?: number | null
+  active_tab?: 'upload' | 'connected'
+  selected_upload_ids?: number[]
+} {
+  return typeof value === 'object' && value !== null
+}
+
+function pointCloudSaveLabel(status: PointCloudSaveStatus, language: 'en' | 'ko') {
+  const labels = {
+    en: {
+      idle: 'PointCloud sync ready',
+      loading: 'Loading PointCloud state...',
+      saving: 'Saving PointCloud state...',
+      saved: 'PointCloud state saved',
+      error: 'PointCloud save failed',
+    },
+    ko: {
+      idle: 'PointCloud 동기화 준비',
+      loading: 'PointCloud 상태 불러오는 중...',
+      saving: 'PointCloud 상태 저장 중...',
+      saved: 'PointCloud 상태 저장됨',
+      error: 'PointCloud 저장 실패',
+    },
+  } as const
+  return labels[language][status]
+}
+
 function PointCloudIcon({ name }: { name: PointCloudIconName }) {
   const common = {
     fill: 'none',
@@ -194,6 +224,9 @@ export function PointCloudPage() {
   const [deletingUploadId, setDeletingUploadId] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pointCloudHydrated, setPointCloudHydrated] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<PointCloudSaveStatus>('idle')
+  const autosaveTimerRef = useRef<number | null>(null)
 
   const pointClouds = useMemo(() => uploads.filter((upload) => upload.source_type === 'pointcloud'), [uploads])
   const selectedCount = selectedUploadIds.size
@@ -221,18 +254,43 @@ export function PointCloudPage() {
 
   const refreshBuildingData = useCallback(async (buildingId: number) => {
     setLoading(true)
+    setPointCloudHydrated(false)
+    setSaveStatus('loading')
     try {
-      const [nextFloors, nextUploads] = await Promise.all([listFloors(buildingId), listUploadsByBuilding(buildingId)])
+      const [nextFloors, nextUploads, snapshot] = await Promise.all([
+        listFloors(buildingId),
+        listUploadsByBuilding(buildingId),
+        getProjectSnapshot(buildingId).catch(() => null),
+      ])
       setFloors(nextFloors)
       setUploads(nextUploads)
+      const pointCloudSnapshot = snapshot?.state.pointcloud
       setSelectedFloorId((current) => {
+        if (
+          isPointCloudSnapshot(pointCloudSnapshot)
+          && pointCloudSnapshot.selected_floor_id
+          && nextFloors.some((floor) => floor.id === pointCloudSnapshot.selected_floor_id)
+        ) {
+          return pointCloudSnapshot.selected_floor_id
+        }
         if (current && nextFloors.some((floor) => floor.id === current)) return current
         return nextFloors[0]?.id ?? null
       })
+      if (isPointCloudSnapshot(pointCloudSnapshot)) {
+        if (pointCloudSnapshot.active_tab) setActiveTab(pointCloudSnapshot.active_tab)
+        if (Array.isArray(pointCloudSnapshot.selected_upload_ids)) {
+          const availableIds = new Set(nextUploads.filter((upload) => upload.source_type === 'pointcloud').map((upload) => upload.id))
+          setSelectedUploadIds(new Set(pointCloudSnapshot.selected_upload_ids.filter((id) => availableIds.has(id))))
+        }
+      }
+      setPointCloudHydrated(true)
+      setSaveStatus(snapshot?.saved ? 'saved' : 'idle')
     } catch {
       setFloors([])
       setUploads([])
       setSelectedFloorId(null)
+      setPointCloudHydrated(false)
+      setSaveStatus('error')
     } finally {
       setLoading(false)
     }
@@ -247,10 +305,32 @@ export function PointCloudPage() {
       setFloors([])
       setUploads([])
       setSelectedFloorId(null)
+      setPointCloudHydrated(false)
       return
     }
     refreshBuildingData(selectedBuildingId)
   }, [refreshBuildingData, selectedBuildingId])
+
+  useEffect(() => {
+    if (selectedBuildingId === null || !pointCloudHydrated) return undefined
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = window.setTimeout(() => {
+      setSaveStatus('saving')
+      saveProjectSnapshotSection(selectedBuildingId, 'pointcloud', {
+        selected_floor_id: selectedFloorId,
+        active_tab: activeTab,
+        selected_upload_ids: Array.from(selectedUploadIds),
+        upload_ids: pointClouds.map((upload) => upload.id),
+        ready_upload_ids: pointClouds.filter((upload) => uploadStatus(upload) === 'ready' || uploadStatus(upload) === 'uploaded').map((upload) => upload.id),
+        updatedAt: new Date().toISOString(),
+      })
+        .then(() => setSaveStatus('saved'))
+        .catch(() => setSaveStatus('error'))
+    }, 900)
+    return () => {
+      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    }
+  }, [activeTab, pointCloudHydrated, pointClouds, selectedBuildingId, selectedFloorId, selectedUploadIds])
 
   useEffect(() => {
     setSelectedUploadIds((current) => {
@@ -330,6 +410,9 @@ export function PointCloudPage() {
   return (
     <section className="page-grid pointcloud-page">
       <PageHeader eyebrow={labels.eyebrow} title={labels.title} description={labels.description} />
+      <div className={`pointcloud-autosave-pill ${saveStatus}`}>
+        {pointCloudSaveLabel(saveStatus, language)}
+      </div>
 
       {buildings.length === 0 ? (
         <div className="pointcloud-empty-project">

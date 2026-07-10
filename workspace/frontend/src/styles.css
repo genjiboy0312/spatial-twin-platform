@@ -18,9 +18,41 @@
 
 /* Alignment reference workspace: current black/gray product theme overrides */
 .alignment-reference-page {
+  position: relative;
   min-height: calc(100vh - 88px);
   background: var(--bg);
   color: var(--text);
+}
+
+.alignment-autosave-pill {
+  position: absolute;
+  top: 78px;
+  right: 24px;
+  z-index: 5;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(17, 17, 19, 0.78);
+  color: var(--muted);
+  padding: 7px 11px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+}
+
+.alignment-autosave-pill.loading,
+.alignment-autosave-pill.saving {
+  border-color: rgba(250, 204, 21, 0.36);
+  color: #fde68a;
+}
+
+.alignment-autosave-pill.saved {
+  border-color: rgba(34, 197, 94, 0.36);
+  color: #86efac;
+}
+
+.alignment-autosave-pill.error {
+  border-color: rgba(239, 68, 68, 0.38);
+  color: #fca5a5;
 }
 
 .alignment-reference-stage {
@@ -3562,7 +3594,39 @@ a {
 /* ── PointCloud Upload Hub ── */
 
 .pointcloud-page {
+  position: relative;
   gap: 16px;
+}
+
+.pointcloud-autosave-pill {
+  position: absolute;
+  top: 78px;
+  right: 24px;
+  z-index: 5;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(17, 17, 19, 0.78);
+  color: var(--muted);
+  padding: 7px 11px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+}
+
+.pointcloud-autosave-pill.loading,
+.pointcloud-autosave-pill.saving {
+  border-color: rgba(250, 204, 21, 0.36);
+  color: #fde68a;
+}
+
+.pointcloud-autosave-pill.saved {
+  border-color: rgba(34, 197, 94, 0.36);
+  color: #86efac;
+}
+
+.pointcloud-autosave-pill.error {
+  border-color: rgba(239, 68, 68, 0.38);
+  color: #fca5a5;
 }
 
 .pointcloud-building-bar,

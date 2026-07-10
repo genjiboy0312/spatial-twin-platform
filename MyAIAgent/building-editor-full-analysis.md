@@ -1137,6 +1137,11 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Editor persistence step 3: connected Editor page to backend project snapshots so building-level editor state, selected floor, view mode, and PointCloud upload references are restored on load.
 - [x] Editor persistence step 4: added debounced autosave from Editor to project snapshots and synchronized placed security devices into backend object placement records with transform metadata.
 - [x] Editor persistence step 5: added a compact editor autosave status pill and verified frontend build, backend pytest, and backend ruff after the persistence connection.
+- [x] Project snapshot section merge: changed frontend project snapshot writes to merge per-page sections so Data Sources, Editor, Alignment, and PointCloud state no longer overwrite each other.
+- [x] Alignment persistence expansion: loads the active building/floors, restores OSM origin, floor, camera mode, method, anchor picks, GPS inputs, matrix/RMSE, transformed GPS, and billboard state from project snapshots.
+- [x] Alignment autosave: added debounced snapshot persistence and compact save-state UI for GPS alignment workflow changes.
+- [x] PointCloud persistence expansion: restores selected building floor, active tab, checked upload IDs, and upload visibility context from project snapshots.
+- [x] PointCloud autosave: stores selected PointCloud upload IDs, ready upload IDs, active tab, selected floor, and updated timestamp for Editor/PointCloud view continuity.
 - [x] Validation comparison UI transplant: rebuilt the current validation page into the comparison project's KPI + floor checklist + central 3D validation preview + right summary/issue panel layout, while keeping the current project's real editor/alignment validation calculations and black/gray theme.
 - [x] GPS Alignment 3D correction: replaced the fake 2D OSM/object overlay with a real Three.js 3D alignment view containing an OSM-style ground plane, road/grid layers, model object, orbit controls, and GPS reference markers.
 - [x] PointCloud real-file rendering: exposed uploaded pointcloud file/preview URLs from the backend, added a cached LAS Float32 preview endpoint capped at 500,000 points, and changed the editor PointCloud View to render sampled points from the actual uploaded LAS/PLY data instead of synthetic spiral/circle placeholders.
