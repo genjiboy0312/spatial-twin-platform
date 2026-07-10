@@ -12,6 +12,8 @@ import {
 } from './MonitorPage/monitorIcons'
 
 import { usePreferences } from '../app/preferences'
+import { getBuildingMapSettings, type BuildingMapSettings } from '../api/buildings'
+import { getProjectSnapshot } from '../api/projectData'
 import { useEditorStore } from '../stores/editorStore'
 import type { SystemLog } from './MonitorPage/monitorTypes'
 
@@ -125,6 +127,45 @@ const fallbackDevices = [
   { id: 'demo-access-1', x: 1.2, y: 6.6, device_type: 'access' as const, name: 'Access-Main-01' },
 ]
 
+type MonitorAlignmentSnapshot = {
+  buildingOrigin: [number, number] | null
+  alignmentMatrix: number[][] | null
+  osmQuadZoom: number | null
+  osmQuadScale: number | null
+  osmQuadOpacity: number | null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isLatLngTuple(value: unknown): value is [number, number] {
+  return Array.isArray(value)
+    && value.length === 2
+    && isFiniteNumber(value[0])
+    && isFiniteNumber(value[1])
+}
+
+function isAlignmentMatrix(value: unknown): value is number[][] {
+  return Array.isArray(value)
+    && value.length === 2
+    && value.every((row) => Array.isArray(row)
+      && row.length >= 3
+      && row.slice(0, 3).every(isFiniteNumber))
+}
+
+function parseAlignmentSnapshot(value: unknown): MonitorAlignmentSnapshot | null {
+  if (typeof value !== 'object' || value === null) return null
+  const snapshot = value as Record<string, unknown>
+  return {
+    buildingOrigin: isLatLngTuple(snapshot.buildingOrigin) ? snapshot.buildingOrigin : null,
+    alignmentMatrix: isAlignmentMatrix(snapshot.alignmentMatrix) ? snapshot.alignmentMatrix : null,
+    osmQuadZoom: isFiniteNumber(snapshot.osmQuadZoom) ? snapshot.osmQuadZoom : null,
+    osmQuadScale: isFiniteNumber(snapshot.osmQuadScale) ? snapshot.osmQuadScale : null,
+    osmQuadOpacity: isFiniteNumber(snapshot.osmQuadOpacity) ? snapshot.osmQuadOpacity : null,
+  }
+}
+
 function formatTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--:--:--'
@@ -154,10 +195,6 @@ export function MonitorPage() {
 
   const { events, summary, connectionState, refresh: refreshEvents } = useMonitorEvents(language)
 
-  useEffect(() => {
-    if (walls.length === 0 && rooms.length === 0) loadSample()
-  }, [loadSample, rooms.length, walls.length])
-
   // Local UI state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [showPointCloud, setShowPointCloud] = useState(true)
@@ -165,6 +202,38 @@ export function MonitorPage() {
   const [showCoverage, setShowCoverage] = useState(true)
   const [bottomTab, setBottomTab] = useState<'logs' | 'cameras'>('logs')
   const [bottomExpanded, setBottomExpanded] = useState(true)
+  const [mapSettings, setMapSettings] = useState<BuildingMapSettings | null>(null)
+  const [alignmentSnapshot, setAlignmentSnapshot] = useState<MonitorAlignmentSnapshot | null>(null)
+
+  useEffect(() => {
+    if (walls.length === 0 && rooms.length === 0) loadSample()
+  }, [loadSample, rooms.length, walls.length])
+
+  useEffect(() => {
+    let cancelled = false
+    if (selectedBuildingId === null) {
+      setMapSettings(null)
+      setAlignmentSnapshot(null)
+      return
+    }
+    getBuildingMapSettings(selectedBuildingId)
+      .then((settings) => {
+        if (!cancelled) setMapSettings(settings)
+      })
+      .catch(() => {
+        if (!cancelled) setMapSettings(null)
+      })
+    getProjectSnapshot(selectedBuildingId)
+      .then((snapshot) => {
+        if (!cancelled) setAlignmentSnapshot(parseAlignmentSnapshot(snapshot.state.alignment))
+      })
+      .catch(() => {
+        if (!cancelled) setAlignmentSnapshot(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedBuildingId])
 
   const logs: SystemLog[] = useMemo(
     () => events.slice(0, 12).map((event, index) => ({
@@ -259,8 +328,12 @@ export function MonitorPage() {
             </div>
             <MonitorSpatialView
               building={selectedBuilding}
+              mapSettings={mapSettings}
+              alignmentSnapshot={alignmentSnapshot}
               floors={floors}
               selectedFloorId={selectedFloorId}
+              walls={walls}
+              rooms={rooms}
               devices={devices}
               selectedDeviceId={selectedDeviceId}
               showCoverage={showCoverage}

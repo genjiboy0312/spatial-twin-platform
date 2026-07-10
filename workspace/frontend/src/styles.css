@@ -5315,7 +5315,7 @@ a {
 
 .editor-scene-shell {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  grid-template-columns: 260px minmax(0, 1fr) 400px;
   min-height: 680px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -5347,6 +5347,7 @@ a {
 
 .editor-scene-rightbar {
   border-left: 1px solid var(--border);
+  min-width: 380px;
 }
 
 :root[data-theme="light"] .editor-scene-sidebar,
@@ -9771,15 +9772,24 @@ a {
 }
 .inspector {
   align-self: start;
+  width: 100%;
+  min-width: 0;
 }
 .inspector-info p {
-  display: flex;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
   justify-content: space-between;
   font-size: 0.85rem;
   margin: 6px 0;
+  min-width: 0;
 }
 .inspector-info span {
   color: #94a3b8;
+  white-space: nowrap;
+}
+.inspector-info p {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 860px) {
@@ -11299,6 +11309,7 @@ a {
     max-height: none;
     border-right: 0;
     border-left: 0;
+    min-width: 0;
   }
 
   .editor-split-view {

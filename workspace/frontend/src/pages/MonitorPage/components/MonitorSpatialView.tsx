@@ -3,14 +3,25 @@ import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
-import type { Building } from '../../../api/buildings'
+import type { Building, BuildingMapSettings } from '../../../api/buildings'
 import type { Floor } from '../../../api/floors'
 import type { SecurityDevice } from '../../../stores/editorStore'
+import type { Room2D, Wall2D } from '../../../components/Canvas2DViewer'
 
 export interface MonitorSpatialViewProps {
   building: Building | null
+  mapSettings: BuildingMapSettings | null
+  alignmentSnapshot: {
+    buildingOrigin: LatLngTuple | null
+    alignmentMatrix: number[][] | null
+    osmQuadZoom: number | null
+    osmQuadScale: number | null
+    osmQuadOpacity: number | null
+  } | null
   floors: Floor[]
   selectedFloorId: number | null
+  walls: Wall2D[]
+  rooms: Room2D[]
   devices: SecurityDevice[]
   selectedDeviceId: string | null
   showCoverage: boolean
@@ -28,6 +39,9 @@ const TILE_GRID_SIZE = 4
 const TEXTURE_SIZE = TILE_SIZE * TILE_GRID_SIZE
 const PLANE_SIZE = 400
 const MAP_ZOOM = 17
+const METERS_PER_DEGREE = 111_320
+
+type ProjectPointMapper = (x: number, y: number) => { x: number; z: number }
 
 function latLngToWorldPixel(latitude: number, longitude: number, zoom: number) {
   const clippedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude))
@@ -163,20 +177,161 @@ function deviceColor(deviceType: SecurityDevice['device_type']) {
   return '#22c55e'
 }
 
-function MapGround({ texture }: { texture: THREE.Texture | null }) {
+function latitudeScale(latitude: number) {
+  return Math.max(0.1, Math.cos((latitude * Math.PI) / 180))
+}
+
+function gpsToScenePoint(latitude: number, longitude: number, center: LatLngTuple) {
+  return {
+    x: (longitude - center[1]) * METERS_PER_DEGREE * latitudeScale(center[0]),
+    z: (latitude - center[0]) * METERS_PER_DEGREE,
+  }
+}
+
+function transformLocalToGps(matrix: number[][] | null, x: number, y: number) {
+  if (!matrix) return null
+  const row0 = matrix[0]
+  const row1 = matrix[1]
+  if (!row0 || !row1) return null
+  const a = row0[0]
+  const b = row0[1]
+  const c = row0[2]
+  const d = row1[0]
+  const e = row1[1]
+  const f = row1[2]
+  if (
+    typeof a !== 'number' || !Number.isFinite(a)
+    || typeof b !== 'number' || !Number.isFinite(b)
+    || typeof c !== 'number' || !Number.isFinite(c)
+    || typeof d !== 'number' || !Number.isFinite(d)
+    || typeof e !== 'number' || !Number.isFinite(e)
+    || typeof f !== 'number' || !Number.isFinite(f)
+  ) return null
+
+  const lng = a * x + b * y + c
+  const lat = d * x + e * y + f
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
+}
+
+function MapGround({ texture, scale }: { texture: THREE.Texture | null; scale: number }) {
+  const meshKey = texture ? 'textured' : 'fallback'
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
+    <mesh key={meshKey} position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[PLANE_SIZE * scale, PLANE_SIZE * scale]} />
       {texture ? (
-        <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial
+          map={texture}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+          fog={false}
+        />
       ) : (
-        <meshBasicMaterial color="#d9d8d3" side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#d9d8d3" side={THREE.DoubleSide} fog={false} />
       )}
     </mesh>
   )
 }
 
-function FloorStack({ floors, selectedFloorId }: { floors: Floor[]; selectedFloorId: number | null }) {
+function boundsForModel(walls: Wall2D[], rooms: Room2D[]) {
+  const xs = [
+    ...walls.flatMap((wall) => [wall.x1, wall.x2]),
+    ...rooms.flatMap((room) => [room.x, room.x + room.w]),
+  ]
+  const ys = [
+    ...walls.flatMap((wall) => [wall.y1, wall.y2]),
+    ...rooms.flatMap((room) => [room.y, room.y + room.h]),
+  ]
+  if (xs.length === 0 || ys.length === 0) return { cx: 0, cy: 0, span: 16 }
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return {
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+    span: Math.max(maxX - minX, maxY - minY, 1),
+  }
+}
+
+function WallMesh({ wall, mapPoint, yOffset, active }: {
+  wall: Wall2D
+  mapPoint: ProjectPointMapper
+  yOffset: number
+  active: boolean
+}) {
+  const start = mapPoint(wall.x1, wall.y1)
+  const end = mapPoint(wall.x2, wall.y2)
+  const x1 = start.x
+  const z1 = start.z
+  const x2 = end.x
+  const z2 = end.z
+  const dx = x2 - x1
+  const dz = z2 - z1
+  const length = Math.hypot(dx, dz)
+  if (length < 0.01) return null
+  const angle = Math.atan2(dz, dx)
+  return (
+    <mesh
+      position={[(x1 + x2) / 2, yOffset + 1.45, (z1 + z2) / 2]}
+      rotation={[0, -angle, 0]}
+      castShadow
+      receiveShadow
+    >
+      <boxGeometry args={[length, 2.9, 0.32]} />
+      <meshStandardMaterial color={active ? '#e4e4e7' : '#a1a1aa'} roughness={0.78} transparent opacity={active ? 0.94 : 0.42} />
+    </mesh>
+  )
+}
+
+function RoomSlab({ room, mapPoint, fallbackScale, yOffset, active }: {
+  room: Room2D
+  mapPoint: ProjectPointMapper
+  fallbackScale: number
+  yOffset: number
+  active: boolean
+}) {
+  const p0 = mapPoint(room.x, room.y)
+  const p1 = mapPoint(room.x + room.w, room.y)
+  const p2 = mapPoint(room.x + room.w, room.y + room.h)
+  const p3 = mapPoint(room.x, room.y + room.h)
+  const centerX = (p0.x + p1.x + p2.x + p3.x) / 4
+  const centerZ = (p0.z + p1.z + p2.z + p3.z) / 4
+  const edgeX = p1.x - p0.x
+  const edgeZ = p1.z - p0.z
+  const depthX = p2.x - p1.x
+  const depthZ = p2.z - p1.z
+  const width = Math.max(Math.hypot(edgeX, edgeZ) - 0.24, 0.2, room.w * fallbackScale * 0.2)
+  const depth = Math.max(Math.hypot(depthX, depthZ) - 0.24, 0.2, room.h * fallbackScale * 0.2)
+  const angle = Math.atan2(edgeZ, edgeX)
+
+  return (
+    <mesh
+      position={[centerX, yOffset + 0.04, centerZ]}
+      rotation={[-Math.PI / 2, 0, angle]}
+      receiveShadow
+    >
+      <planeGeometry args={[width, depth]} />
+      <meshBasicMaterial color={active ? '#f4f4f5' : '#d4d4d8'} transparent opacity={active ? 0.18 : 0.08} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+function EditorBuildingModel({
+  floors,
+  selectedFloorId,
+  walls,
+  rooms,
+  center,
+  alignmentMatrix,
+}: {
+  floors: Floor[]
+  selectedFloorId: number | null
+  walls: Wall2D[]
+  rooms: Room2D[]
+  center: LatLngTuple
+  alignmentMatrix: number[][] | null
+}) {
   const sortedFloors = useMemo(
     () => floors.slice().sort((a, b) => a.floor_number - b.floor_number),
     [floors],
@@ -190,31 +345,43 @@ function FloorStack({ floors, selectedFloorId }: { floors: Floor[]; selectedFloo
         height_meters: 3,
       } as Floor))
 
+  const bounds = useMemo(() => boundsForModel(walls, rooms), [rooms, walls])
+  const modelScale = Math.min(3.2, 42 / bounds.span)
+  const hasEditorModel = walls.length > 0 || rooms.length > 0
+  const mapPoint = useCallback<ProjectPointMapper>((x, y) => {
+    const gps = transformLocalToGps(alignmentMatrix, x, y)
+    if (gps) return gpsToScenePoint(gps.lat, gps.lng, center)
+    return {
+      x: (x - bounds.cx) * modelScale,
+      z: (y - bounds.cy) * modelScale,
+    }
+  }, [alignmentMatrix, bounds.cx, bounds.cy, center, modelScale])
+
   return (
-    <group position={[0, 0.18, 0]} rotation={[0, -0.18, 0]}>
+    <group position={[0, 0.24, 0]} rotation={[0, alignmentMatrix ? 0 : -0.18, 0]}>
       {renderFloors.map((floor, index) => {
         const isSelected = floor.id === selectedFloorId || (selectedFloorId === null && index === 0)
-        const height = Math.max(2.4, floor.height_meters ?? 3)
-        const y = index * (height + 0.28) + height / 2
-        const opacity = isSelected ? 0.92 : 0.5
+        const height = Math.max(2.6, floor.height_meters ?? 3)
+        const yOffset = index * (height + 0.42)
         return (
-          <group key={floor.id} position={[0, y, 0]}>
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[45, height, 32]} />
-              <meshStandardMaterial
-                color={isSelected ? '#e4e4e7' : '#a1a1aa'}
-                metalness={0.05}
-                roughness={0.78}
-                transparent
-                opacity={opacity}
-              />
-            </mesh>
-            <mesh position={[0, height / 2 + 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[42, 29]} />
-              <meshBasicMaterial color={isSelected ? '#f8fafc' : '#d4d4d8'} transparent opacity={isSelected ? 0.22 : 0.1} />
-            </mesh>
+          <group key={floor.id}>
+            {hasEditorModel ? (
+              <>
+                {rooms.map((room, roomIndex) => (
+                  <RoomSlab key={`room-${floor.id}-${roomIndex}`} room={room} mapPoint={mapPoint} fallbackScale={modelScale} yOffset={yOffset} active={isSelected} />
+                ))}
+                {walls.map((wall, wallIndex) => (
+                  <WallMesh key={`wall-${floor.id}-${wallIndex}`} wall={wall} mapPoint={mapPoint} yOffset={yOffset} active={isSelected} />
+                ))}
+              </>
+            ) : (
+              <mesh position={[0, yOffset + height / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[45, height, 32]} />
+                <meshStandardMaterial color={isSelected ? '#e4e4e7' : '#a1a1aa'} roughness={0.78} transparent opacity={isSelected ? 0.82 : 0.34} />
+              </mesh>
+            )}
             {isSelected && (
-              <Html position={[0, height / 2 + 2.8, -18]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+              <Html position={[0, yOffset + height + 1.8, -18]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
                 <span className="monitor-3d-label">{floor.floor_name ?? `${floor.floor_number}F`}</span>
               </Html>
             )}
@@ -230,16 +397,21 @@ function DeviceMarker({
   selected,
   showCoverage,
   onSelect,
+  yOffset,
+  mapPoint,
 }: {
   device: SecurityDevice
   selected: boolean
   showCoverage: boolean
   onSelect: (id: string) => void
+  yOffset: number
+  mapPoint: ProjectPointMapper
 }) {
   const color = deviceColor(device.device_type)
-  const x = (device.x - 8) * 2.6
-  const z = (device.y - 7) * 2.2
-  const y = 5.2
+  const position = mapPoint(device.x, device.y)
+  const x = position.x
+  const z = position.z
+  const y = yOffset + 4.2
 
   const handleClick = useCallback(() => onSelect(device.id), [device.id, onSelect])
 
@@ -302,14 +474,38 @@ function MonitorMapScene({
   center,
   floors,
   selectedFloorId,
+  walls,
+  rooms,
   devices,
   selectedDeviceId,
   showCoverage,
   showGps,
   showPointCloud,
   onSelectDevice,
-}: Omit<MonitorSpatialViewProps, 'building'> & { center: LatLngTuple }) {
-  const { texture, isLoading } = useOsmTexture(center, MAP_ZOOM)
+  mapZoom,
+  mapScale,
+  alignmentMatrix,
+}: Omit<MonitorSpatialViewProps, 'building' | 'mapSettings' | 'alignmentSnapshot'> & {
+  center: LatLngTuple
+  mapZoom: number
+  mapScale: number
+  alignmentMatrix: number[][] | null
+}) {
+  const { texture, isLoading } = useOsmTexture(center, mapZoom)
+  const selectedFloorIndex = Math.max(0, floors.findIndex((floor) => floor.id === selectedFloorId))
+  const selectedFloor = floors[selectedFloorIndex]
+  const selectedFloorHeight = Math.max(2.6, selectedFloor?.height_meters ?? 3)
+  const deviceYOffset = selectedFloorIndex * (selectedFloorHeight + 0.42)
+  const fallbackBounds = useMemo(() => boundsForModel(walls, rooms), [rooms, walls])
+  const fallbackScale = Math.min(3.2, 42 / fallbackBounds.span)
+  const mapPoint = useCallback<ProjectPointMapper>((x, y) => {
+    const gps = transformLocalToGps(alignmentMatrix, x, y)
+    if (gps) return gpsToScenePoint(gps.lat, gps.lng, center)
+    return {
+      x: (x - fallbackBounds.cx) * fallbackScale,
+      z: (y - fallbackBounds.cy) * fallbackScale,
+    }
+  }, [alignmentMatrix, center, fallbackBounds.cx, fallbackBounds.cy, fallbackScale])
 
   return (
     <>
@@ -317,8 +513,15 @@ function MonitorMapScene({
       <fog attach="fog" args={['#2a2a2d', 210, 380]} />
       <ambientLight intensity={0.92} />
       <directionalLight position={[42, 70, 32]} intensity={1.35} castShadow />
-      <MapGround texture={texture} />
-      <FloorStack floors={floors} selectedFloorId={selectedFloorId} />
+      <MapGround texture={texture} scale={mapScale} />
+      <EditorBuildingModel
+        floors={floors}
+        selectedFloorId={selectedFloorId}
+        walls={walls}
+        rooms={rooms}
+        center={center}
+        alignmentMatrix={alignmentMatrix}
+      />
       {showPointCloud && <PointCloudHint />}
       {showGps && (
         <Html position={[0, 16, -28]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
@@ -332,6 +535,8 @@ function MonitorMapScene({
           selected={device.id === selectedDeviceId}
           showCoverage={showCoverage}
           onSelect={onSelectDevice}
+          yOffset={deviceYOffset}
+          mapPoint={mapPoint}
         />
       ))}
       {isLoading && <SceneLoader />}
@@ -341,8 +546,12 @@ function MonitorMapScene({
 
 export function MonitorSpatialView({
   building,
+  mapSettings,
+  alignmentSnapshot,
   floors,
   selectedFloorId,
+  walls,
+  rooms,
   devices,
   selectedDeviceId,
   showCoverage,
@@ -351,11 +560,21 @@ export function MonitorSpatialView({
   onSelectDevice,
 }: MonitorSpatialViewProps) {
   const center = useMemo<LatLngTuple>(() => {
+    if (alignmentSnapshot?.buildingOrigin) {
+      return alignmentSnapshot.buildingOrigin
+    }
+    if (mapSettings) {
+      return [mapSettings.origin_latitude, mapSettings.origin_longitude]
+    }
     if (building?.origin_latitude != null && building.origin_longitude != null) {
       return [building.origin_latitude, building.origin_longitude]
     }
     return DEFAULT_CENTER
-  }, [building])
+  }, [alignmentSnapshot, building, mapSettings])
+  const mapZoom = Math.max(10, Math.min(19, Math.round(alignmentSnapshot?.osmQuadZoom ?? mapSettings?.osm_zoom ?? MAP_ZOOM)))
+  const sourceScale = alignmentSnapshot?.osmQuadScale ?? mapSettings?.osm_scale ?? 2
+  const mapScale = Math.max(0.6, Math.min(4, sourceScale / 2))
+  const alignmentMatrix = alignmentSnapshot?.alignmentMatrix ?? null
 
   return (
     <div className="monitor-spatial-view" role="img" aria-label="Monitor OSM 3D map view">
@@ -370,12 +589,17 @@ export function MonitorSpatialView({
             center={center}
             floors={floors}
             selectedFloorId={selectedFloorId}
+            walls={walls}
+            rooms={rooms}
             devices={devices}
             selectedDeviceId={selectedDeviceId}
             showCoverage={showCoverage}
             showGps={showGps}
             showPointCloud={showPointCloud}
             onSelectDevice={onSelectDevice}
+            mapZoom={mapZoom}
+            mapScale={mapScale}
+            alignmentMatrix={alignmentMatrix}
           />
         </Suspense>
         <OrbitControls
@@ -389,7 +613,7 @@ export function MonitorSpatialView({
         />
       </Canvas>
       <div className="monitor-3d-coordinate">
-        Cesium 3D - {center[0].toFixed(6)}, {center[1].toFixed(6)} / z{MAP_ZOOM}
+        Cesium 3D - {center[0].toFixed(6)}, {center[1].toFixed(6)} / z{mapZoom}
       </div>
     </div>
   )
