@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
+import { getOsmTileStatus, listAlignmentAuditLogs, type AlignmentAuditLog, type OsmTileStatus } from '../api/osm'
 import { usePreferences } from '../app/preferences'
 import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import { useEditorStore, type SecurityDevice } from '../stores/editorStore'
@@ -148,6 +149,8 @@ export function AlignmentPage() {
   const [hasJustAligned, setHasJustAligned] = useState(false)
   const [alignmentHydrated, setAlignmentHydrated] = useState(false)
   const [saveStatus, setSaveStatus] = useState<AlignmentSaveStatus>('idle')
+  const [osmTileStatus, setOsmTileStatus] = useState<OsmTileStatus | null>(null)
+  const [alignmentAuditLogs, setAlignmentAuditLogs] = useState<AlignmentAuditLog[]>([])
   const autosaveTimerRef = useRef<number | null>(null)
 
   const {
@@ -243,6 +246,30 @@ export function AlignmentPage() {
     },
     [handleOsmHoverPick, pickMode],
   )
+
+  useEffect(() => {
+    getOsmTileStatus()
+      .then(setOsmTileStatus)
+      .catch(() => setOsmTileStatus(null))
+  }, [])
+
+  useEffect(() => {
+    if (!currentBuilding) {
+      setAlignmentAuditLogs([])
+      return
+    }
+    let cancelled = false
+    listAlignmentAuditLogs(currentBuilding.id)
+      .then((logs) => {
+        if (!cancelled) setAlignmentAuditLogs(logs)
+      })
+      .catch(() => {
+        if (!cancelled) setAlignmentAuditLogs([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentBuilding, hasJustAligned, alignmentRmse])
 
   useEffect(() => {
     if (!currentBuilding) {
@@ -456,7 +483,31 @@ export function AlignmentPage() {
             onRedo={handleRedoAlignment}
           >
             {alignmentMethod === 'osm' ? (
-              <OSMAlignmentPanel language={language} />
+              <>
+                <OSMAlignmentPanel language={language} />
+                <div className="alignment-production-status">
+                  <div>
+                    <span>OSM Provider</span>
+                    <strong>{osmTileStatus?.provider ?? 'Checking...'}</strong>
+                  </div>
+                  <div>
+                    <span>Tile Cache</span>
+                    <strong>{osmTileStatus?.cache_enabled ? 'Enabled' : 'Unknown'}</strong>
+                  </div>
+                  <div>
+                    <span>Fallback</span>
+                    <strong>{osmTileStatus?.fallback_enabled ? 'Ready' : 'Off'}</strong>
+                  </div>
+                  <div>
+                    <span>Last Accuracy</span>
+                    <strong>
+                      {alignmentAuditLogs[0]?.accuracy
+                        ? `${alignmentAuditLogs[0].accuracy.quality} / ${alignmentAuditLogs[0].accuracy.rmse_meters.toFixed(2)}m`
+                        : 'No audit yet'}
+                    </strong>
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="ap-step-content">
                 <div className="ap-status-card warning">

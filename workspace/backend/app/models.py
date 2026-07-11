@@ -45,6 +45,10 @@ class Building(Base):
         back_populates="building",
         cascade="all, delete-orphan",
     )
+    alignment_audit_logs: Mapped[list["AlignmentAuditLog"]] = relationship(
+        back_populates="building",
+        cascade="all, delete-orphan",
+    )
 
 
 class Floor(Base):
@@ -97,6 +101,21 @@ class BuildingSpatialSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     building: Mapped[Building] = relationship(back_populates="spatial_settings")
+
+
+class AlignmentAuditLog(Base):
+    __tablename__ = "alignment_audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    building_id: Mapped[int] = mapped_column(ForeignKey("buildings.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    point_count: Mapped[int] = mapped_column(Integer, default=0)
+    rmse: Mapped[float | None]
+    accuracy_json: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    building: Mapped[Building] = relationship(back_populates="alignment_audit_logs")
 
 
 class FloorSpatialSettings(Base):

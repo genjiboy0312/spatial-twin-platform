@@ -205,6 +205,8 @@ def test_gps_alignment_three_point_and_transform() -> None:
     body = response.json()
     assert body["building_id"] == building["id"]
     assert body["rmse"] < 1e-9
+    assert body["accuracy"]["quality"] == "excellent"
+    assert body["accuracy"]["point_count"] == 3
 
     transform_response = client.post(
         "/api/gps-alignment/transform-point",
@@ -227,6 +229,21 @@ def test_gps_alignment_three_point_and_transform() -> None:
     )
     assert batch_response.status_code == 200
     assert batch_response.json()["gps_points"] == [[37.0, 127.0], [37.001, 127.001]]
+
+    audit_response = client.get(f"/api/gps-alignment/buildings/{building['id']}/audit-logs")
+    assert audit_response.status_code == 200
+    audit_logs = audit_response.json()
+    assert audit_logs[0]["action"] == "three-point-align"
+    assert audit_logs[0]["accuracy"]["quality"] == "excellent"
+
+
+def test_osm_tile_status_contract() -> None:
+    response = client.get("/api/osm-tiles/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider"] == "OpenStreetMap"
+    assert body["cache_enabled"] is True
+    assert body["fallback_enabled"] is True
 
 
 def test_project_data_assets_and_object_placements() -> None:

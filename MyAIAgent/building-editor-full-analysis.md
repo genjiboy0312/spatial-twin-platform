@@ -1158,9 +1158,17 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 
 ### 🟢 Nice-to-Have (선택)
 
-- [ ] **Cesium/OSM 프로덕션 강화**: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
+- [x] **Cesium/OSM 프로덕션 강화**: 타일 제공자 구성, 오프라인/폴백 맵 동작, GPS 정확도 메타데이터, 정렬 감사 로그 추가
 - [x] **Editor 패널 사용성 보강**: Properties 패널의 선택 객체별 편집 입력값, 좌표/크기 직접 수정, 디바이스 이름/타입 수정, 변경 즉시 자동 저장 UX 추가
 - [x] **프로젝트 선택 일관성**: Alignment/Validation/Monitor가 첫 번째 building을 기본값으로 쓰는 흐름을 명시적 현재 프로젝트 선택/전역 프로젝트 컨텍스트로 통합
+
+### 2026-07-11 Cesium/OSM 프로덕션 강화 반영
+
+- [x] OSM 타일 프록시에 provider URL/name 설정값, 로컬 디스크 캐시, stale-cache 재사용, 생성형 fallback SVG 타일을 추가해 외부 타일 서버 장애 시에도 Alignment/Monitor 지도 평면이 완전히 검정 화면으로 무너지지 않도록 보강
+- [x] `/api/osm-tiles/status` 상태 API를 추가하고 Alignment 우측 워크플로우 패널 및 Monitor 지도 HUD에 provider/cache/fallback 상태를 표시
+- [x] GPS 3점 정합 API 응답에 RMSE meter, 평균/최대 오차, quality 등급을 포함하는 정확도 메타데이터를 추가
+- [x] `alignment_audit_logs` 테이블과 `/api/gps-alignment/buildings/{building_id}/audit-logs` API를 추가해 3점 정합 실행 이력, 제어점, 행렬, 정확도 결과를 건물 단위로 추적
+- [x] Alignment 프론트 정합 실행 시 기존 로컬 화면 계산은 유지하면서 백엔드 3점 정합 API를 호출해 정확도 계산과 감사 로그가 함께 저장되도록 연결
 - [x] **WebSocket 실시간 레이어**: 실시간 업로드 진행률, 장치 상태 업데이트, 모니터 이벤트, 다중 사용자 편집 알림 구현
 - [x] **내보내기 파이프라인**: 백엔드 데이터에서 다운로드 가능한 프로젝트 패키지, DXF/OBJ/GLB/PDF 보고서, 검증 요약 생성
 

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { computeThreePointAlignment } from '../../../api/osm'
 import { useAlignmentStore } from '../../../stores/alignmentStore'
 import type { GpsAlignmentInputs, GpsAlignmentLocalPoints, PickMode } from '../types'
 
@@ -160,7 +161,8 @@ export function useAlignmentDoAlign({
       pushUndoSnapshot()
       clearAlignedMarkers()
       setAlignmentMatrix(matrix)
-      setAlignmentRmse(result.rmsErrorMeters)
+      const backendAlignment = await computeThreePointAlignment(currentBuildingId, points)
+      setAlignmentRmse(backendAlignment.accuracy.rmse_meters)
       setPickMode('none')
       applyAlignment()
       onAlignSuccess?.()

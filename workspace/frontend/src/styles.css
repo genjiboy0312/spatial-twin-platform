@@ -4873,6 +4873,46 @@ a {
   backdrop-filter: blur(10px);
 }
 
+.monitor-3d-coordinate span {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(148, 163, 184, 0.26);
+  color: var(--muted);
+}
+
+.alignment-production-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.alignment-production-status div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alignment-production-status span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.alignment-production-status strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .monitor-3d-label,
 .monitor-3d-device-label,
 .monitor-3d-loader {

@@ -87,10 +87,31 @@ class GpsThreePointRequest(BaseModel):
     points: list[GpsControlPoint] = Field(min_length=3)
 
 
+class GpsAccuracyMetadata(BaseModel):
+    quality: Literal["excellent", "good", "review", "poor"]
+    point_count: int
+    rmse: float
+    rmse_meters: float
+    mean_error_meters: float
+    max_error_meters: float
+
+
 class GpsThreePointResponse(BaseModel):
     building_id: int
     transform_matrix: list[list[float]]
     rmse: float
+    accuracy: GpsAccuracyMetadata
+
+
+class AlignmentAuditLogRead(BaseModel):
+    id: int
+    building_id: int
+    action: str
+    point_count: int
+    rmse: float | None = None
+    accuracy: GpsAccuracyMetadata | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: datetime | None = None
 
 
 class GpsTransformPointRequest(BaseModel):

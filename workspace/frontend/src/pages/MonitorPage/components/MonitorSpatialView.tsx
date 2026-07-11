@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
+import { getOsmTileStatus, type OsmTileStatus } from '../../../api/osm'
 import type { Building, BuildingMapSettings } from '../../../api/buildings'
 import type { Floor } from '../../../api/floors'
 import type { SecurityDevice } from '../../../stores/editorStore'
@@ -575,6 +576,21 @@ export function MonitorSpatialView({
   const sourceScale = alignmentSnapshot?.osmQuadScale ?? mapSettings?.osm_scale ?? 2
   const mapScale = Math.max(0.6, Math.min(4, sourceScale / 2))
   const alignmentMatrix = alignmentSnapshot?.alignmentMatrix ?? null
+  const [tileStatus, setTileStatus] = useState<OsmTileStatus | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getOsmTileStatus()
+      .then((status) => {
+        if (!cancelled) setTileStatus(status)
+      })
+      .catch(() => {
+        if (!cancelled) setTileStatus(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="monitor-spatial-view" role="img" aria-label="Monitor OSM 3D map view">
@@ -614,6 +630,7 @@ export function MonitorSpatialView({
       </Canvas>
       <div className="monitor-3d-coordinate">
         Cesium 3D - {center[0].toFixed(6)}, {center[1].toFixed(6)} / z{mapZoom}
+        <span>{tileStatus ? `${tileStatus.provider} / cache ${tileStatus.cache_enabled ? 'on' : 'off'}` : 'OSM status checking'}</span>
       </div>
     </div>
   )
