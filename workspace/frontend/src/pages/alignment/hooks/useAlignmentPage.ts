@@ -91,6 +91,8 @@ export interface UseAlignmentPageReturn {
 // AlignmentPage의 "기본 데이터 오케스트레이션" 훅:
 // 건물/층 선택, OSM 원점, picker 상태, 초기 로딩/동기화를 담당한다.
 export function useAlignmentPage(): UseAlignmentPageReturn {
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId);
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId);
   // Basic State: 현재 프로젝트에서는 페이지 로컬 상태로 관리한다.
   const [currentBuilding, setCurrentBuilding] = useState<AlignmentBuilding | null>(null);
   const [floors, setFloors] = useState<AlignmentFloor[]>([]);
@@ -134,17 +136,18 @@ export function useAlignmentPage(): UseAlignmentPageReturn {
   const loadProjectContext = useCallback(async () => {
     try {
       const buildings = await listBuildings();
-      const selectedId = preferredBuildingId(buildings, useProjectStore.getState().selectedBuildingId);
+      const selectedId = preferredBuildingId(buildings, globalSelectedBuildingId);
       const building = buildings.find((candidate) => candidate.id === selectedId) ?? buildings[0];
       if (!building) {
         setCurrentBuilding(null);
         setFloors([]);
         setSelectedFloorId(null);
+        setGlobalSelectedBuildingId(null);
         return;
       }
 
       setCurrentBuilding({ id: building.id, name: building.name });
-      useProjectStore.getState().setSelectedBuildingId(building.id);
+      setGlobalSelectedBuildingId(building.id);
       const nextFloors = await listFloors(building.id);
       setFloors(nextFloors.map((floor) => ({
         id: floor.id,
@@ -169,7 +172,7 @@ export function useAlignmentPage(): UseAlignmentPageReturn {
       setFloors([]);
       setSelectedFloorId(null);
     }
-  }, []);
+  }, [globalSelectedBuildingId, setGlobalSelectedBuildingId]);
 
   useEffect(() => {
     void loadProjectContext();

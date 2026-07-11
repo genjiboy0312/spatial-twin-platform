@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
 import { usePreferences } from '../app/preferences'
-import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { CreateBuildingModal } from './CreateBuildingModal'
 import { PageHeader } from './PageHeader'
 
@@ -175,6 +175,7 @@ export function ProjectsPage() {
     () => buildings.find((building) => building.id === selectedBuildingId) ?? null,
     [buildings, selectedBuildingId],
   )
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
 
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
 

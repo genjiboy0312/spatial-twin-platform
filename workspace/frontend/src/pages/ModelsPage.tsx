@@ -6,7 +6,7 @@ import { listFloors, type Floor } from '../api/floors'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { useEditorStore } from '../stores/editorStore'
-import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type SourceType = 'image' | 'dxf' | 'ifc' | 'glb'
@@ -347,6 +347,7 @@ export function ModelsPage() {
     () => buildings.find((building) => building.id === selectedBuildingId) ?? null,
     [buildings, selectedBuildingId],
   )
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => a.floor_number - b.floor_number), [floors])
   const sourceGroups = useMemo(() => groupModelSources(floors, uploads), [floors, uploads])
   const connectedFloors = useMemo(() => floors.filter((floor) => hasFloorModelSource(floor, uploads)).length, [floors, uploads])

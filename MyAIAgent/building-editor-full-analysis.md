@@ -1181,6 +1181,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Editor Properties 패널에서 벽/방/장치 이름, 타입, 좌표, 크기, 각도 직접 편집 및 기존 자동 저장 흐름 연동
 - [x] Editor Properties 입력 UX 보강: 필드 포커스 시 한 번만 undo 히스토리를 기록하고 입력 중에는 상태만 갱신하도록 변경해 숫자/텍스트 입력마다 히스토리가 과도하게 쌓이는 문제를 줄임
 - [x] Editor Properties 저장 상태 표시: 패널 상단에 자동 저장 상태 배지를 추가하고, 숫자 입력 draft/검증/blur 복원 처리로 잘못된 값이 씬 상태를 깨뜨리지 않도록 보강
+- [x] 프로젝트 선택 일관성 고도화: Projects/Data Sources/Editor/Alignment/Validation/Monitor/Models/PointCloud/Dashboard가 `projectStore`의 현재 building 선택을 공유하고, 전역 선택 변경 시 각 페이지 로컬 선택과 로드 데이터가 동기화되도록 보강
 
 ## Recent Corrections
 

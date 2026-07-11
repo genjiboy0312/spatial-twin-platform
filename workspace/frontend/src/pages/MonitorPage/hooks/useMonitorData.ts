@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listBuildings, type Building } from '../../../api/buildings'
 import { listFloors, type Floor } from '../../../api/floors'
 import { useEditorStore, type SecurityDevice } from '../../../stores/editorStore'
-import { preferredBuildingId, useProjectStore } from '../../../stores/projectStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../../../stores/projectStore'
 
 export interface MonitorDataState {
   buildings: Building[]
@@ -28,6 +28,7 @@ export function useMonitorData(): MonitorDataState {
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
   const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null)
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
 
   const loadBuildings = useCallback(async () => {
     try {

@@ -6,7 +6,7 @@ import { createFloor, listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection, type ProjectSnapshot } from '../api/projectData'
 import { getUploadPipeline, listUploadsByBuilding, uploadFile, type UploadAsset, type UploadPipeline } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
-import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type SourceType = 'image' | 'dxf' | 'ifc' | 'glb' | 'pointcloud'
@@ -372,6 +372,7 @@ export function DataSourcesPage() {
     () => buildings.find((building) => building.id === selectedBuildingId) ?? null,
     [buildings, selectedBuildingId],
   )
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
   const selectedFloor = useMemo(() => floors.find((floor) => floor.id === selectedFloorId) ?? null, [floors, selectedFloorId])
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
   const connectedFloorCount = useMemo(

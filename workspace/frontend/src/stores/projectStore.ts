@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { create } from 'zustand'
 
 const SELECTED_BUILDING_KEY = 'spatial_selected_building_id'
@@ -39,3 +40,27 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set({ selectedBuildingId: buildingId })
   },
 }))
+
+export function useProjectSelectionSync<T extends { id: number }>(
+  buildings: T[],
+  selectedBuildingId: number | null,
+  setSelectedBuildingId: (buildingId: number | null) => void,
+) {
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
+
+  useEffect(() => {
+    if (buildings.length === 0) {
+      if (selectedBuildingId !== null) setSelectedBuildingId(null)
+      if (globalSelectedBuildingId !== null) setGlobalSelectedBuildingId(null)
+      return
+    }
+
+    const hasGlobal = globalSelectedBuildingId !== null && buildings.some((building) => building.id === globalSelectedBuildingId)
+    const hasLocal = selectedBuildingId !== null && buildings.some((building) => building.id === selectedBuildingId)
+    const next = hasGlobal ? globalSelectedBuildingId : hasLocal ? selectedBuildingId : buildings[0]!.id
+
+    if (selectedBuildingId !== next) setSelectedBuildingId(next)
+    if (globalSelectedBuildingId !== next) setGlobalSelectedBuildingId(next)
+  }, [buildings, globalSelectedBuildingId, selectedBuildingId, setGlobalSelectedBuildingId, setSelectedBuildingId])
+}

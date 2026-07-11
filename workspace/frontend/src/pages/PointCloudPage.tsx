@@ -6,7 +6,7 @@ import { listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
-import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type PointCloudStatus = 'uploaded' | 'validating' | 'processing' | 'converting' | 'preview_ready' | 'ready' | 'failed'
@@ -244,6 +244,7 @@ export function PointCloudPage() {
   const autosaveTimerRef = useRef<number | null>(null)
 
   const pointClouds = useMemo(() => uploads.filter((upload) => upload.source_type === 'pointcloud'), [uploads])
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
   const selectedCount = selectedUploadIds.size
 
   const stats = useMemo(() => {

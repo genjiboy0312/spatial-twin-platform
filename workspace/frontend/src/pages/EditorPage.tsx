@@ -193,6 +193,7 @@ export function EditorPage() {
   const labels = copy[language]
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | ''>('')
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
   const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedFloorId, setSelectedFloorId] = useState<number | ''>('')
@@ -350,6 +351,20 @@ export function EditorPage() {
   }, [loadEditorState, loadSample])
 
   useEffect(() => { loadBuildings() }, [loadBuildings])
+
+  useEffect(() => {
+    if (buildings.length === 0) {
+      if (selectedBuildingId !== '') setSelectedBuildingId('')
+      if (globalSelectedBuildingId !== null) setGlobalSelectedBuildingId(null)
+      return
+    }
+
+    const hasGlobal = globalSelectedBuildingId !== null && buildings.some((building) => building.id === globalSelectedBuildingId)
+    const hasLocal = selectedBuildingId !== '' && buildings.some((building) => building.id === selectedBuildingId)
+    const next = hasGlobal ? globalSelectedBuildingId : hasLocal ? selectedBuildingId : buildings[0]!.id
+    if (selectedBuildingId !== next) setSelectedBuildingId(next)
+    if (globalSelectedBuildingId !== next) setGlobalSelectedBuildingId(next)
+  }, [buildings, globalSelectedBuildingId, selectedBuildingId, setGlobalSelectedBuildingId])
 
   useEffect(() => {
     if (selectedBuildingId !== '') {

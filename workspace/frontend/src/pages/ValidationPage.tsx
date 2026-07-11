@@ -1124,6 +1124,7 @@ export function ValidationPage() {
   const rooms = useEditorStore((state) => state.rooms)
   const devices = useEditorStore((state) => state.devices)
   const loadEditorState = useEditorStore((state) => state.loadEditorState)
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
   const [selectedFloorId, setSelectedFloorId] = useState('1f')
   const [activeView, setActiveView] = useState<ValidationViewMode>('floor')
   const [selectedCategoryId, setSelectedCategoryId] = useState<ValidationCategoryId>('geometry')
@@ -1140,7 +1141,7 @@ export function ValidationPage() {
     let cancelled = false
     async function hydrateEditorSnapshot() {
       const buildings = await listBuildings()
-      const selectedId = preferredBuildingId(buildings, useProjectStore.getState().selectedBuildingId)
+      const selectedId = preferredBuildingId(buildings, globalSelectedBuildingId)
       const building = buildings.find((candidate) => candidate.id === selectedId) ?? buildings[0]
       if (!building) return
       useProjectStore.getState().setSelectedBuildingId(building.id)
@@ -1161,7 +1162,7 @@ export function ValidationPage() {
     return () => {
       cancelled = true
     }
-  }, [loadEditorState])
+  }, [globalSelectedBuildingId, loadEditorState])
 
   return (
     <section className="page-grid spatial-page validation-page validation-workspace">

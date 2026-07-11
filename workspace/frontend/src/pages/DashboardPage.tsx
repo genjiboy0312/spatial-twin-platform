@@ -5,6 +5,7 @@ import { listBuildings, type Building } from '../api/buildings'
 import { usePreferences } from '../app/preferences'
 import { useAlignmentStore } from '../stores/alignmentStore'
 import { useEditorStore } from '../stores/editorStore'
+import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type DashboardIconName = 'building' | 'monitor' | 'alert' | 'activity' | 'clock' | 'device' | 'map' | 'arrow' | 'check'
@@ -153,6 +154,7 @@ export function DashboardPage() {
   const devices = useEditorStore((state) => state.devices)
   const anchors = useAlignmentStore((state) => state.anchors)
   const isApplied = useAlignmentStore((state) => state.isApplied)
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
 
   const loadBuildings = useCallback(async () => {
     setLoadingBuildings(true)
@@ -177,16 +179,20 @@ export function DashboardPage() {
   const alarms = offlineDevices + (isApplied ? 0 : 1)
   const healthState = healthScore >= 80 ? labels.healthy : healthScore >= 55 ? labels.caution : labels.poor
   const totalFloors = buildings.reduce((sum, building) => sum + (building.total_floors ?? 0), 0)
+  const selectedBuildingId = preferredBuildingId(buildings, globalSelectedBuildingId)
+  const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId) ?? buildings[0]
 
   const events = useMemo(() => {
+    const primaryBuildingName = selectedBuilding?.name
+    const secondaryBuildingName = buildings.find((building) => building.id !== selectedBuilding?.id)?.name ?? primaryBuildingName
     const base: Array<{ severity: EventSeverity; icon: DashboardIconName; message: string; minutesAgo: number; buildingName: string | undefined }> = [
-      { severity: 'info', icon: 'activity', message: labels.events.modelReady, minutesAgo: 4, buildingName: buildings[0]?.name },
-      { severity: 'info', icon: 'map', message: labels.events.pointCloud, minutesAgo: 13, buildingName: buildings[0]?.name },
-      { severity: totalDevices > 0 ? 'medium' : 'info', icon: 'device', message: labels.events.deviceReview, minutesAgo: 31, buildingName: buildings[1]?.name ?? buildings[0]?.name },
-      { severity: isApplied ? 'info' : 'high', icon: isApplied ? 'check' : 'alert', message: isApplied ? labels.events.alignmentDone : labels.events.noAlignment, minutesAgo: 46, buildingName: buildings[0]?.name },
+      { severity: 'info', icon: 'activity', message: labels.events.modelReady, minutesAgo: 4, buildingName: primaryBuildingName },
+      { severity: 'info', icon: 'map', message: labels.events.pointCloud, minutesAgo: 13, buildingName: primaryBuildingName },
+      { severity: totalDevices > 0 ? 'medium' : 'info', icon: 'device', message: labels.events.deviceReview, minutesAgo: 31, buildingName: secondaryBuildingName },
+      { severity: isApplied ? 'info' : 'high', icon: isApplied ? 'check' : 'alert', message: isApplied ? labels.events.alignmentDone : labels.events.noAlignment, minutesAgo: 46, buildingName: primaryBuildingName },
     ]
     return base
-  }, [buildings, isApplied, labels.events, totalDevices])
+  }, [buildings, isApplied, labels.events, selectedBuilding, totalDevices])
 
   return (
     <section className="page-grid dashboard-page">
