@@ -65,17 +65,17 @@ type Actions = {
   setMode: (mode: EditMode) => void
   addWall: (x1: number, y1: number, x2: number, y2: number) => void
   moveWall: (idx: number, dx: number, dy: number) => void
-  updateWall: (idx: number, wall: Partial<Wall2D>) => void
+  updateWall: (idx: number, wall: Partial<Wall2D>, recordHistory?: boolean) => void
   selectWall: (idx: number | null) => void
   selectRoom: (idx: number | null) => void
   clearSelection: () => void
   deleteWallAt: (worldX: number, worldY: number) => void
   addRoom: (room: Room2D) => void
-  updateRoom: (idx: number, room: Partial<Room2D>) => void
+  updateRoom: (idx: number, room: Partial<Room2D>, recordHistory?: boolean) => void
   loadSample: () => void
   selectDevice: (idx: number | null) => void
   addDevice: (device: SecurityDevice) => void
-  updateDevice: (idx: number, device: Partial<SecurityDevice>) => void
+  updateDevice: (idx: number, device: Partial<SecurityDevice>, recordHistory?: boolean) => void
   removeDevice: (idx: number) => void
   clearAll: () => void
   // Snapping
@@ -148,8 +148,8 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     })
   },
 
-  updateWall: (idx, partial) => {
-    get().pushHistory()
+  updateWall: (idx, partial, recordHistory = true) => {
+    if (recordHistory) get().pushHistory()
     set((s) => {
       const walls = [...s.walls]
       if (idx >= 0 && idx < walls.length) {
@@ -179,8 +179,8 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => ({ rooms: [...s.rooms, room] }))
   },
 
-  updateRoom: (idx, partial) => {
-    get().pushHistory()
+  updateRoom: (idx, partial, recordHistory = true) => {
+    if (recordHistory) get().pushHistory()
     set((s) => {
       const rooms = [...s.rooms]
       if (idx >= 0 && idx < rooms.length) {
@@ -196,8 +196,8 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     get().pushHistory()
     set((s) => ({ devices: [...s.devices, device] }))
   },
-  updateDevice: (idx, partial) => {
-    get().pushHistory()
+  updateDevice: (idx, partial, recordHistory = true) => {
+    if (recordHistory) get().pushHistory()
     set((s) => {
       const devices = [...s.devices]
       if (idx >= 0 && idx < devices.length) {

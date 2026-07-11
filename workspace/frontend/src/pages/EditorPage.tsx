@@ -713,6 +713,8 @@ export function EditorPage() {
             selectedDevice={selectedDevice}
             selectedDeviceIdx={selectedDeviceIdx}
             deviceCount={devices.length}
+            saveStatus={saveStatus}
+            onBeginEdit={pushHistory}
             onUpdateWall={updateWall}
             onUpdateRoom={updateRoom}
             onUpdateDevice={updateDevice}

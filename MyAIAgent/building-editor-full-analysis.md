@@ -1179,6 +1179,8 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] FastAPI `/api/realtime/ws` WebSocket 이벤트 채널과 모니터 WebSocket URL 연동
 - [x] FastAPI `/api/exports/{dxf,csv,package}` 백엔드 Export API와 프론트 Export Package 다운로드 연결
 - [x] Editor Properties 패널에서 벽/방/장치 이름, 타입, 좌표, 크기, 각도 직접 편집 및 기존 자동 저장 흐름 연동
+- [x] Editor Properties 입력 UX 보강: 필드 포커스 시 한 번만 undo 히스토리를 기록하고 입력 중에는 상태만 갱신하도록 변경해 숫자/텍스트 입력마다 히스토리가 과도하게 쌓이는 문제를 줄임
+- [x] Editor Properties 저장 상태 표시: 패널 상단에 자동 저장 상태 배지를 추가하고, 숫자 입력 draft/검증/blur 복원 처리로 잘못된 값이 씬 상태를 깨뜨리지 않도록 보강
 
 ## Recent Corrections
 
