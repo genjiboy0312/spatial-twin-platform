@@ -229,11 +229,15 @@ def sync_object_placements(
     db: Session = Depends(get_db),
 ) -> list[ObjectPlacementRead]:
     _get_building_or_404(db, building_id)
+    _validate_floor_scope(db, building_id, payload.floor_id)
     for placement_payload in payload.placements:
         _validate_floor_scope(db, building_id, placement_payload.floor_id)
         _validate_project_asset_scope(db, building_id, placement_payload.source_asset_id)
 
-    existing = db.scalars(select(ObjectPlacement).where(ObjectPlacement.building_id == building_id))
+    existing_query = select(ObjectPlacement).where(ObjectPlacement.building_id == building_id)
+    if payload.floor_id is not None:
+        existing_query = existing_query.where(ObjectPlacement.floor_id == payload.floor_id)
+    existing = db.scalars(existing_query)
     for placement in existing:
         metadata = _json_load(placement.metadata_json) or {}
         if metadata.get(payload.metadata_scope_key) == payload.metadata_scope_value:

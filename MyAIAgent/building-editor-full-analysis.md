@@ -1195,6 +1195,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] 에디터 영속화 step 4: Editor에서 프로젝트 스냅샷으로 디바운스 자동 저장 추가, 배치된 보안 장치를 변환 메타데이터와 함께 백엔드 객체 배치 레코드에 동기화
 - [x] 에디터 영속화 step 5: 컴팩트한 에디터 자동 저장 상태 표시줄 추가, 영속화 연결 후 프론트엔드 빌드, 백엔드 pytest, backend ruff 검증 완료
 - [x] 에디터 Geometry 영속화 강화: 층 단위 `/api/floors/{floor_id}/geometry` 조회/동기화 API를 추가하고, Editor 자동 저장 시 벽/방 데이터를 백엔드 geometry 테이블에도 저장하며 스냅샷이 없을 때 DB geometry로 복원되도록 연결
+- [x] 층별 geometry/장치 분리 강화: Editor 층 전환 시 현재 층의 벽/방/장치를 먼저 저장한 뒤 선택 층의 geometry와 장치 배치만 로드하도록 변경하고, object placement sync에 `floor_id` scope를 추가해 다른 층 장치가 삭제되지 않도록 보강
 - [x] 프로젝트 스냅샷 섹션 병합: 프론트엔드 프로젝트 스냅샷 쓰기를 페이지별 섹션 병합 방식으로 변경하여 Data Sources, Editor, Alignment, PointCloud 상태가 서로 덮어쓰지 않도록 함
 - [x] Alignment 영속화 확장: 활성 건물/층 로드, OSM 원점, 층, 카메라 모드, 정렬 방식, 앵커 선택, GPS 입력, 행렬/RMSE, 변환된 GPS, 빌보드 상태를 프로젝트 스냅샷에서 복원
 - [x] Alignment 자동 저장: GPS 정렬 워크플로우 변경사항에 대한 디바운스 스냅샷 영속화 및 컴팩트 저장 상태 UI 추가

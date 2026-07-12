@@ -423,6 +423,7 @@ class ProjectSnapshotRead(ProjectSnapshotPayload):
 class ObjectPlacementSyncPayload(BaseModel):
     metadata_scope_key: str = Field(min_length=1, max_length=80)
     metadata_scope_value: str = Field(min_length=1, max_length=120)
+    floor_id: int | None = None
     placements: list[ObjectPlacementCreate] = Field(default_factory=list, max_length=1000)
 
 

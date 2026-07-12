@@ -217,7 +217,9 @@ export function EditorPage() {
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const objectPlacementsRef = useRef<ObjectPlacement[]>([])
   const [editorHydrated, setEditorHydrated] = useState(false)
+  const [floorSceneHydrated, setFloorSceneHydrated] = useState(false)
   const [saveStatus, setSaveStatus] = useState<EditorSaveStatus>('idle')
   const autosaveTimerRef = useRef<number | null>(null)
   const [snapConfig, setSnapConfig] = useState<SnapConfig>({
@@ -307,12 +309,41 @@ export function EditorPage() {
   }, [])
 
   const syncDevicePlacements = useCallback(async (buildingId: number, floorId: number | '', nextDevices: SecurityDevice[]) => {
-    await syncObjectPlacements(buildingId, {
+    return syncObjectPlacements(buildingId, {
       metadata_scope_key: 'editor_source',
       metadata_scope_value: 'editor-device',
+      floor_id: floorId === '' ? null : floorId,
       placements: nextDevices.map((device) => placementFromDevice(device, floorId)),
     })
   }, [])
+
+  const loadFloorScene = useCallback(async (floorId: number, placements: ObjectPlacement[]) => {
+    setFloorSceneHydrated(false)
+    const floorGeometry = await getFloorGeometry(floorId).catch(() => null)
+    const placementDevices = placements
+      .filter((placement) => placement.floor_id === floorId)
+      .map(deviceFromPlacement)
+      .filter((device): device is SecurityDevice => device !== null)
+    loadEditorState({
+      walls: floorGeometry?.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })) ?? [],
+      rooms: floorGeometry?.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })) ?? [],
+      devices: placementDevices,
+    })
+    setFloorSceneHydrated(true)
+  }, [loadEditorState])
+
+  const persistCurrentFloorScene = useCallback(async () => {
+    if (selectedBuildingId === '' || selectedFloorId === '') return
+    await syncFloorGeometry(selectedFloorId, {
+      walls,
+      rooms: rooms.map(roomToGeometry),
+    })
+    const syncedPlacements = await syncDevicePlacements(selectedBuildingId, selectedFloorId, devices)
+    objectPlacementsRef.current = [
+      ...objectPlacementsRef.current.filter((placement) => placement.floor_id !== selectedFloorId),
+      ...syncedPlacements,
+    ]
+  }, [devices, rooms, selectedBuildingId, selectedFloorId, syncDevicePlacements, walls])
 
   const loadBuildingFloors = useCallback(async (buildingId: number) => {
     setEditorHydrated(false)
@@ -326,6 +357,7 @@ export function EditorPage() {
       ])
       setFloors(data)
       setPointCloudUploads(uploads.filter((upload) => upload.source_type === 'pointcloud'))
+      objectPlacementsRef.current = placements
       const editorSnapshot = snapshot?.saved ? snapshot.state.editor : null
       const fallbackFloorId =
         isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)
@@ -364,12 +396,15 @@ export function EditorPage() {
         return data[0]?.id ?? ''
       })
       setEditorHydrated(true)
+      setFloorSceneHydrated(true)
       setSaveStatus(snapshot?.saved ? 'saved' : 'idle')
     } catch {
       setFloors([])
       setPointCloudUploads([])
+      objectPlacementsRef.current = []
       setSelectedFloorId('')
       setEditorHydrated(false)
+      setFloorSceneHydrated(false)
       setSaveStatus('error')
     }
   }, [loadEditorState, loadSample])
@@ -396,10 +431,30 @@ export function EditorPage() {
     } else {
       setFloors([])
       setPointCloudUploads([])
+      objectPlacementsRef.current = []
       setSelectedFloorId('')
       setEditorHydrated(false)
+      setFloorSceneHydrated(false)
     }
   }, [loadBuildingFloors, selectedBuildingId])
+
+  useEffect(() => {
+    if (!editorHydrated || selectedFloorId === '') return undefined
+    let cancelled = false
+    loadFloorScene(selectedFloorId, objectPlacementsRef.current)
+      .then(() => {
+        if (cancelled) setFloorSceneHydrated(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          loadEditorState({ walls: [], rooms: [], devices: [] })
+          setFloorSceneHydrated(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editorHydrated, loadEditorState, loadFloorScene, selectedFloorId])
 
   const visiblePointCloudUploads = useMemo(() => {
     if (selectedFloorId === '') return pointCloudUploads
@@ -413,7 +468,7 @@ export function EditorPage() {
   }, [initialized, loadSample, selectedBuildingId])
 
   useEffect(() => {
-    if (selectedBuildingId === '' || !editorHydrated) return undefined
+    if (selectedBuildingId === '' || !editorHydrated || !floorSceneHydrated) return undefined
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
       setSaveStatus('saving')
@@ -435,7 +490,18 @@ export function EditorPage() {
             rooms: rooms.map(roomToGeometry),
           })
         })
-        .then(() => syncDevicePlacements(selectedBuildingId, selectedFloorId, devices))
+        .then(() => {
+          if (selectedFloorId === '') return []
+          return syncDevicePlacements(selectedBuildingId, selectedFloorId, devices)
+        })
+        .then((syncedPlacements) => {
+          if (selectedFloorId !== '') {
+            objectPlacementsRef.current = [
+              ...objectPlacementsRef.current.filter((placement) => placement.floor_id !== selectedFloorId),
+              ...syncedPlacements,
+            ]
+          }
+        })
         .then(() => setSaveStatus('saved'))
         .catch(() => setSaveStatus('error'))
     }, 900)
@@ -445,6 +511,7 @@ export function EditorPage() {
   }, [
     devices,
     editorHydrated,
+    floorSceneHydrated,
     rooms,
     selectedBuildingId,
     selectedFloorId,
@@ -466,6 +533,18 @@ export function EditorPage() {
     })
     await loadBuildingFloors(selectedBuildingId)
   }
+
+  const handleFloorSelect = useCallback(async (floorId: number) => {
+    if (floorId === selectedFloorId) return
+    setSaveStatus('saving')
+    try {
+      await persistCurrentFloorScene()
+      setSelectedFloorId(floorId)
+      setSaveStatus('loading')
+    } catch {
+      setSaveStatus('error')
+    }
+  }, [persistCurrentFloorScene, selectedFloorId])
 
   const handleAddOpening = (type: 'door' | 'window' | 'opening', wallIdx: number, _pos: number) => {
     // Placeholder - stores will be expanded for doors/windows/openings
@@ -624,7 +703,7 @@ export function EditorPage() {
                 <button
                   key={floor.id}
                   className={floor.id === selectedFloorId ? 'selected' : ''}
-                  onClick={() => setSelectedFloorId(floor.id)}
+                  onClick={() => void handleFloorSelect(floor.id)}
                   type="button"
                 >
                   <strong>{floorLabel(floor, labels.floorSuffix)}</strong>

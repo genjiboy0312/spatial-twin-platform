@@ -128,6 +128,7 @@ export function syncObjectPlacements(
   payload: {
     metadata_scope_key: string
     metadata_scope_value: string
+    floor_id?: number | null
     placements: ObjectPlacementCreate[]
   },
 ): Promise<ObjectPlacement[]> {

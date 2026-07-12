@@ -372,6 +372,51 @@ def test_object_placement_sync_replaces_scoped_editor_devices() -> None:
     assert [placement["name"] for placement in placements] == ["Sensor B"]
 
 
+def test_object_placement_sync_can_be_limited_to_floor() -> None:
+    building = client.post("/api/buildings", json={"name": "Placement Floor Scope Parent"}).json()
+    first_floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+    second_floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 2}).json()
+
+    first_sync = client.put(
+        f"/api/buildings/{building['id']}/object-placements/sync",
+        json={
+            "metadata_scope_key": "editor_source",
+            "metadata_scope_value": "editor-device",
+            "floor_id": first_floor["id"],
+            "placements": [
+                {
+                    "object_type": "security_device",
+                    "name": "First Floor Camera",
+                    "floor_id": first_floor["id"],
+                    "metadata": {"editor_source": "editor-device", "editor_id": "first"},
+                }
+            ],
+        },
+    )
+    assert first_sync.status_code == 200
+
+    second_sync = client.put(
+        f"/api/buildings/{building['id']}/object-placements/sync",
+        json={
+            "metadata_scope_key": "editor_source",
+            "metadata_scope_value": "editor-device",
+            "floor_id": second_floor["id"],
+            "placements": [
+                {
+                    "object_type": "security_device",
+                    "name": "Second Floor Sensor",
+                    "floor_id": second_floor["id"],
+                    "metadata": {"editor_source": "editor-device", "editor_id": "second"},
+                }
+            ],
+        },
+    )
+    assert second_sync.status_code == 200
+
+    placements = client.get(f"/api/buildings/{building['id']}/object-placements").json()
+    assert {placement["name"] for placement in placements} == {"First Floor Camera", "Second Floor Sensor"}
+
+
 def test_project_asset_rejects_floor_from_other_building() -> None:
     first = client.post("/api/buildings", json={"name": "Asset Scope A"}).json()
     second = client.post("/api/buildings", json={"name": "Asset Scope B"}).json()
