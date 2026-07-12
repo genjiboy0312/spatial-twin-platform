@@ -123,8 +123,13 @@ function isPointCloudSnapshot(value: unknown): value is {
   selected_floor_id?: number | null
   active_tab?: 'upload' | 'connected'
   selected_upload_ids?: number[]
+  selected_upload_ids_by_floor?: Record<string, number[]>
 } {
   return typeof value === 'object' && value !== null
+}
+
+function floorSelectionKey(floorId: number | null) {
+  return floorId === null ? 'building' : String(floorId)
 }
 
 function pointCloudSaveLabel(status: PointCloudSaveStatus, language: 'en' | 'ko') {
@@ -235,7 +240,7 @@ export function PointCloudPage() {
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [activeTab, setActiveTab] = useState<'upload' | 'connected'>('upload')
-  const [selectedUploadIds, setSelectedUploadIds] = useState<Set<number>>(() => new Set())
+  const [selectedUploadIdsByFloor, setSelectedUploadIdsByFloor] = useState<Record<string, number[]>>({})
   const [deletingUploadId, setDeletingUploadId] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -245,6 +250,14 @@ export function PointCloudPage() {
 
   const pointClouds = useMemo(() => uploads.filter((upload) => upload.source_type === 'pointcloud'), [uploads])
   useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
+  const floorScopedPointClouds = useMemo(
+    () => pointClouds.filter((asset) => asset.floor_id === null || asset.floor_id === selectedFloorId),
+    [pointClouds, selectedFloorId],
+  )
+  const selectedUploadIds = useMemo(
+    () => new Set(selectedUploadIdsByFloor[floorSelectionKey(selectedFloorId)] ?? []),
+    [selectedFloorId, selectedUploadIdsByFloor],
+  )
   const selectedCount = selectedUploadIds.size
 
   const stats = useMemo(() => {
@@ -295,10 +308,18 @@ export function PointCloudPage() {
       })
       if (isPointCloudSnapshot(pointCloudSnapshot)) {
         if (pointCloudSnapshot.active_tab) setActiveTab(pointCloudSnapshot.active_tab)
+        const availableIds = new Set(nextUploads.filter((upload) => upload.source_type === 'pointcloud').map((upload) => upload.id))
+        const normalizedEntries = Object.entries(pointCloudSnapshot.selected_upload_ids_by_floor ?? {}).map(([key, ids]) => [
+          key,
+          ids.filter((id) => availableIds.has(id)),
+        ])
         if (Array.isArray(pointCloudSnapshot.selected_upload_ids)) {
-          const availableIds = new Set(nextUploads.filter((upload) => upload.source_type === 'pointcloud').map((upload) => upload.id))
-          setSelectedUploadIds(new Set(pointCloudSnapshot.selected_upload_ids.filter((id) => availableIds.has(id))))
+          normalizedEntries.push([
+            floorSelectionKey(pointCloudSnapshot.selected_floor_id ?? null),
+            pointCloudSnapshot.selected_upload_ids.filter((id) => availableIds.has(id)),
+          ])
         }
+        setSelectedUploadIdsByFloor(Object.fromEntries(normalizedEntries))
       }
       setPointCloudHydrated(true)
       setSaveStatus(snapshot?.saved ? 'saved' : 'idle')
@@ -306,6 +327,7 @@ export function PointCloudPage() {
       setFloors([])
       setUploads([])
       setSelectedFloorId(null)
+      setSelectedUploadIdsByFloor({})
       setPointCloudHydrated(false)
       setSaveStatus('error')
     } finally {
@@ -337,6 +359,7 @@ export function PointCloudPage() {
         selected_floor_id: selectedFloorId,
         active_tab: activeTab,
         selected_upload_ids: Array.from(selectedUploadIds),
+        selected_upload_ids_by_floor: selectedUploadIdsByFloor,
         upload_ids: pointClouds.map((upload) => upload.id),
         ready_upload_ids: pointClouds.filter((upload) => ['ready', 'preview_ready', 'uploaded'].includes(uploadStatus(upload))).map((upload) => upload.id),
         updatedAt: new Date().toISOString(),
@@ -347,13 +370,15 @@ export function PointCloudPage() {
     return () => {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     }
-  }, [activeTab, pointCloudHydrated, pointClouds, selectedBuildingId, selectedFloorId, selectedUploadIds])
+  }, [activeTab, pointCloudHydrated, pointClouds, selectedBuildingId, selectedFloorId, selectedUploadIds, selectedUploadIdsByFloor])
 
   useEffect(() => {
-    setSelectedUploadIds((current) => {
+    setSelectedUploadIdsByFloor((current) => {
       const availableIds = new Set(pointClouds.map((asset) => asset.id))
-      const next = new Set(Array.from(current).filter((id) => availableIds.has(id)))
-      return next.size === current.size ? current : next
+      const next = Object.fromEntries(
+        Object.entries(current).map(([key, ids]) => [key, ids.filter((id) => availableIds.has(id))]),
+      )
+      return JSON.stringify(next) === JSON.stringify(current) ? current : next
     })
   }, [pointClouds])
 
@@ -392,14 +417,39 @@ export function PointCloudPage() {
   }
 
   const toggleSelectedUpload = (uploadId: number) => {
-    setSelectedUploadIds((current) => {
-      const next = new Set(current)
-      if (next.has(uploadId)) {
-        next.delete(uploadId)
-      } else {
-        next.add(uploadId)
+    setSelectedUploadIdsByFloor((current) => {
+      const key = floorSelectionKey(selectedFloorId)
+      const currentIds = current[key] ?? []
+      return {
+        ...current,
+        [key]: currentIds.includes(uploadId)
+          ? currentIds.filter((id) => id !== uploadId)
+          : [...currentIds, uploadId],
       }
-      return next
+    })
+  }
+
+  const handleFloorChange = (floorId: number | null) => {
+    setSelectedFloorId(floorId)
+    setSelectedUploadIdsByFloor((current) => {
+      const key = floorSelectionKey(floorId)
+      if (current[key]) return current
+      return {
+        ...current,
+        [key]: pointClouds.filter((asset) => asset.floor_id === null || asset.floor_id === floorId).map((asset) => asset.id),
+      }
+    })
+  }
+
+  const handleSelectAllVisible = () => {
+    setSelectedUploadIdsByFloor((current) => {
+      const key = floorSelectionKey(selectedFloorId)
+      const visibleIds = floorScopedPointClouds.map((asset) => asset.id)
+      const currentIds = current[key] ?? []
+      return {
+        ...current,
+        [key]: visibleIds.length > 0 && visibleIds.every((id) => currentIds.includes(id)) ? [] : visibleIds,
+      }
     })
   }
 
@@ -411,11 +461,9 @@ export function PointCloudPage() {
     try {
       await deleteUpload(asset.id)
       await refreshBuildingData(selectedBuildingId)
-      setSelectedUploadIds((current) => {
-        const next = new Set(current)
-        next.delete(asset.id)
-        return next
-      })
+      setSelectedUploadIdsByFloor((current) => Object.fromEntries(
+        Object.entries(current).map(([key, ids]) => [key, ids.filter((id) => id !== asset.id)]),
+      ))
       setMessage(`${asset.filename} 삭제 완료`)
     } catch {
       setError(`${asset.filename} 삭제 실패`)
@@ -463,7 +511,7 @@ export function PointCloudPage() {
             </label>
             <label>
               <span>{labels.floor}</span>
-              <select className="select-input" value={selectedFloorId ?? ''} onChange={(event) => setSelectedFloorId(event.target.value ? Number(event.target.value) : null)}>
+              <select className="select-input" value={selectedFloorId ?? ''} onChange={(event) => handleFloorChange(event.target.value ? Number(event.target.value) : null)}>
                 <option value="">{labels.selectFloor}</option>
                 {floors.map((floor) => (
                   <option key={floor.id} value={floor.id}>{floorLabel(floor)}</option>
@@ -508,7 +556,7 @@ export function PointCloudPage() {
           <section className="pointcloud-workflow-strip">
             <strong><PointCloudIcon name="clock" /> {labels.workflow}</strong>
             {labels.workflowSteps.map((step, index) => {
-              const complete = index === 0 ? selectedBuildingId !== null : index === 1 ? pointClouds.length > 0 : false
+              const complete = index === 0 ? selectedBuildingId !== null : index === 1 ? floorScopedPointClouds.length > 0 : false
               return (
                 <span key={step} className={complete ? 'complete' : ''}>
                   {complete ? <PointCloudIcon name="check" /> : <i />}
@@ -570,7 +618,7 @@ export function PointCloudPage() {
               ) : (
                 <>
                   {loading && <p className="pointcloud-muted">{labels.loading}</p>}
-                  {!loading && pointClouds.length === 0 && (
+                  {!loading && floorScopedPointClouds.length === 0 && (
                     <div className="pointcloud-empty-list">
                       <span className="pointcloud-large-icon"><PointCloudIcon name="cloud" /></span>
                       <strong>{labels.emptyTitle}</strong>
@@ -578,19 +626,19 @@ export function PointCloudPage() {
                       <button className="btn btn-secondary" type="button" onClick={() => setActiveTab('upload')}>{labels.uploadFromEmpty}</button>
                     </div>
                   )}
-                  {pointClouds.length > 0 && (
+                  {floorScopedPointClouds.length > 0 && (
                     <div className="pointcloud-source-list">
                       <div className="pointcloud-selection-bar">
                         <span>{selectedCount > 0 ? `${selectedCount}개 선택됨` : '업로드된 PointCloud 목록'}</span>
                         <button
                           className="btn btn-secondary btn-sm"
                           type="button"
-                          onClick={() => setSelectedUploadIds(selectedCount > 0 ? new Set() : new Set(pointClouds.map((asset) => asset.id)))}
+                          onClick={handleSelectAllVisible}
                         >
                           {selectedCount > 0 ? '선택 해제' : '전체 선택'}
                         </button>
                       </div>
-                      {pointClouds.map((asset) => {
+                      {floorScopedPointClouds.map((asset) => {
                         const status = uploadStatus(asset)
                         const floor = floors.find((candidate) => candidate.id === asset.floor_id)
                         const selected = selectedUploadIds.has(asset.id)

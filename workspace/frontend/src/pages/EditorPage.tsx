@@ -119,6 +119,18 @@ function isEditorSnapshot(value: unknown): value is {
   return typeof value === 'object' && value !== null
 }
 
+function isPointCloudSnapshot(value: unknown): value is {
+  selected_upload_ids_by_floor?: Record<string, number[]>
+  selected_upload_ids?: number[]
+  selected_floor_id?: number | null
+} {
+  return typeof value === 'object' && value !== null
+}
+
+function floorSelectionKey(floorId: number | '') {
+  return floorId === '' ? 'building' : String(floorId)
+}
+
 function roomToGeometry(room: { x: number; y: number; w: number; h: number; label?: string }) {
   return {
     name: room.label?.trim() || 'Room',
@@ -217,6 +229,7 @@ export function EditorPage() {
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const [pointCloudSelectionByFloor, setPointCloudSelectionByFloor] = useState<Record<string, number[]>>({})
   const objectPlacementsRef = useRef<ObjectPlacement[]>([])
   const [editorHydrated, setEditorHydrated] = useState(false)
   const [floorSceneHydrated, setFloorSceneHydrated] = useState(false)
@@ -359,6 +372,14 @@ export function EditorPage() {
       setPointCloudUploads(uploads.filter((upload) => upload.source_type === 'pointcloud'))
       objectPlacementsRef.current = placements
       const editorSnapshot = snapshot?.saved ? snapshot.state.editor : null
+      const pointCloudSnapshot = snapshot?.saved ? snapshot.state.pointcloud : null
+      if (isPointCloudSnapshot(pointCloudSnapshot)) {
+        setPointCloudSelectionByFloor(pointCloudSnapshot.selected_upload_ids_by_floor ?? {
+          [floorSelectionKey(pointCloudSnapshot.selected_floor_id ?? '')]: pointCloudSnapshot.selected_upload_ids ?? [],
+        })
+      } else {
+        setPointCloudSelectionByFloor({})
+      }
       const fallbackFloorId =
         isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)
           ? editorSnapshot.selectedFloorId
@@ -401,6 +422,7 @@ export function EditorPage() {
     } catch {
       setFloors([])
       setPointCloudUploads([])
+      setPointCloudSelectionByFloor({})
       objectPlacementsRef.current = []
       setSelectedFloorId('')
       setEditorHydrated(false)
@@ -431,6 +453,7 @@ export function EditorPage() {
     } else {
       setFloors([])
       setPointCloudUploads([])
+      setPointCloudSelectionByFloor({})
       objectPlacementsRef.current = []
       setSelectedFloorId('')
       setEditorHydrated(false)
@@ -457,9 +480,14 @@ export function EditorPage() {
   }, [editorHydrated, loadEditorState, loadFloorScene, selectedFloorId])
 
   const visiblePointCloudUploads = useMemo(() => {
-    if (selectedFloorId === '') return pointCloudUploads
-    return pointCloudUploads.filter((upload) => upload.floor_id === null || upload.floor_id === selectedFloorId)
-  }, [pointCloudUploads, selectedFloorId])
+    const floorScoped = selectedFloorId === ''
+      ? pointCloudUploads
+      : pointCloudUploads.filter((upload) => upload.floor_id === null || upload.floor_id === selectedFloorId)
+    const selectedIds = pointCloudSelectionByFloor[floorSelectionKey(selectedFloorId)]
+    if (!selectedIds || selectedIds.length === 0) return floorScoped
+    const selectedIdSet = new Set(selectedIds)
+    return floorScoped.filter((upload) => selectedIdSet.has(upload.id))
+  }, [pointCloudSelectionByFloor, pointCloudUploads, selectedFloorId])
 
   useEffect(() => {
     if (selectedBuildingId !== '' || initialized) return
