@@ -7,6 +7,7 @@ import { ObjectSnapPanel } from '../components/ObjectSnapPanel'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
+import { getFloorGeometry, syncFloorGeometry } from '../api/geometry'
 import { usePreferences } from '../app/preferences'
 import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
 import { PropertyPanel } from '../components/PropertyPanel'
@@ -116,6 +117,16 @@ function isEditorSnapshot(value: unknown): value is {
   selectedFloorId?: number | ''
 } {
   return typeof value === 'object' && value !== null
+}
+
+function roomToGeometry(room: { x: number; y: number; w: number; h: number; label?: string }) {
+  return {
+    name: room.label?.trim() || 'Room',
+    x: room.x,
+    y: room.y,
+    w: room.w,
+    h: room.h,
+  }
 }
 
 function placementFromDevice(device: SecurityDevice, floorId: number | '') {
@@ -316,18 +327,31 @@ export function EditorPage() {
       setFloors(data)
       setPointCloudUploads(uploads.filter((upload) => upload.source_type === 'pointcloud'))
       const editorSnapshot = snapshot?.saved ? snapshot.state.editor : null
+      const fallbackFloorId =
+        isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)
+          ? editorSnapshot.selectedFloorId
+          : data[0]?.id ?? null
+      const floorGeometry = fallbackFloorId !== null ? await getFloorGeometry(fallbackFloorId).catch(() => null) : null
       const placementDevices = placements.map(deviceFromPlacement).filter((device): device is SecurityDevice => device !== null)
       if (isEditorSnapshot(editorSnapshot)) {
         loadEditorState({
-          ...(Array.isArray(editorSnapshot.walls) ? { walls: editorSnapshot.walls } : {}),
-          ...(Array.isArray(editorSnapshot.rooms) ? { rooms: editorSnapshot.rooms } : {}),
+          walls: Array.isArray(editorSnapshot.walls) ? editorSnapshot.walls : (floorGeometry?.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })) ?? []),
+          rooms: Array.isArray(editorSnapshot.rooms) ? editorSnapshot.rooms : (floorGeometry?.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })) ?? []),
           devices: Array.isArray(editorSnapshot.devices) ? editorSnapshot.devices : placementDevices,
           ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
           ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
         })
         if (editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
       } else {
-        loadSample()
+        if (floorGeometry && (floorGeometry.walls.length > 0 || floorGeometry.rooms.length > 0)) {
+          loadEditorState({
+            walls: floorGeometry.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })),
+            rooms: floorGeometry.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })),
+            devices: placementDevices,
+          })
+        } else {
+          loadSample()
+        }
         if (placementDevices.length > 0) {
           loadEditorState({ devices: placementDevices })
         }
@@ -404,6 +428,13 @@ export function EditorPage() {
         pointCloudUploadIds: visiblePointCloudUploads.map((upload) => upload.id),
         updatedAt: new Date().toISOString(),
       })
+        .then(() => {
+          if (selectedFloorId === '') return undefined
+          return syncFloorGeometry(selectedFloorId, {
+            walls,
+            rooms: rooms.map(roomToGeometry),
+          })
+        })
         .then(() => syncDevicePlacements(selectedBuildingId, selectedFloorId, devices))
         .then(() => setSaveStatus('saved'))
         .catch(() => setSaveStatus('error'))

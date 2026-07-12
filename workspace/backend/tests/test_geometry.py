@@ -84,6 +84,45 @@ def test_room_crud() -> None:
     assert r.json() == []
 
 
+def test_floor_geometry_sync_replaces_walls_and_rooms() -> None:
+    r = client.post("/api/buildings", json={"name": "Geometry Sync Parent", "total_floors": 1})
+    assert r.status_code == 201
+    building = r.json()
+    r = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1})
+    assert r.status_code == 201
+    floor = r.json()
+
+    first = client.put(
+        f"/api/floors/{floor['id']}/geometry",
+        json={
+            "walls": [{"x1": 0, "y1": 0, "x2": 8, "y2": 0}],
+            "rooms": [{"name": "Lobby", "x": 1, "y": 1, "w": 3, "h": 2}],
+        },
+    )
+    assert first.status_code == 200
+    assert len(first.json()["walls"]) == 1
+    assert first.json()["rooms"][0]["name"] == "Lobby"
+
+    second = client.put(
+        f"/api/floors/{floor['id']}/geometry",
+        json={
+            "walls": [
+                {"x1": 0, "y1": 0, "x2": 4, "y2": 0},
+                {"x1": 4, "y1": 0, "x2": 4, "y2": 4},
+            ],
+            "rooms": [{"name": "Office", "x": 0, "y": 0, "w": 4, "h": 4}],
+        },
+    )
+    assert second.status_code == 200
+    assert len(second.json()["walls"]) == 2
+    assert second.json()["rooms"][0]["name"] == "Office"
+
+    get_response = client.get(f"/api/floors/{floor['id']}/geometry")
+    assert get_response.status_code == 200
+    assert len(get_response.json()["walls"]) == 2
+    assert get_response.json()["rooms"][0]["name"] == "Office"
+
+
 def test_door_crud() -> None:
     r = client.post("/api/buildings", json={"name": "DoorTest", "total_floors": 2})
     assert r.status_code == 201

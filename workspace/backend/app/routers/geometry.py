@@ -9,6 +9,8 @@ from app.schemas import (
     DoorCreate,
     DoorRead,
     DoorUpdate,
+    FloorGeometrySyncPayload,
+    FloorGeometrySyncRead,
     RoomCreate,
     RoomRead,
     RoomUpdate,
@@ -180,6 +182,39 @@ def create_room(floor_id: int, payload: RoomCreate, db: Session = Depends(get_db
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid room data") from exc
     db.refresh(room)
     return room
+
+
+@router.get("/floors/{floor_id}/geometry", response_model=FloorGeometrySyncRead)
+def get_floor_geometry(floor_id: int, db: Session = Depends(get_db)) -> FloorGeometrySyncRead:
+    _ensure_floor_exists(db, floor_id)
+    walls = list(db.scalars(select(Wall).where(Wall.floor_id == floor_id).order_by(Wall.id)))
+    rooms = list(db.scalars(select(Room).where(Room.floor_id == floor_id).order_by(Room.id)))
+    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms)
+
+
+@router.put("/floors/{floor_id}/geometry", response_model=FloorGeometrySyncRead)
+def sync_floor_geometry(
+    floor_id: int,
+    payload: FloorGeometrySyncPayload,
+    db: Session = Depends(get_db),
+) -> FloorGeometrySyncRead:
+    _ensure_floor_exists(db, floor_id)
+    for wall in db.scalars(select(Wall).where(Wall.floor_id == floor_id)):
+        db.delete(wall)
+    for room in db.scalars(select(Room).where(Room.floor_id == floor_id)):
+        db.delete(room)
+
+    walls = [Wall(floor_id=floor_id, **wall.model_dump()) for wall in payload.walls]
+    rooms = [Room(floor_id=floor_id, **room.model_dump()) for room in payload.rooms]
+    db.add_all([*walls, *rooms])
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid floor geometry") from exc
+    for item in [*walls, *rooms]:
+        db.refresh(item)
+    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms)
 
 
 @router.put("/rooms/{room_id}", response_model=RoomRead)

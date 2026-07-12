@@ -359,6 +359,17 @@ class RoomRead(RoomCreate):
 # ── Security Device ──
 
 
+class FloorGeometrySyncPayload(BaseModel):
+    walls: list[WallCreate] = Field(default_factory=list)
+    rooms: list[RoomCreate] = Field(default_factory=list)
+
+
+class FloorGeometrySyncRead(BaseModel):
+    floor_id: int
+    walls: list[WallRead]
+    rooms: list[RoomRead]
+
+
 class SecurityDeviceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     device_type: str = Field(min_length=1, max_length=30)
