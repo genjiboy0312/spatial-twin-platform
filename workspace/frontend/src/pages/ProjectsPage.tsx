@@ -6,6 +6,7 @@ import { createFloor, listFloors, type Floor } from '../api/floors'
 import { usePreferences } from '../app/preferences'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { CreateBuildingModal } from './CreateBuildingModal'
+import { FloorCreateModal } from '../components/FloorCreateModal'
 import { PageHeader } from './PageHeader'
 
 type ProjectIconName = 'building' | 'plus' | 'pin' | 'layers' | 'editor' | 'data' | 'check' | 'arrow'
@@ -170,6 +171,8 @@ export function ProjectsPage() {
   const [floorsLoading, setFloorsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [showFloorModal, setShowFloorModal] = useState(false)
+  const [creatingFloor, setCreatingFloor] = useState(false)
 
   const selectedBuilding = useMemo(
     () => buildings.find((building) => building.id === selectedBuildingId) ?? null,
@@ -178,6 +181,8 @@ export function ProjectsPage() {
   useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
 
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
+  const nextFloorNumber = useMemo(() => Math.max(0, ...floors.map((floor) => floor.floor_number)) + 1, [floors])
+  const existingFloorNumbers = useMemo(() => floors.map((floor) => floor.floor_number), [floors])
 
   const fetchBuildings = useCallback(async () => {
     setLoading(true)
@@ -225,21 +230,21 @@ export function ProjectsPage() {
     setShowModal(false)
   }
 
-  const handleAddFloor = async () => {
+  const handleCreateFloor = async ({ floorNumber, floorName }: { floorNumber: number; floorName: string }) => {
     if (!selectedBuilding) return
-    const defaultNumber = String((floors[0]?.floor_number ?? selectedBuilding.total_floors ?? 0) + 1)
-    const floorNumberInput = window.prompt(labels.promptFloorNumber, defaultNumber)
-    if (!floorNumberInput) return
-    const floorNumber = Number(floorNumberInput)
-    if (!Number.isInteger(floorNumber)) return
-    const floorName = window.prompt(labels.promptFloorName, `${floorNumber}${labels.floorSuffix}`)
-    await createFloor(selectedBuilding.id, {
-      floor_number: floorNumber,
-      ...(floorName?.trim() && { floor_name: floorName.trim() }),
-      height_meters: 3.2,
-      input_type: 'manual',
-    })
-    await fetchFloors(selectedBuilding.id)
+    setCreatingFloor(true)
+    try {
+      await createFloor(selectedBuilding.id, {
+        floor_number: floorNumber,
+        floor_name: floorName,
+        height_meters: 3.2,
+        input_type: 'manual',
+      })
+      await fetchFloors(selectedBuilding.id)
+      setShowFloorModal(false)
+    } finally {
+      setCreatingFloor(false)
+    }
   }
 
   return (
@@ -448,7 +453,7 @@ export function ProjectsPage() {
                     <span className="eyebrow-muted">{labels.stackControl}</span>
                     <h3>{labels.floorManage}</h3>
                   </div>
-                  <button className="project-icon-button" type="button" onClick={handleAddFloor} aria-label={labels.addFloor}>
+                  <button className="project-icon-button" type="button" onClick={() => setShowFloorModal(true)} aria-label={labels.addFloor}>
                     <ProjectIcon name="plus" />
                   </button>
                 </div>
@@ -491,6 +496,15 @@ export function ProjectsPage() {
       </div>
 
       {showModal && <CreateBuildingModal onClose={() => setShowModal(false)} onCreated={handleCreated} />}
+      <FloorCreateModal
+        isOpen={showFloorModal}
+        language={language}
+        defaultFloorNumber={nextFloorNumber}
+        existingFloorNumbers={existingFloorNumbers}
+        isSubmitting={creatingFloor}
+        onClose={() => setShowFloorModal(false)}
+        onSubmit={handleCreateFloor}
+      />
     </section>
   )
 }

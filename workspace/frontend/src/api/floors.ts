@@ -1,4 +1,4 @@
-import { getJson, sendJson } from './client'
+import { authHeaders, getJson, sendJson } from './client'
 
 export type Floor = {
   id: number
@@ -22,4 +22,15 @@ export function listFloors(buildingId: number): Promise<Floor[]> {
 
 export function createFloor(buildingId: number, payload: FloorCreate): Promise<Floor> {
   return sendJson<Floor, FloorCreate>(`/api/buildings/${buildingId}/floors`, 'POST', payload)
+}
+
+export async function deleteFloor(floorId: number): Promise<void> {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  const response = await fetch(`${baseUrl}/api/floors/${floorId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!response.ok) {
+    throw new Error(`Delete floor failed with ${response.status}`)
+  }
 }

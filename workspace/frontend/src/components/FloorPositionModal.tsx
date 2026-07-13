@@ -287,7 +287,12 @@ export function FloorPositionModal({ isOpen, onClose, floors, selectedFloorId, o
                 <strong>층 목록</strong>
                 <span>총 {sortedFloors.length}개 층</span>
               </div>
-              <button type="button" onClick={() => setExpanded((value) => !value)}>
+              <button
+                type="button"
+                className="floor-position-collapse-btn"
+                onClick={() => setExpanded((value) => !value)}
+                aria-expanded={expanded}
+              >
                 {expanded ? '접기' : '펼치기'}
               </button>
             </div>

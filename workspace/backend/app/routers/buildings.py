@@ -140,6 +140,17 @@ def create_floor(building_id: int, payload: FloorCreate, db: Session = Depends(g
     return floor
 
 
+@router.delete("/floors/{floor_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_floor(floor_id: int, db: Session = Depends(get_db)) -> None:
+    floor = db.get(Floor, floor_id)
+    if floor is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Floor not found")
+    if floor.floor_number == 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The 1st floor is the default floor and cannot be deleted")
+    db.delete(floor)
+    db.commit()
+
+
 @router.get("/buildings/{building_id}/spatial-settings", response_model=SpatialSettingsRead)
 def get_building_spatial_settings(building_id: int, db: Session = Depends(get_db)) -> SpatialSettingsRead:
     _get_building_or_404(db, building_id)
