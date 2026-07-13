@@ -27,7 +27,7 @@ import { FloorPositionModal } from '../components/FloorPositionModal'
 import { FloorCreateModal } from '../components/FloorCreateModal'
 
 import { SnapType, type SnapConfig } from '../utils/objectSnap'
-import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
+import { generatePointCloudMesh, listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import {
   getProjectSnapshot,
   listObjectPlacements,
@@ -341,6 +341,8 @@ export function EditorPage() {
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const [meshingPointCloudId, setMeshingPointCloudId] = useState<number | null>(null)
+  const [pointCloudMeshError, setPointCloudMeshError] = useState<string | null>(null)
   const [pointCloudSelectionByFloor, setPointCloudSelectionByFloor] = useState<Record<string, number[]>>({})
   const objectPlacementsRef = useRef<ObjectPlacement[]>([])
   const [editorHydrated, setEditorHydrated] = useState(false)
@@ -713,6 +715,21 @@ export function EditorPage() {
     return floorScoped.filter((upload) => selectedIdSet.has(upload.id))
   }, [pointCloudSelectionByFloor, pointCloudUploads, selectedFloorId])
 
+  const handleGeneratePointCloudMesh = useCallback(async (upload: UploadAsset) => {
+    if (selectedBuildingId === '' || meshingPointCloudId !== null) return
+    setMeshingPointCloudId(upload.id)
+    setPointCloudMeshError(null)
+    try {
+      await generatePointCloudMesh(upload.id)
+      const refreshed = await listUploadsByBuilding(selectedBuildingId)
+      setPointCloudUploads(refreshed.filter((asset) => asset.source_type === 'pointcloud'))
+    } catch (error) {
+      setPointCloudMeshError(error instanceof Error ? error.message : language === 'ko' ? '메시 생성에 실패했습니다.' : 'Mesh generation failed.')
+    } finally {
+      setMeshingPointCloudId(null)
+    }
+  }, [language, meshingPointCloudId, selectedBuildingId])
+
   useEffect(() => {
     if (selectedBuildingId === '' || !editorHydrated || !floorSceneHydrated) return undefined
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
@@ -890,12 +907,31 @@ export function EditorPage() {
             {visiblePointCloudUploads.map((upload, index) => (
               <article key={upload.id} className="editor-pointcloud-object-card">
                 <strong>{upload.filename}</strong>
-                <span>{upload.status === 'ready' ? 'Generating point object' : upload.status}</span>
+                <span>{upload.pointcloud_mesh_url
+                  ? (language === 'ko' ? 'Mesh 준비 완료' : 'Mesh ready')
+                  : upload.status === 'ready'
+                    ? (language === 'ko' ? 'Point 객체 준비 완료' : 'Point object ready')
+                    : upload.status}</span>
                 <small>{upload.floor_id ? `Floor #${upload.floor_id}` : 'Building level'}</small>
+                <div className="editor-pointcloud-card-actions">
+                  <button
+                    type="button"
+                    disabled={meshingPointCloudId !== null || !upload.filename.toLowerCase().endsWith('.las')}
+                    title={!upload.filename.toLowerCase().endsWith('.las') ? 'LAS files are currently supported' : undefined}
+                    onClick={() => handleGeneratePointCloudMesh(upload)}
+                  >
+                    {meshingPointCloudId === upload.id
+                      ? (language === 'ko' ? '생성 중...' : 'Generating...')
+                      : upload.pointcloud_mesh_url
+                        ? (language === 'ko' ? 'Mesh 재생성' : 'Regenerate Mesh')
+                        : (language === 'ko' ? 'Mesh 생성' : 'Generate Mesh')}
+                  </button>
+                </div>
                 <i style={{ width: `${Math.min(92, 34 + index * 12)}%` }} />
               </article>
             ))}
           </div>
+          {pointCloudMeshError && <div className="editor-pointcloud-mesh-error">{pointCloudMeshError}</div>}
         </div>
         <PointCloudGenerationMeter uploads={visiblePointCloudUploads} />
       </>

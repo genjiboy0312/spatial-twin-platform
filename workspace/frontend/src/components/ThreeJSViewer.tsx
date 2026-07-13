@@ -1,8 +1,9 @@
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid } from '@react-three/drei'
 import { AxisIndicator3D } from './AxisIndicator3D'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Wall2D, Room2D, WallOpening2D } from './Canvas2DViewer'
 import type { EditorVisibleLayers, SecurityDevice } from '../stores/editorStore'
 import type { LayerId } from '../stores/layerStore'
@@ -1040,6 +1041,28 @@ function PointCloudObject({ asset, index, pointCount }: { asset: UploadAsset; in
   )
 }
 
+function PointCloudMeshObject({ asset, index }: { asset: UploadAsset; index: number }) {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  const meshUrl = `${baseUrl}${asset.pointcloud_mesh_url}`
+  const gltf = useLoader(GLTFLoader, meshUrl)
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene])
+
+  useEffect(() => {
+    scene.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      child.castShadow = true
+      child.receiveShadow = true
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      materials.forEach((material) => {
+        material.vertexColors = true
+        material.needsUpdate = true
+      })
+    })
+  }, [scene])
+
+  return <primitive object={scene} position={[index * 0.4, 0, index * 0.4]} />
+}
+
 function sceneBounds(walls: Wall2D[], rooms: Room2D[], devices: SecurityDevice[]) {
   const roomXs = rooms.flatMap((room) => room.points?.map((point) => point.x) ?? [room.x, room.x + room.w])
   const roomYs = rooms.flatMap((room) => room.points?.map((point) => point.y) ?? [room.y, room.y + room.h])
@@ -1149,13 +1172,10 @@ function Scene({
         {visibleLayers.heatmap && <HeatmapOverlay rooms={rooms} opacity={layerOpacity.heatmap ?? 0.5} />}
         {visibleLayers.pathway && <PathwayOverlay devices={devices} layerVisibility={layerVisibility} opacity={layerOpacity.pathway ?? 0.5} />}
       </group>
-      {pointClouds?.map((asset, i) => (
-        <PointCloudObject
-          key={asset.id}
-          asset={asset}
-          index={i}
-          pointCount={pointBudgetForAsset(i, pointClouds.length)}
-        />
+      {pointClouds?.map((asset, i) => asset.pointcloud_mesh_url ? (
+        <PointCloudMeshObject key={`mesh-${asset.id}`} asset={asset} index={i} />
+      ) : (
+        <PointCloudObject key={`points-${asset.id}`} asset={asset} index={i} pointCount={pointBudgetForAsset(i, pointClouds.length)} />
       ))}
       {/* Unified grid: large area, same spacing/section pattern as 2D */}
       {visibleLayers.grid && (

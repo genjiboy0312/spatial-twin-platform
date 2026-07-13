@@ -147,6 +147,7 @@ class UploadAssetRead(UploadAssetCreate):
     message: str | None = None
     file_url: str | None = None
     pointcloud_preview_url: str | None = None
+    pointcloud_mesh_url: str | None = None
     parsed_geometry: dict[str, Any] | None = None
     created_at: datetime | None = None
 

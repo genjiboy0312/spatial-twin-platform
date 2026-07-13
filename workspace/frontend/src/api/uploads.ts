@@ -10,6 +10,7 @@ export type UploadAsset = {
   message: string | null
   file_url: string | null
   pointcloud_preview_url: string | null
+  pointcloud_mesh_url: string | null
   created_at: string | null
 }
 
@@ -177,4 +178,8 @@ export async function deleteUpload(uploadId: number): Promise<void> {
   if (!response.ok) {
     throw new Error(`Delete upload failed with ${response.status}`)
   }
+}
+
+export function generatePointCloudMesh(uploadId: number): Promise<UploadAsset> {
+  return sendJson<UploadAsset, Record<string, never>>(`/api/uploads/${uploadId}/pointcloud-mesh`, 'POST', {})
 }

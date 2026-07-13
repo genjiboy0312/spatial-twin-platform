@@ -6139,6 +6139,48 @@ a {
   font-size: 11px;
 }
 
+.editor-pointcloud-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 5px;
+}
+
+.editor-pointcloud-card-actions button {
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.1);
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-pointcloud-card-actions button:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.62);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.editor-pointcloud-card-actions button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.editor-pointcloud-mesh-error {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 3;
+  max-width: min(420px, calc(100% - 36px));
+  padding: 9px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.36);
+  border-radius: 5px;
+  background: rgba(69, 10, 10, 0.86);
+  color: #fecaca;
+  font-size: 11px;
+}
+
 .editor-pointcloud-object-card i {
   left: 0;
   bottom: 0;

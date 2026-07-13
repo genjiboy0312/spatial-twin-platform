@@ -164,6 +164,12 @@ class UploadAsset(Base):
             return None
         return f"/api/uploads/{self.id}/pointcloud-preview"
 
+    @property
+    def pointcloud_mesh_url(self) -> str | None:
+        if self.source_type != "pointcloud" or not self.message or "Mesh ready" not in self.message:
+            return None
+        return f"/api/uploads/{self.id}/pointcloud-mesh"
+
 
 class ProjectAsset(Base):
     __tablename__ = "project_assets"

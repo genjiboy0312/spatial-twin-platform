@@ -17,6 +17,7 @@ from app.db import get_db
 from app.models import Building, Floor, ProjectAsset, Room, UploadAsset, Wall
 from app.schemas import AssetType, ProjectAssetRead, UploadAssetCreate, UploadAssetRead, UploadAssetStatusUpdate, UploadPipelineRead
 from app.services.dxf_parser import DxfParseResult, DxfRoom, parse_dxf_file
+from app.services.pointcloud_mesh import build_voxel_glb
 from app.settings import get_settings
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
@@ -369,6 +370,7 @@ def delete_upload_files(upload: UploadAsset, upload_dir: Path) -> None:
         resolved_cache = cache_path.resolve()
         if upload_dir_resolved in resolved_cache.parents:
             resolved_cache.unlink(missing_ok=True)
+    file_path.with_suffix(f"{file_path.suffix}.mesh.glb").unlink(missing_ok=True)
     if file_path.parent != upload_dir_resolved and upload_dir_resolved in file_path.parent.parents:
         for package_file in file_path.parent.iterdir():
             if package_file.is_file():
@@ -1051,3 +1053,48 @@ def get_pointcloud_preview(
         media_type="application/octet-stream",
         headers={"X-Point-Count": str(point_count), "X-Point-Format": point_format},
     )
+
+
+@router.post("/{upload_id}/pointcloud-mesh", response_model=UploadAssetRead)
+def create_pointcloud_mesh(upload_id: int, db: Session = Depends(get_db)) -> UploadAsset:
+    settings = get_settings()
+    upload = db.get(UploadAsset, upload_id)
+    if upload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
+    if upload.source_type != "pointcloud":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload is not a pointcloud")
+
+    file_path = upload_file_path(upload, Path(settings.upload_dir))
+    if file_path.suffix.lower() != ".las":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mesh generation currently supports LAS files")
+
+    upload.status = "converting"
+    db.commit()
+    try:
+        preview, _, _ = las_preview_bytes(file_path, 200_000)
+        mesh_path = file_path.with_suffix(f"{file_path.suffix}.mesh.glb")
+        result = build_voxel_glb(preview, mesh_path)
+        base_message = (upload.message or "").split(" | Mesh ready", 1)[0]
+        upload.message = f"{base_message} | Mesh ready ({result['triangle_count']} triangles)"
+        upload.status = "ready"
+        db.commit()
+        db.refresh(upload)
+        return upload
+    except Exception as exc:
+        upload.status = "failed"
+        db.commit()
+        logger.exception("PointCloud mesh generation failed for upload %s", upload_id)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Mesh generation failed: {exc}") from exc
+
+
+@router.get("/{upload_id}/pointcloud-mesh")
+def get_pointcloud_mesh(upload_id: int, db: Session = Depends(get_db)) -> FileResponse:
+    settings = get_settings()
+    upload = db.get(UploadAsset, upload_id)
+    if upload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
+    file_path = upload_file_path(upload, Path(settings.upload_dir))
+    mesh_path = file_path.with_suffix(f"{file_path.suffix}.mesh.glb")
+    if not mesh_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PointCloud mesh is not ready")
+    return FileResponse(mesh_path, media_type="model/gltf-binary", filename=f"{file_path.stem}-mesh.glb")
