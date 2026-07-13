@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
-import { createFloor, listFloors, type Floor } from '../api/floors'
+import { createFloor, deleteFloor, listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection, type ProjectSnapshot } from '../api/projectData'
-import { getUploadPipeline, listUploadsByBuilding, uploadFile, type UploadAsset, type UploadPipeline } from '../api/uploads'
+import { deleteUpload, getUploadPipeline, listUploadsByBuilding, uploadFile, uploadModelPackage, type UploadAsset, type UploadPipeline } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
+import { FloorCreateModal } from '../components/FloorCreateModal'
+import { Modal } from '../components/Modal'
 import { PageHeader } from './PageHeader'
 
 type SourceType = 'image' | 'dxf' | 'ifc' | 'glb' | 'pointcloud'
@@ -26,6 +28,56 @@ const sourceEmoji: Record<SourceType, string> = {
   ifc: '🏢',
   glb: '🧊',
   pointcloud: '☁️',
+}
+
+type ModelPackageSlots = {
+  gltf: string | null
+  glb: string | null
+  bin: string[]
+  textures: string[]
+}
+
+function emptyModelPackageSlots(): ModelPackageSlots {
+  return { gltf: null, glb: null, bin: [], textures: [] }
+}
+
+function isModelTexture(name: string) {
+  return /\.(png|jpg|jpeg|webp)$/i.test(name)
+}
+
+function isModelPackageFile(name: string) {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.glb') || lower.endsWith('.gltf') || lower.endsWith('.bin') || isModelTexture(lower)
+}
+
+function dedupeFilesByName(files: File[]) {
+  const byName = new Map<string, File>()
+  files.forEach((file) => {
+    const key = file.name.toLowerCase()
+    if (byName.has(key)) byName.delete(key)
+    byName.set(key, file)
+  })
+  return Array.from(byName.values())
+}
+
+function modelPackageSlots(files: File[]): ModelPackageSlots {
+  const slots = emptyModelPackageSlots()
+  files.forEach((file) => {
+    const lower = file.name.toLowerCase()
+    if (lower.endsWith('.glb')) slots.glb = file.name
+    else if (lower.endsWith('.gltf')) slots.gltf = file.name
+    else if (lower.endsWith('.bin')) slots.bin.push(file.name)
+    else if (isModelTexture(lower)) slots.textures.push(file.name)
+  })
+  return slots
+}
+
+function stageModelFiles(currentFiles: File[], incomingFiles: File[]) {
+  const normalized = dedupeFilesByName(incomingFiles.filter((file) => isModelPackageFile(file.name)))
+  if (normalized.length === 0) return currentFiles
+  const glbFiles = normalized.filter((file) => file.name.toLowerCase().endsWith('.glb'))
+  if (glbFiles.length > 0) return [glbFiles[glbFiles.length - 1]!]
+  return dedupeFilesByName([...currentFiles.filter((file) => !file.name.toLowerCase().endsWith('.glb')), ...normalized])
 }
 
 const copy = {
@@ -292,9 +344,16 @@ function uploadAccept(sourceType: SourceType) {
     image: '.png,.jpg,.jpeg',
     dxf: '.dxf,.dwg',
     ifc: '.ifc',
-    glb: '.glb,.gltf',
+    glb: '.glb,.gltf,.bin,.png,.jpg,.jpeg,.webp',
     pointcloud: '.las,.laz,.ply',
   }[sourceType]
+}
+
+function uploadSourceTypeForFile(sourceType: SourceType, file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (sourceType === 'dxf' && extension === 'dwg') return 'dwg'
+  if (sourceType === 'glb' && extension === 'gltf') return 'glb'
+  return sourceType
 }
 
 function uploadHasFloorData(floor: Floor, uploads: UploadAsset[]) {
@@ -348,6 +407,7 @@ export function DataSourcesPage() {
   const labels = copy[language]
   const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const folderInputRef = useRef<HTMLInputElement | null>(null)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
   const [floors, setFloors] = useState<Floor[]>([])
@@ -355,10 +415,14 @@ export function DataSourcesPage() {
   const [uploads, setUploads] = useState<UploadAsset[]>([])
   const [activeTab, setActiveTab] = useState<SourceType>('image')
   const [file, setFile] = useState<File | null>(null)
-  const [newFloorNumber, setNewFloorNumber] = useState('')
+  const [modelFiles, setModelFiles] = useState<File[]>([])
   const [creatingFloor, setCreatingFloor] = useState(false)
+  const [isFloorCreateOpen, setIsFloorCreateOpen] = useState(false)
+  const [floorDeleteNotice, setFloorDeleteNotice] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [savingSnapshot, setSavingSnapshot] = useState(false)
+  const [deletingUploadId, setDeletingUploadId] = useState<number | null>(null)
+  const [deletingFloorId, setDeletingFloorId] = useState<number | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null)
   const [pipelines, setPipelines] = useState<Record<number, UploadPipeline>>({})
@@ -375,11 +439,16 @@ export function DataSourcesPage() {
   useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
   const selectedFloor = useMemo(() => floors.find((floor) => floor.id === selectedFloorId) ?? null, [floors, selectedFloorId])
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
+  const nextFloorNumber = useMemo(() => Math.max(0, ...floors.map((floor) => floor.floor_number)) + 1, [floors])
+  const existingFloorNumbers = useMemo(() => floors.map((floor) => floor.floor_number), [floors])
   const connectedFloorCount = useMemo(
     () => floors.filter((floor) => uploadHasFloorData(floor, uploads)).length,
     [floors, uploads],
   )
   const latestUploads = useMemo(() => uploads.slice().reverse().slice(0, 6), [uploads])
+  const modelSlots = useMemo(() => modelPackageSlots(modelFiles), [modelFiles])
+  const modelIsGltfMode = !modelSlots.glb && (modelSlots.gltf !== null || modelSlots.bin.length > 0 || modelSlots.textures.length > 0)
+  const modelReady = Boolean(modelSlots.glb || (modelSlots.gltf && modelSlots.bin.length > 0 && modelSlots.textures.length > 0))
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -447,7 +516,9 @@ export function DataSourcesPage() {
 
   const clearFileSelection = () => {
     setFile(null)
+    setModelFiles([])
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (folderInputRef.current) folderInputRef.current.value = ''
   }
 
   const handleSourceButtonClick = (sourceType: SourceType) => {
@@ -471,12 +542,36 @@ export function DataSourcesPage() {
     setUploading(true)
     setStatusMessage(null)
     try {
-      await uploadFile(selectedFile, activeTab, selectedBuildingId, selectedFloorId)
+      await uploadFile(selectedFile, uploadSourceTypeForFile(activeTab, selectedFile), selectedBuildingId, selectedFloorId, {
+        scale_px_per_meter: activeTab === 'image' ? scalePxPerMeter : undefined,
+        scale_factor: activeTab === 'dxf' ? dxfScaleFactor : undefined,
+        height_meters: activeTab === 'dxf' && dxfHeight !== '' ? Number(dxfHeight) : undefined,
+        invert_y_axis: activeTab === 'dxf' ? invertYAxis : undefined,
+        floor_level: activeTab === 'ifc' ? floorLevel : undefined,
+      })
       clearFileSelection()
       await loadBuildingData(selectedBuildingId)
       setStatusMessage(labels.uploadComplete)
-    } catch {
-      setStatusMessage(labels.uploadFailed)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : labels.uploadFailed
+      setStatusMessage(message || labels.uploadFailed)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleModelPackageUpload = async () => {
+    if (selectedBuildingId === null || selectedFloorId === null || modelFiles.length === 0 || !modelReady) return
+    setUploading(true)
+    setStatusMessage(null)
+    try {
+      await uploadModelPackage(modelFiles, selectedBuildingId, selectedFloorId)
+      clearFileSelection()
+      await loadBuildingData(selectedBuildingId)
+      setStatusMessage(labels.uploadComplete)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : labels.uploadFailed
+      setStatusMessage(message || labels.uploadFailed)
     } finally {
       setUploading(false)
     }
@@ -509,7 +604,15 @@ export function DataSourcesPage() {
   }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] ?? null
+    const selectedFiles = Array.from(event.target.files ?? [])
+    if (activeTab === 'glb') {
+      setModelFiles((current) => stageModelFiles(current, selectedFiles))
+      setStatusMessage(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (folderInputRef.current) folderInputRef.current.value = ''
+      return
+    }
+    const nextFile = selectedFiles[0] ?? null
     setFile(nextFile)
     setStatusMessage(null)
     if (nextFile) {
@@ -517,22 +620,62 @@ export function DataSourcesPage() {
     }
   }
 
-  const handleAddFloor = async () => {
-    if (selectedBuildingId === null || !newFloorNumber.trim()) return
-    const floorNumber = Number(newFloorNumber)
-    if (!Number.isInteger(floorNumber)) return
+  const handleCreateFloor = async ({ floorNumber, floorName }: { floorNumber: number; floorName: string }) => {
+    if (selectedBuildingId === null) return
     setCreatingFloor(true)
     try {
       const created = await createFloor(selectedBuildingId, {
         floor_number: floorNumber,
-        floor_name: `${floorNumber}${labels.floorSuffix}`,
+        floor_name: floorName,
         height_meters: 3.2,
+        input_type: 'manual',
       })
-      setNewFloorNumber('')
       await loadBuildingData(selectedBuildingId)
       setSelectedFloorId(created.id)
+      setIsFloorCreateOpen(false)
     } finally {
       setCreatingFloor(false)
+    }
+  }
+
+  const handleDeleteFloor = async (floorId: number) => {
+    if (selectedBuildingId === null || deletingFloorId !== null) return
+    const targetFloor = floors.find((floor) => floor.id === floorId)
+    if (targetFloor?.floor_number === 1) {
+      setFloorDeleteNotice(language === 'ko'
+        ? '1층은 기본 층이라 삭제할 수 없습니다. 건물 기준 데이터와 기본 편집 씬이 1층을 기준으로 연결됩니다.'
+        : 'The 1st floor is the default floor and cannot be deleted. Building data and the base editor scene depend on it.')
+      return
+    }
+    const confirmMessage = language === 'ko' ? '이 층과 연결된 소스 데이터를 삭제할까요?' : 'Delete this floor and connected source data?'
+    if (!window.confirm(confirmMessage)) return
+    setDeletingFloorId(floorId)
+    setStatusMessage(null)
+    try {
+      await deleteFloor(floorId)
+      await loadBuildingData(selectedBuildingId)
+      setStatusMessage(language === 'ko' ? '삭제되었습니다. 작업 공간을 새로고침했습니다.' : 'Deleted. The workspace has been refreshed.')
+    } catch {
+      setStatusMessage(language === 'ko' ? '삭제에 실패했습니다. 다시 시도해 주세요.' : 'Delete failed. Please try again.')
+    } finally {
+      setDeletingFloorId(null)
+    }
+  }
+
+  const handleDeleteUpload = async (uploadId: number) => {
+    if (selectedBuildingId === null || deletingUploadId !== null) return
+    const confirmMessage = language === 'ko' ? '이 업로드 소스를 삭제할까요?' : 'Delete this uploaded source?'
+    if (!window.confirm(confirmMessage)) return
+    setDeletingUploadId(uploadId)
+    setStatusMessage(null)
+    try {
+      await deleteUpload(uploadId)
+      await loadBuildingData(selectedBuildingId)
+      setStatusMessage(language === 'ko' ? '삭제되었습니다. 작업 공간을 새로고침했습니다.' : 'Deleted. The workspace has been refreshed.')
+    } catch {
+      setStatusMessage(language === 'ko' ? '삭제에 실패했습니다. 다시 시도해 주세요.' : 'Delete failed. Please try again.')
+    } finally {
+      setDeletingUploadId(null)
     }
   }
 
@@ -586,32 +729,42 @@ export function DataSourcesPage() {
               const isSelected = floor.id === selectedFloorId
               const isConnected = uploadHasFloorData(floor, uploads)
               return (
-                <button
+                <div
                   key={floor.id}
                   className={`datasource-floor-item ${isSelected ? 'selected' : ''}`}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedFloorId(floor.id)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    setSelectedFloorId(floor.id)
+                  }}
                 >
                   <span className="datasource-floor-main">
                     <strong>{floorLabel(floor, labels.floorSuffix)}</strong>
                     <small>#{floor.id} / {floor.height_meters}m</small>
                   </span>
                   <span className={`datasource-status-dot ${isConnected ? 'connected' : ''}`} title={isConnected ? labels.connected : labels.waiting} />
-                </button>
+                  <button
+                    className="datasource-inline-delete"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void handleDeleteFloor(floor.id)
+                    }}
+                    disabled={deletingFloorId === floor.id}
+                  >
+                    {deletingFloorId === floor.id ? (language === 'ko' ? '삭제 중...' : 'Deleting...') : (language === 'ko' ? '삭제' : 'Delete')}
+                  </button>
+                </div>
               )
             })}
           </div>
 
           {selectedBuilding && (
             <div className="datasource-add-floor">
-              <input
-                className="text-input"
-                type="number"
-                placeholder={labels.floorNumber}
-                value={newFloorNumber}
-                onChange={(event) => setNewFloorNumber(event.target.value)}
-              />
-              <button className="btn btn-secondary" type="button" onClick={handleAddFloor} disabled={creatingFloor || !newFloorNumber.trim()}>
+              <button className="btn btn-secondary" type="button" onClick={() => setIsFloorCreateOpen(true)} disabled={creatingFloor}>
                 {creatingFloor ? labels.creating : labels.addFloor}
               </button>
             </div>
@@ -660,11 +813,26 @@ export function DataSourcesPage() {
                 ))}
               </div>
 
-              <input ref={fileInputRef} type="file" accept={uploadAccept(activeTab)} onChange={handleFileChange} hidden />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={uploadAccept(activeTab)}
+                multiple={activeTab === 'glb'}
+                onChange={handleFileChange}
+                hidden
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+                onChange={handleFileChange}
+                hidden
+              />
 
               {statusMessage && (
-                <div className={`datasource-status-bar ${statusMessage === labels.uploadFailed ? 'error' : 'success'}`}>
-                  <DataSourceIcon name={statusMessage === labels.uploadFailed ? 'warning' : 'check'} />
+                <div className={`datasource-status-bar ${statusMessage === labels.uploadComplete ? 'success' : 'error'}`}>
+                  <DataSourceIcon name={statusMessage === labels.uploadComplete ? 'check' : 'warning'} />
                   {statusMessage}
                 </div>
               )}
@@ -690,17 +858,63 @@ export function DataSourcesPage() {
                   </div>
                 )}
 
-                <div className="datasource-upload-button-row">
-                  <button className="btn btn-primary datasource-choose-file-button" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                    <DataSourceIcon name={uploading ? 'check' : activeSource?.icon ?? 'upload'} />
-                    {uploading ? labels.uploading : labels.chooseFile}
-                  </button>
-                  <button className="btn btn-secondary datasource-reset-button" type="button" onClick={resetUploadState} disabled={uploading}>
-                    {labels.reset}
-                  </button>
-                </div>
+                {activeTab === 'glb' ? (
+                  <div className="datasource-model-package">
+                    {modelFiles.length > 0 && (
+                      <div className="datasource-model-file-list">
+                        {modelFiles.map((modelFile, index) => (
+                          <span key={`${modelFile.name}-${index}`} title={modelFile.name}>
+                            {modelFile.name}
+                            <button
+                              type="button"
+                              onClick={() => setModelFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+                              disabled={uploading}
+                              aria-label={`${modelFile.name} remove`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(modelIsGltfMode || modelFiles.length > 0) && (
+                      <div className="datasource-model-slots">
+                        <span className={modelSlots.glb || modelSlots.gltf ? 'filled' : ''}>GLB/GLTF</span>
+                        <span className={modelSlots.glb || modelSlots.bin.length > 0 ? 'filled' : ''}>BIN</span>
+                        <span className={modelSlots.glb || modelSlots.textures.length > 0 ? 'filled' : ''}>Texture</span>
+                      </div>
+                    )}
+                    <div className="datasource-upload-button-row">
+                      <button className="btn btn-secondary datasource-choose-file-button" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <DataSourceIcon name="box" />
+                        파일 추가
+                      </button>
+                      <button className="btn btn-secondary datasource-choose-file-button" type="button" onClick={() => folderInputRef.current?.click()} disabled={uploading}>
+                        <DataSourceIcon name="layers" />
+                        폴더 추가
+                      </button>
+                      <button className="btn btn-primary datasource-choose-file-button" type="button" onClick={handleModelPackageUpload} disabled={uploading || !modelReady}>
+                        <DataSourceIcon name={uploading ? 'check' : 'upload'} />
+                        {uploading ? labels.uploading : modelReady ? '모델 업로드' : '필수 파일 대기'}
+                      </button>
+                      <button className="btn btn-secondary datasource-reset-button" type="button" onClick={resetUploadState} disabled={uploading}>
+                        {labels.reset}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="datasource-upload-button-row">
+                    <button className="btn btn-primary datasource-choose-file-button" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      <DataSourceIcon name={uploading ? 'check' : activeSource?.icon ?? 'upload'} />
+                      {uploading ? labels.uploading : labels.chooseFile}
+                    </button>
+                    <button className="btn btn-secondary datasource-reset-button" type="button" onClick={resetUploadState} disabled={uploading}>
+                      {labels.reset}
+                    </button>
+                  </div>
+                )}
 
-                {file && (
+                {file && activeTab !== 'glb' && (
                   <div className="datasource-selected-file">
                     <span>{labels.selectedFile}</span>
                     <strong>{file.name}</strong>
@@ -887,6 +1101,14 @@ export function DataSourcesPage() {
                         </div>
                       )}
                       {pipeline?.next_actions[0] && <small className="datasource-next-action">{pipeline.next_actions[0]}</small>}
+                      <button
+                        className="datasource-upload-delete-btn"
+                        type="button"
+                        onClick={() => void handleDeleteUpload(upload.id)}
+                        disabled={deletingUploadId === upload.id}
+                      >
+                        {deletingUploadId === upload.id ? (language === 'ko' ? '삭제 중...' : 'Deleting...') : (language === 'ko' ? '삭제' : 'Delete')}
+                      </button>
                     </article>
                   )
                 })}
@@ -895,6 +1117,27 @@ export function DataSourcesPage() {
           </section>
         </aside>
       </div>
+      <FloorCreateModal
+        isOpen={isFloorCreateOpen}
+        language={language}
+        defaultFloorNumber={nextFloorNumber}
+        existingFloorNumbers={existingFloorNumbers}
+        isSubmitting={creatingFloor}
+        onClose={() => setIsFloorCreateOpen(false)}
+        onSubmit={handleCreateFloor}
+      />
+      <Modal
+        isOpen={floorDeleteNotice !== null}
+        onClose={() => setFloorDeleteNotice(null)}
+        title={language === 'ko' ? '기본 층은 삭제할 수 없습니다' : 'Default floor cannot be deleted'}
+      >
+        <p className="floor-create-modal-hint">{floorDeleteNotice}</p>
+        <div className="modal-actions">
+          <button className="btn btn-primary" type="button" onClick={() => setFloorDeleteNotice(null)}>
+            {language === 'ko' ? '확인' : 'OK'}
+          </button>
+        </div>
+      </Modal>
     </section>
   )
 }

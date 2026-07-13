@@ -111,7 +111,6 @@ export function OsmTileMapPanel({
   }, [mapZoom, onViewChange])
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
     const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, mapZoom + (event.deltaY > 0 ? -1 : 1)))
     updateView(mapCenter, nextZoom)
   }, [mapCenter, mapZoom, updateView])

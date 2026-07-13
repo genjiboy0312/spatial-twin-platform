@@ -66,6 +66,12 @@ export const ChevronLeft: FC<Props> = (p) => (
 export const ChevronRight: FC<Props> = (p) => (
   <Svg {...p}><path d="m9 18 6-6-6-6" /></Svg>
 )
+export const Eye: FC<Props> = (p) => (
+  <Svg {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Svg>
+)
+export const EyeOff: FC<Props> = (p) => (
+  <Svg {...p}><path d="m2 2 20 20" /><path d="M6.7 6.7C3.6 8.6 2 12 2 12s3 7 10 7c1.8 0 3.4-.4 4.7-1" /><path d="M19.3 15.3C21.1 13.6 22 12 22 12s-3-7-10-7c-.9 0-1.8.1-2.6.4" /></Svg>
+)
 
 export const Camera: FC<Props> = (p) => (
   <Svg {...p}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></Svg>

@@ -492,7 +492,6 @@ export function OSMOriginPickerPopup({
   )
 
   const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
     const delta = event.deltaY > 0 ? -1 : 1
     setMapZoom((zoom) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom + delta)))
   }, [])
