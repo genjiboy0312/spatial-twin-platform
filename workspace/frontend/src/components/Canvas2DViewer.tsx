@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 
-import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
+import type { EditorVisibleLayers, SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
+import type { LayerId } from '../stores/layerStore'
 
 export type Wall2D = { x1: number; y1: number; x2: number; y2: number }
 export type Room2D = {
@@ -29,6 +30,19 @@ type OpeningCursorPreview = {
   width: number
 }
 
+function openingLayerId(type: WallOpening2D['type']): LayerId {
+  if (type === 'door') return 'doors'
+  if (type === 'window') return 'windows'
+  return 'passages'
+}
+
+function deviceLayerId(type: SecurityDeviceType): LayerId {
+  if (type === 'camera') return 'cameras'
+  if (type === 'sensor') return 'sensors'
+  if (type === 'alarm') return 'alarms'
+  return 'access'
+}
+
 type EditMode = 'select' | 'wall' | 'delete' | 'device' | 'room' | 'door' | 'window' | 'opening'
 type Props = {
   walls: Wall2D[]
@@ -40,7 +54,9 @@ type Props = {
   selectedOpeningIdx?: number | null
   selectedDeviceIdx?: number | null
   editMode: EditMode
-  visibleLayers: { walls: boolean; rooms: boolean; devices: boolean }
+  visibleLayers: EditorVisibleLayers
+  layerVisibility?: Partial<Record<LayerId, boolean>>
+  layerOpacity?: Partial<Record<LayerId, number>>
   showEndpoints?: boolean
   width?: number
   height?: number
@@ -329,6 +345,8 @@ export function Canvas2DViewer({
   selectedDeviceIdx,
   editMode,
   visibleLayers,
+  layerVisibility = {},
+  layerOpacity = {},
   showEndpoints = true,
   onSelectWall,
   onSelectRoom,
@@ -504,7 +522,8 @@ export function Canvas2DViewer({
 
     // Grid spacing in world units (fixed screen pixel spacing)
     const gridStep = GRID_PX_SPACING / effectiveScale
-    if (gridStep > 0.001) {
+    if (visibleLayers.grid && gridStep > 0.001) {
+      ctx.globalAlpha = layerOpacity.grid ?? 1
       const cellColor = 'rgba(148, 163, 184, 0.08)'
       const sectionColor = 'rgba(148, 163, 184, 0.18)'
       const sectionStep = gridStep * SECTION_MULTIPLE
@@ -555,10 +574,12 @@ export function Canvas2DViewer({
         ctx.lineTo(effectiveOx + vRight * effectiveScale, sy)
         ctx.stroke()
       }
+      ctx.globalAlpha = 1
     }
 
     // ── Rooms ──
     if (visibleLayers.rooms) {
+      ctx.globalAlpha = layerOpacity.rooms ?? 1
       for (const [i, room] of rooms.entries()) {
         const isSel = i === selectedRoomIdx
         ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.15)' : 'rgba(148, 163, 184, 0.06)'
@@ -590,10 +611,34 @@ export function Canvas2DViewer({
           ctx.fillText(room.label, effectiveOx + (room.x + room.w / 2) * effectiveScale, effectiveOy + (room.y + room.h / 2) * effectiveScale + 4)
         }
       }
+      ctx.globalAlpha = 1
+    }
+
+    if (visibleLayers.heatmap && rooms.length > 0) {
+      ctx.globalAlpha = layerOpacity.heatmap ?? 0.5
+      for (const [i, room] of rooms.entries()) {
+        const intensity = 0.18 + (i % 4) * 0.08
+        ctx.fillStyle = `rgba(251, 113, 133, ${intensity})`
+        if (room.points && room.points.length >= 3) {
+          ctx.beginPath()
+          room.points.forEach((point, pointIndex) => {
+            const sx = effectiveOx + point.x * effectiveScale
+            const sy = effectiveOy + point.y * effectiveScale
+            if (pointIndex === 0) ctx.moveTo(sx, sy)
+            else ctx.lineTo(sx, sy)
+          })
+          ctx.closePath()
+          ctx.fill()
+        } else {
+          ctx.fillRect(effectiveOx + room.x * effectiveScale, effectiveOy + room.y * effectiveScale, room.w * effectiveScale, room.h * effectiveScale)
+        }
+      }
+      ctx.globalAlpha = 1
     }
 
     // ── Walls ──
     if (visibleLayers.walls) {
+      ctx.globalAlpha = layerOpacity.walls ?? 1
       for (const [i, w] of walls.entries()) {
         const isSel = i === selectedWallIdx
         ctx.beginPath()
@@ -615,9 +660,14 @@ export function Canvas2DViewer({
           }
         }
       }
+      ctx.globalAlpha = 1
     }
 
-    for (const [openingIdx, opening] of openings.entries()) {
+    if (visibleLayers.openings) {
+      for (const [openingIdx, opening] of openings.entries()) {
+      const openingLayer = openingLayerId(opening.type)
+      if (layerVisibility[openingLayer] === false) continue
+      ctx.globalAlpha = layerOpacity[openingLayer] ?? 1
       const wall = walls[opening.wallIdx]
       if (!wall) continue
       const point = nearestPointOnWall(
@@ -645,9 +695,12 @@ export function Canvas2DViewer({
           ctx.fill()
         }
       }
+      }
+      ctx.globalAlpha = 1
     }
 
-    if (openingPreview) {
+    if (visibleLayers.openings && openingPreview && layerVisibility[openingLayerId(openingPreview.type)] !== false) {
+      ctx.globalAlpha = layerOpacity[openingLayerId(openingPreview.type)] ?? 1
       const wall = walls[openingPreview.wallIdx]
       if (wall) {
         const point = nearestPointOnWall(
@@ -665,9 +718,11 @@ export function Canvas2DViewer({
           openingPreview.width * effectiveScale,
         )
       }
+      ctx.globalAlpha = 1
     }
 
-    if (openingCursorPreview) {
+    if (visibleLayers.openings && openingCursorPreview && layerVisibility[openingLayerId(openingCursorPreview.type)] !== false) {
+      ctx.globalAlpha = layerOpacity[openingLayerId(openingCursorPreview.type)] ?? 1
       drawWallMarker(
         ctx,
         effectiveOx + openingCursorPreview.x * effectiveScale,
@@ -676,11 +731,15 @@ export function Canvas2DViewer({
         openingCursorPreview.type,
         openingCursorPreview.width * effectiveScale,
       )
+      ctx.globalAlpha = 1
     }
 
     // ── Devices ──
     if (visibleLayers.devices) {
       for (const [i, d] of devices.entries()) {
+        const opacityKey = d.device_type === 'camera' ? 'cameras' : d.device_type === 'sensor' ? 'sensors' : d.device_type === 'alarm' ? 'alarms' : 'access'
+        if (layerVisibility[opacityKey] === false) continue
+        ctx.globalAlpha = layerOpacity[opacityKey] ?? 1
         const cx = effectiveOx + d.x * effectiveScale
         const cy = effectiveOy + d.y * effectiveScale
         drawDevice(ctx, d.device_type, cx, cy, i === selectedDeviceIdx)
@@ -688,6 +747,47 @@ export function Canvas2DViewer({
         ctx.font = '10px Inter, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(d.name, cx, cy + 20)
+        ctx.globalAlpha = 1
+      }
+    }
+
+    if (visibleLayers.coverage) {
+      ctx.globalAlpha = layerOpacity.coverage ?? 0.5
+      for (const d of devices) {
+        const opacityKey = d.device_type === 'camera' ? 'cameras' : d.device_type === 'sensor' ? 'sensors' : d.device_type === 'alarm' ? 'alarms' : 'access'
+        if (layerVisibility[opacityKey] === false) continue
+        if (d.device_type !== 'camera' && d.device_type !== 'sensor') continue
+        const cx = effectiveOx + d.x * effectiveScale
+        const cy = effectiveOy + d.y * effectiveScale
+        const radius = (d.device_type === 'camera' ? 4.5 : 2.8) * effectiveScale
+        const gradient = ctx.createRadialGradient(cx, cy, 4, cx, cy, radius)
+        gradient.addColorStop(0, d.device_type === 'camera' ? 'rgba(56, 189, 248, 0.28)' : 'rgba(34, 197, 94, 0.26)')
+        gradient.addColorStop(1, 'rgba(56, 189, 248, 0)')
+        ctx.fillStyle = gradient
+        ctx.beginPath()
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
+    }
+
+    if (visibleLayers.pathway && devices.length >= 2) {
+      const pathDevices = devices.filter((device) => layerVisibility[device.device_type === 'camera' ? 'cameras' : device.device_type === 'sensor' ? 'sensors' : device.device_type === 'alarm' ? 'alarms' : 'access'] !== false)
+      if (pathDevices.length >= 2) {
+        ctx.globalAlpha = layerOpacity.pathway ?? 0.5
+        ctx.beginPath()
+        pathDevices.forEach((device, index) => {
+          const x = effectiveOx + device.x * effectiveScale
+          const y = effectiveOy + device.y * effectiveScale
+          if (index === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        })
+        ctx.strokeStyle = '#22d3ee'
+        ctx.lineWidth = 2
+        ctx.setLineDash([8, 7])
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.globalAlpha = 1
       }
     }
 
@@ -757,7 +857,7 @@ export function Canvas2DViewer({
     ctx.textAlign = 'center'
     ctx.fillText(`${barMeters}m`, width - PADDING - barPx / 2, height - 28)
   }, [
-    walls, rooms, openings, devices, selectedWallIdx, selectedRoomIdx, selectedOpeningIdx, selectedDeviceIdx, editMode, visibleLayers,
+    walls, rooms, openings, devices, selectedWallIdx, selectedRoomIdx, selectedOpeningIdx, selectedDeviceIdx, editMode, visibleLayers, layerVisibility, layerOpacity,
     drawLine, snapPointVisible, dragInfo, endpointDragInfo, roomDrag, openingPreview, openingCursorPreview, showEndpoints, width, height, maxX, maxY, baseScale, baseOx, baseOy,
     cameraZoom, cameraOffset,
   ])
@@ -784,7 +884,9 @@ export function Canvas2DViewer({
     const wPos = screenToWorld(pos.x, pos.y)
 
     if (editMode === 'select') {
-      const endpointHit = showEndpoints ? findNearestEndpoint(wPos.x, wPos.y, walls, effectiveScale) : null
+      const endpointHit = showEndpoints && visibleLayers.walls && layerVisibility.walls !== false
+        ? findNearestEndpoint(wPos.x, wPos.y, walls, effectiveScale)
+        : null
       if (endpointHit) {
         onSelectWall?.(endpointHit.wallIdx)
         onBeginEdit?.()
@@ -792,12 +894,18 @@ export function Canvas2DViewer({
         setEndpointDragInfo({ wallIdx: endpointHit.wallIdx, endpoint: endpointHit.endpoint })
         return
       }
-      const openingIdx = findOpeningIdx(wPos.x, wPos.y, walls, openings, effectiveScale)
+      const selectableOpenings = visibleLayers.openings
+        ? openings.map((opening, index) => ({ opening, index })).filter(({ opening }) => layerVisibility[openingLayerId(opening.type)] !== false)
+        : []
+      const localOpeningIdx = findOpeningIdx(wPos.x, wPos.y, walls, selectableOpenings.map(({ opening }) => opening), effectiveScale)
+      const openingIdx = localOpeningIdx >= 0 ? selectableOpenings[localOpeningIdx]!.index : -1
       if (openingIdx >= 0) {
         onSelectOpening?.(openingIdx)
         return
       }
-      const wIdx = findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+      const wIdx = visibleLayers.walls && layerVisibility.walls !== false
+        ? findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+        : -1
       if (wIdx >= 0) {
         onSelectWall?.(wIdx)
         onBeginEdit?.()
@@ -809,11 +917,13 @@ export function Canvas2DViewer({
         })
         return
       }
-      const rIdx = findRoomIdx(wPos.x, wPos.y, rooms)
+      const rIdx = visibleLayers.rooms && layerVisibility.rooms !== false ? findRoomIdx(wPos.x, wPos.y, rooms) : -1
       if (rIdx >= 0) {
         onSelectRoom?.(rIdx)
       } else {
-        const dIdx = devices.findIndex((d) => Math.hypot(wPos.x - d.x, wPos.y - d.y) < 0.5)
+        const dIdx = visibleLayers.devices
+          ? devices.findIndex((d) => layerVisibility[deviceLayerId(d.device_type)] !== false && Math.hypot(wPos.x - d.x, wPos.y - d.y) < 0.5)
+          : -1
         if (dIdx >= 0) {
           onSelectDevice?.(dIdx)
         } else {
@@ -1011,13 +1121,19 @@ export function Canvas2DViewer({
     // Delete mode
     if (editMode === 'delete') {
       const wPos = screenToWorld(pos.x, pos.y)
-      const openingIdx = findOpeningIdx(wPos.x, wPos.y, walls, openings, effectiveScale)
+      const selectableOpenings = visibleLayers.openings
+        ? openings.map((opening, index) => ({ opening, index })).filter(({ opening }) => layerVisibility[openingLayerId(opening.type)] !== false)
+        : []
+      const localOpeningIdx = findOpeningIdx(wPos.x, wPos.y, walls, selectableOpenings.map(({ opening }) => opening), effectiveScale)
+      const openingIdx = localOpeningIdx >= 0 ? selectableOpenings[localOpeningIdx]!.index : -1
       if (openingIdx >= 0) {
         onSelectOpening?.(openingIdx)
         onDeleteOpening?.(openingIdx)
         return
       }
-      const wIdx = findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+      const wIdx = visibleLayers.walls && layerVisibility.walls !== false
+        ? findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+        : -1
       if (wIdx >= 0) {
         onSelectWall?.(wIdx)
         onDeleteAt?.(wPos.x, wPos.y)

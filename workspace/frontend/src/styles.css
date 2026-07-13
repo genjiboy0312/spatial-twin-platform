@@ -10555,6 +10555,20 @@ a {
   justify-content: space-between;
   margin-bottom: 8px;
 }
+.layer-reset-btn {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(39, 39, 42, 0.45);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.layer-reset-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
 .enhanced-layer-list {
   display: flex;
   flex-direction: column;
@@ -10607,6 +10621,9 @@ a {
   gap: 3px;
   padding: 5px 4px;
 }
+.layer-item.muted {
+  opacity: 0.58;
+}
 .layer-item-label {
   display: flex;
   align-items: center;
@@ -10649,6 +10666,9 @@ a {
 }
 :root[data-theme="light"] .collapsible-layer-header:hover {
   background: rgba(24, 24, 27, 0.1);
+}
+:root[data-theme="light"] .layer-reset-btn {
+  background: #ffffff;
 }
 
 /* ── Device Panel ── */

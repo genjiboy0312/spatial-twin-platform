@@ -45,6 +45,17 @@ export type HistoryEntry = {
 }
 
 type SnapMode = 'grid' | 'endpoint' | 'both' | 'none'
+export type EditorVisibleLayers = {
+  walls: boolean
+  rooms: boolean
+  devices: boolean
+  openings: boolean
+  grid: boolean
+  floorPlan: boolean
+  coverage: boolean
+  heatmap: boolean
+  pathway: boolean
+}
 
 type State = {
   mode: EditMode
@@ -56,7 +67,7 @@ type State = {
   selectedOpeningIdx: number | null
   snapMode: SnapMode
   // Layer visibility
-  visibleLayers: { walls: boolean; rooms: boolean; devices: boolean }
+  visibleLayers: EditorVisibleLayers
   // History
   history: HistoryEntry[]
   historyIdx: number
@@ -92,12 +103,13 @@ type Actions = {
   setSnapMode: (mode: SnapMode) => void
   snapPoint: (x: number, y: number) => { x: number; y: number }
   // Layers
-  toggleLayer: (layer: 'walls' | 'rooms' | 'devices') => void
+  setVisibleLayer: (layer: keyof EditorVisibleLayers, visible: boolean) => void
+  toggleLayer: (layer: keyof EditorVisibleLayers) => void
   // History
   undo: () => void
   redo: () => void
   pushHistory: () => void
-  loadEditorState: (state: Partial<Pick<State, 'walls' | 'rooms' | 'devices' | 'openings' | 'visibleLayers' | 'snapMode'>>) => void
+  loadEditorState: (state: Partial<Omit<Pick<State, 'walls' | 'rooms' | 'devices' | 'openings' | 'snapMode'>, never>> & { visibleLayers?: Partial<EditorVisibleLayers> }) => void
 }
 
 const SAMPLE_WALLS: Wall2D[] = [
@@ -331,7 +343,17 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
   selectedOpeningIdx: null,
   selectedDeviceIdx: null,
   snapMode: 'both',
-  visibleLayers: { walls: true, rooms: true, devices: true },
+  visibleLayers: {
+    walls: true,
+    rooms: true,
+    devices: true,
+    openings: true,
+    grid: true,
+    floorPlan: true,
+    coverage: false,
+    heatmap: false,
+    pathway: false,
+  },
   history: [],
   historyIdx: -1,
 
@@ -374,7 +396,10 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => {
       const walls = [...s.walls]
       if (idx >= 0 && idx < walls.length) {
-        walls[idx] = { ...walls[idx]!, ...partial } as Wall2D
+        const sanitized = Object.fromEntries(
+          Object.entries(partial).filter(([, value]) => typeof value === 'number' && Number.isFinite(value)),
+        ) as Partial<Wall2D>
+        walls[idx] = { ...walls[idx]!, ...sanitized } as Wall2D
       }
       return { walls, rooms: syncGeneratedRooms(walls, s.rooms) }
     })
@@ -441,7 +466,26 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => {
       const rooms = [...s.rooms]
       if (idx >= 0 && idx < rooms.length) {
-        rooms[idx] = { ...rooms[idx]!, ...partial } as Room2D
+        const current = rooms[idx]!
+        const nextX = Number.isFinite(partial.x) ? partial.x! : current.x
+        const nextY = Number.isFinite(partial.y) ? partial.y! : current.y
+        const nextW = Number.isFinite(partial.w) ? Math.max(MIN_ROOM_SPAN, partial.w!) : current.w
+        const nextH = Number.isFinite(partial.h) ? Math.max(MIN_ROOM_SPAN, partial.h!) : current.h
+        const points = current.points && current.points.length >= 3
+          ? current.points.map((point) => ({
+              x: nextX + (point.x - current.x) * (current.w > POINT_EPSILON ? nextW / current.w : 1),
+              y: nextY + (point.y - current.y) * (current.h > POINT_EPSILON ? nextH / current.h : 1),
+            }))
+          : current.points
+        rooms[idx] = {
+          ...current,
+          ...partial,
+          x: nextX,
+          y: nextY,
+          w: nextW,
+          h: nextH,
+          ...(points !== undefined ? { points } : {}),
+        }
       }
       return { rooms }
     })
@@ -457,7 +501,21 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => {
       const openings = [...s.openings]
       if (idx >= 0 && idx < openings.length) {
-        openings[idx] = { ...openings[idx]!, ...partial } as WallOpening2D
+        const current = openings[idx]!
+        const wallIdx = Number.isInteger(partial.wallIdx) && partial.wallIdx! >= 0 && partial.wallIdx! < s.walls.length
+          ? partial.wallIdx!
+          : current.wallIdx
+        const wall = s.walls[wallIdx]
+        const wallLength = wall ? Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) : current.width
+        openings[idx] = {
+          ...current,
+          ...partial,
+          wallIdx,
+          position: Number.isFinite(partial.position) ? Math.max(0, Math.min(1, partial.position!)) : current.position,
+          width: Number.isFinite(partial.width)
+            ? Math.max(0.1, Math.min(partial.width!, Math.max(0.1, wallLength)))
+            : current.width,
+        }
       }
       return { openings }
     })
@@ -511,7 +569,17 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
     set((s) => {
       const devices = [...s.devices]
       if (idx >= 0 && idx < devices.length) {
-        devices[idx] = { ...devices[idx]!, ...partial }
+        const current = devices[idx]!
+        const angle = Number.isFinite(partial.angle)
+          ? ((partial.angle! % 360) + 360) % 360
+          : current.angle
+        devices[idx] = {
+          ...current,
+          ...partial,
+          x: Number.isFinite(partial.x) ? partial.x! : current.x,
+          y: Number.isFinite(partial.y) ? partial.y! : current.y,
+          ...(angle !== undefined ? { angle } : {}),
+        }
       }
       return { devices }
     })
@@ -569,6 +637,11 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
   },
 
   // Layers
+  setVisibleLayer: (layer, visible) =>
+    set((s) => ({
+      visibleLayers: { ...s.visibleLayers, [layer]: visible },
+    })),
+
   toggleLayer: (layer) =>
     set((s) => ({
       visibleLayers: { ...s.visibleLayers, [layer]: !s.visibleLayers[layer] },
@@ -621,7 +694,7 @@ export const useEditorStore = create<State & Actions>((set, get) => ({
       })(),
       devices: state.devices?.map((device) => ({ ...device })) ?? current.devices,
       openings: state.openings?.map((opening) => ({ ...opening })) ?? current.openings,
-      visibleLayers: state.visibleLayers ? { ...state.visibleLayers } : current.visibleLayers,
+      visibleLayers: state.visibleLayers ? { ...current.visibleLayers, ...state.visibleLayers } : current.visibleLayers,
       snapMode: state.snapMode ?? current.snapMode,
       selectedWallIdx: null,
       selectedRoomIdx: null,

@@ -36,6 +36,7 @@ import {
   type ObjectPlacement,
 } from '../api/projectData'
 import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
+import { useLayerStore, type LayerConfig, type LayerId } from '../stores/layerStore'
 const ThreeJSViewer = lazy(() =>
   import('../components/ThreeJSViewer').then((module) => ({ default: module.ThreeJSViewer })),
 )
@@ -114,10 +115,11 @@ function isEditorSnapshot(value: unknown): value is {
   rooms?: Room2D[]
   openings?: WallOpening2D[]
   devices?: SecurityDevice[]
-  visibleLayers?: { walls: boolean; rooms: boolean; devices: boolean }
+  visibleLayers?: Partial<ReturnType<typeof useEditorStore.getState>['visibleLayers']>
   snapMode?: 'grid' | 'endpoint' | 'both' | 'none'
   viewMode?: ViewMode
   selectedFloorId?: number | ''
+  layerConfigs?: Partial<LayerConfig>[]
 } {
   return typeof value === 'object' && value !== null
 }
@@ -327,6 +329,8 @@ export function EditorPage() {
   const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedFloorId, setSelectedFloorId] = useState<number | ''>('')
+  const selectedBuildingIdRef = useRef<number | ''>(selectedBuildingId)
+  const selectedFloorIdRef = useRef<number | ''>(selectedFloorId)
   const [allFloorsView, setAllFloorsView] = useState(false)
   const [isFloorCreateOpen, setIsFloorCreateOpen] = useState(false)
   const [creatingFloor, setCreatingFloor] = useState(false)
@@ -361,6 +365,8 @@ export function EditorPage() {
   const selectedOpeningIdx = useEditorStore((state) => state.selectedOpeningIdx)
   const selectedDeviceIdx = useEditorStore((state) => state.selectedDeviceIdx)
   const visibleLayers = useEditorStore((state) => state.visibleLayers)
+  const layerConfigs = useLayerStore((state) => state.layers)
+  const setLayerConfigs = useLayerStore((state) => state.setLayers)
   const snapMode = useEditorStore((state) => state.snapMode)
   const setMode = useEditorStore((state) => state.setMode)
   const addWall = useEditorStore((state) => state.addWall)
@@ -370,6 +376,7 @@ export function EditorPage() {
   const selectRoom = useEditorStore((state) => state.selectRoom)
   const selectOpening = useEditorStore((state) => state.selectOpening)
   const selectDevice = useEditorStore((state) => state.selectDevice)
+  const clearSelection = useEditorStore((state) => state.clearSelection)
   const deleteWallAt = useEditorStore((state) => state.deleteWallAt)
   const removeDevice = useEditorStore((state) => state.removeDevice)
   const removeOpening = useEditorStore((state) => state.removeOpening)
@@ -388,6 +395,14 @@ export function EditorPage() {
   const setSnapMode = useEditorStore((state) => state.setSnapMode)
   const loadEditorState = useEditorStore((state) => state.loadEditorState)
   const [showWallEndpoints, setShowWallEndpoints] = useState(true)
+
+  useEffect(() => {
+    selectedBuildingIdRef.current = selectedBuildingId
+  }, [selectedBuildingId])
+
+  useEffect(() => {
+    selectedFloorIdRef.current = selectedFloorId
+  }, [selectedFloorId])
 
   const toggleSnapEnabled = useCallback(() => {
     setSnapConfig(prev => ({ ...prev, enabled: !prev.enabled }))
@@ -419,6 +434,71 @@ export function EditorPage() {
     selectedDeviceIdx != null && selectedDeviceIdx < devices.length ? (devices[selectedDeviceIdx] as SecurityDevice) : null
   const selectedOpening: WallOpening2D | null =
     selectedOpeningIdx != null && selectedOpeningIdx < openings.length ? (openings[selectedOpeningIdx] as WallOpening2D) : null
+  const layerOpacity = useMemo(
+    () => Object.fromEntries(layerConfigs.map((layer) => [layer.id, layer.opacity])) as Partial<Record<LayerId, number>>,
+    [layerConfigs],
+  )
+  const layerVisibility = useMemo(
+    () => Object.fromEntries(layerConfigs.map((layer) => [layer.id, layer.visible])) as Partial<Record<LayerId, boolean>>,
+    [layerConfigs],
+  )
+  const renderVisibleLayers = useMemo(() => ({
+    ...visibleLayers,
+    walls: layerVisibility.walls !== false,
+    rooms: layerVisibility.rooms !== false,
+    openings: ['doors', 'windows', 'passages'].some((id) => layerVisibility[id as LayerId] !== false),
+    grid: layerVisibility.grid !== false,
+    floorPlan: layerVisibility['floor-plan'] !== false,
+    devices: ['cameras', 'sensors', 'alarms', 'access'].some((id) => layerVisibility[id as LayerId] !== false),
+    coverage: layerVisibility.coverage === true,
+    heatmap: layerVisibility.heatmap === true,
+    pathway: layerVisibility.pathway === true,
+  }), [layerVisibility, visibleLayers])
+
+  useEffect(() => {
+    if (selectedWallIdx !== null && !renderVisibleLayers.walls) selectWall(null)
+    if (selectedRoomIdx !== null && !renderVisibleLayers.rooms) selectRoom(null)
+    if (selectedOpeningIdx !== null) {
+      const opening = openings[selectedOpeningIdx]
+      const layerId: LayerId | null = opening?.type === 'door'
+        ? 'doors'
+        : opening?.type === 'window'
+          ? 'windows'
+          : opening?.type === 'opening'
+            ? 'passages'
+            : null
+      if (!opening || !renderVisibleLayers.openings || (layerId && layerVisibility[layerId] === false)) selectOpening(null)
+    }
+    if (selectedDeviceIdx !== null) {
+      const device = devices[selectedDeviceIdx]
+      const layerId: LayerId | null = device?.device_type === 'camera'
+        ? 'cameras'
+        : device?.device_type === 'sensor'
+          ? 'sensors'
+          : device?.device_type === 'alarm'
+            ? 'alarms'
+            : device?.device_type === 'access'
+              ? 'access'
+              : null
+      if (!device || !renderVisibleLayers.devices || (layerId && layerVisibility[layerId] === false)) selectDevice(null)
+    }
+  }, [
+    devices,
+    layerVisibility,
+    openings,
+    renderVisibleLayers.devices,
+    renderVisibleLayers.openings,
+    renderVisibleLayers.rooms,
+    renderVisibleLayers.walls,
+    selectDevice,
+    selectOpening,
+    selectRoom,
+    selectWall,
+    selectedDeviceIdx,
+    selectedOpeningIdx,
+    selectedRoomIdx,
+    selectedWallIdx,
+  ])
 
   const handleDeviceRefresh = useCallback(() => {
     selectDevice(null)
@@ -430,11 +510,9 @@ export function EditorPage() {
     try {
       const data = await listBuildings()
       setBuildings(data)
-      setSelectedBuildingId((current) => {
-        const next = preferredBuildingId(data, current)
-        setGlobalSelectedBuildingId(next)
-        return next ?? ''
-      })
+      const next = preferredBuildingId(data, selectedBuildingIdRef.current)
+      selectedBuildingIdRef.current = next ?? ''
+      setSelectedBuildingId(next ?? '')
     } catch {
       setBuildings([])
     }
@@ -522,6 +600,9 @@ export function EditorPage() {
             ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
           }
         : {}
+      if (isEditorSnapshot(editorSnapshot) && editorSnapshot.layerConfigs) {
+        setLayerConfigs(editorSnapshot.layerConfigs)
+      }
       if (floorGeometry) {
         const nextWalls = floorGeometry.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 }))
         loadEditorState({
@@ -536,14 +617,16 @@ export function EditorPage() {
         loadEditorState({ walls: [], rooms: [], openings: [], devices: placementDevices, ...editorPrefs })
         if (isEditorSnapshot(editorSnapshot) && editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
       }
-      setSelectedFloorId((current) => {
-        if (preferredFloorId !== null) return preferredFloorId
-        if (isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)) {
-          return editorSnapshot.selectedFloorId
-        }
-        if (current && data.some((floor) => floor.id === current)) return current
-        return data[0]?.id ?? ''
-      })
+      const snapshotFloorId = isEditorSnapshot(editorSnapshot) ? editorSnapshot.selectedFloorId : null
+      const nextFloorId = preferredFloorId !== null
+        ? preferredFloorId
+        : snapshotFloorId && data.some((floor) => floor.id === snapshotFloorId)
+          ? snapshotFloorId
+          : selectedFloorIdRef.current && data.some((floor) => floor.id === selectedFloorIdRef.current)
+            ? selectedFloorIdRef.current
+            : data[0]?.id ?? ''
+      selectedFloorIdRef.current = nextFloorId
+      setSelectedFloorId(nextFloorId)
       setEditorHydrated(true)
       setFloorSceneHydrated(true)
       setSaveStatus(snapshot?.saved ? 'saved' : 'idle')
@@ -557,7 +640,7 @@ export function EditorPage() {
       setFloorSceneHydrated(false)
       setSaveStatus('error')
     }
-  }, [loadEditorState])
+  }, [loadEditorState, setLayerConfigs])
 
   useEffect(() => { loadBuildings() }, [loadBuildings])
 
@@ -641,6 +724,11 @@ export function EditorPage() {
         openings,
         devices,
         visibleLayers,
+        layerConfigs: layerConfigs.map((layer) => ({
+          id: layer.id,
+          visible: layer.visible,
+          opacity: layer.opacity,
+        })),
         snapMode,
         viewMode,
         selectedFloorId,
@@ -678,6 +766,7 @@ export function EditorPage() {
     devices,
     editorHydrated,
     floorSceneHydrated,
+    layerConfigs,
     openings,
     rooms,
     selectedBuildingId,
@@ -734,7 +823,9 @@ export function EditorPage() {
       selectedRoomIdx={selectedRoomIdx}
       selectedOpeningIdx={selectedOpeningIdx}
       selectedDeviceIdx={selectedDeviceIdx}
-      visibleLayers={visibleLayers}
+      visibleLayers={renderVisibleLayers}
+      layerVisibility={layerVisibility}
+      layerOpacity={layerOpacity}
       showEndpoints={showWallEndpoints}
       editMode={mode}
       onSelectWall={(idx) => selectWall(idx >= 0 ? idx : null)}
@@ -762,7 +853,18 @@ export function EditorPage() {
         rooms={rooms}
         openings={openings}
         devices={devices}
+        selectedWallIdx={selectedWallIdx}
+        selectedRoomIdx={selectedRoomIdx}
+        selectedOpeningIdx={selectedOpeningIdx}
         selectedDeviceIdx={selectedDeviceIdx}
+        onSelectWall={selectWall}
+        onSelectRoom={selectRoom}
+        onSelectOpening={selectOpening}
+        onSelectDevice={selectDevice}
+        onSelectEmpty={clearSelection}
+        visibleLayers={renderVisibleLayers}
+        layerVisibility={layerVisibility}
+        layerOpacity={layerOpacity}
         showAxisGizmo
       />
     </Suspense>

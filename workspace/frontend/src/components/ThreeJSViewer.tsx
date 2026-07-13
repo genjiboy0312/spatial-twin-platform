@@ -4,7 +4,8 @@ import { AxisIndicator3D } from './AxisIndicator3D'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Wall2D, Room2D, WallOpening2D } from './Canvas2DViewer'
-import type { SecurityDevice } from '../stores/editorStore'
+import type { EditorVisibleLayers, SecurityDevice } from '../stores/editorStore'
+import type { LayerId } from '../stores/layerStore'
 import { DEVICE_COLORS } from '../constants/devices'
 import type { UploadAsset } from '../api/uploads'
 
@@ -14,10 +15,20 @@ type Props = {
   openings?: WallOpening2D[]
   devices?: SecurityDevice[]
   selectedDeviceIdx?: number | null
-  onSelectDevice?: (idx: number) => void
+  selectedWallIdx?: number | null
+  selectedRoomIdx?: number | null
+  selectedOpeningIdx?: number | null
+  onSelectWall?: ((idx: number) => void) | undefined
+  onSelectRoom?: ((idx: number) => void) | undefined
+  onSelectOpening?: ((idx: number) => void) | undefined
+  onSelectDevice?: ((idx: number) => void) | undefined
+  onSelectEmpty?: (() => void) | undefined
   viewMode?: '2d' | '3d'
   pointClouds?: UploadAsset[]
   showAxisGizmo?: boolean
+  visibleLayers?: EditorVisibleLayers
+  layerVisibility?: Partial<Record<LayerId, boolean>>
+  layerOpacity?: Partial<Record<LayerId, number>>
 }
 
 const FLOOR_HEIGHT = 0.15
@@ -30,6 +41,17 @@ const PASS_OPENING_BOTTOM = 0.52
 const PASS_OPENING_HEIGHT = 1.55
 const POINTCLOUD_MAX_POINTS = 2_000_000
 const POINTCLOUD_FAST_PREVIEW_POINTS = 100_000
+const DEFAULT_VISIBLE_LAYERS: EditorVisibleLayers = {
+  walls: true,
+  rooms: true,
+  devices: true,
+  openings: true,
+  grid: true,
+  floorPlan: true,
+  coverage: false,
+  heatmap: false,
+  pathway: false,
+}
 
 type ParsedPointCloud = {
   positions: Float32Array
@@ -55,6 +77,10 @@ function pointBudgetForAsset(index: number, totalAssets: number) {
   return base + (index < remainder ? 1 : 0)
 }
 
+function setScenePointer(active: boolean) {
+  document.body.style.cursor = active ? 'pointer' : ''
+}
+
 function WallSegmentMesh({
   centerX,
   centerZ,
@@ -63,6 +89,8 @@ function WallSegmentMesh({
   y,
   angle,
   selected,
+  opacity = 1,
+  onSelect,
 }: {
   centerX: number
   centerZ: number
@@ -71,12 +99,48 @@ function WallSegmentMesh({
   y: number
   angle: number
   selected?: boolean | undefined
+  opacity?: number
+  onSelect?: (() => void) | undefined
 }) {
+  const materialRef = useRef<THREE.MeshStandardMaterial | null>(null)
+
+  useEffect(() => {
+    const material = materialRef.current
+    if (!material) return
+    material.opacity = Math.max(0, Math.min(1, opacity))
+    material.transparent = false
+    material.alphaHash = opacity < 0.99
+    material.depthWrite = true
+    material.needsUpdate = true
+  }, [opacity])
+
   if (length < 0.02 || height < 0.02) return null
   return (
-    <mesh position={[centerX, y, centerZ]} rotation={[0, -angle, 0]}>
+    <mesh
+      position={[centerX, y, centerZ]}
+      rotation={[0, -angle, 0]}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onSelect?.()
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        setScenePointer(true)
+      }}
+      onPointerOut={() => setScenePointer(false)}
+    >
       <boxGeometry args={[length, height, WALL_DEPTH]} />
-      <meshStandardMaterial color={selected ? '#38bdf8' : '#90a4ae'} roughness={0.8} />
+      <meshStandardMaterial
+        ref={materialRef}
+        color={selected ? '#38bdf8' : '#90a4ae'}
+        emissive={selected ? '#075985' : '#000000'}
+        emissiveIntensity={selected ? 0.32 : 0}
+        roughness={0.8}
+        transparent={false}
+        alphaHash={opacity < 0.99}
+        opacity={opacity}
+        depthWrite
+      />
     </mesh>
   )
 }
@@ -97,7 +161,7 @@ function remainingWallBands(type: WallOpening2D['type']) {
   ]
 }
 
-function WallMesh({ wall, openings = [], selected }: { wall: Wall2D; openings?: WallOpening2D[]; selected?: boolean }) {
+function WallMesh({ wall, openings = [], selected, opacity = 1, onSelect }: { wall: Wall2D; openings?: WallOpening2D[]; selected?: boolean; opacity?: number; onSelect?: (() => void) | undefined }) {
   const dx = wall.x2 - wall.x1
   const dy = wall.y2 - wall.y1
   const length = Math.sqrt(dx * dx + dy * dy)
@@ -165,6 +229,8 @@ function WallMesh({ wall, openings = [], selected }: { wall: Wall2D; openings?: 
             y={piece.y ?? WALL_HEIGHT / 2}
             angle={angle}
             selected={selected}
+            opacity={opacity}
+            onSelect={onSelect}
           />
         )
       })}
@@ -172,7 +238,13 @@ function WallMesh({ wall, openings = [], selected }: { wall: Wall2D; openings?: 
   )
 }
 
-function OpeningMesh({ opening, wall }: { opening: WallOpening2D; wall: Wall2D }) {
+function openingLayerId(type: WallOpening2D['type']): LayerId {
+  if (type === 'door') return 'doors'
+  if (type === 'window') return 'windows'
+  return 'passages'
+}
+
+function OpeningMesh({ opening, wall, selected, opacity = 1, onSelect }: { opening: WallOpening2D; wall: Wall2D; selected?: boolean; opacity?: number; onSelect?: (() => void) | undefined }) {
   const dx = wall.x2 - wall.x1
   const dy = wall.y2 - wall.y1
   const wallLength = Math.hypot(dx, dy)
@@ -189,48 +261,72 @@ function OpeningMesh({ opening, wall }: { opening: WallOpening2D; wall: Wall2D }
   const frameDepth = WALL_DEPTH + 0.035
 
   if (opening.type === 'door') {
-    const frameColor = '#8b5a2b'
+    const frameColor = selected ? '#38bdf8' : '#8b5a2b'
     return (
-      <group position={[cx, DOOR_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+      <group
+        position={[cx, DOOR_OPENING_HEIGHT / 2, cz]}
+        rotation={[0, -angle, 0]}
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          onSelect?.()
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setScenePointer(true)
+        }}
+        onPointerOut={() => setScenePointer(false)}
+      >
         <mesh position={[0, 0.02, 0]}>
           <boxGeometry args={[width * 0.84, DOOR_OPENING_HEIGHT - 0.22, 0.075]} />
-          <meshStandardMaterial color="#6f4523" roughness={0.55} metalness={0.08} />
+          <meshStandardMaterial color="#6f4523" roughness={0.55} metalness={0.08} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[0, 0.03, depth / 2 + 0.018]}>
           <boxGeometry args={[width * 0.68, DOOR_OPENING_HEIGHT - 0.58, 0.028]} />
-          <meshStandardMaterial color="#9a6738" roughness={0.46} />
+          <meshStandardMaterial color="#9a6738" roughness={0.46} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[-width / 2, 0, 0]}>
           <boxGeometry args={[0.07, DOOR_OPENING_HEIGHT, frameDepth]} />
-          <meshStandardMaterial color={frameColor} roughness={0.42} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[width / 2, 0, 0]}>
           <boxGeometry args={[0.07, DOOR_OPENING_HEIGHT, frameDepth]} />
-          <meshStandardMaterial color={frameColor} roughness={0.42} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[0, DOOR_OPENING_HEIGHT / 2, 0]}>
           <boxGeometry args={[width + 0.1, 0.08, frameDepth]} />
-          <meshStandardMaterial color={frameColor} roughness={0.42} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[width * 0.26, 0.02, depth / 2 + 0.06]}>
           <sphereGeometry args={[0.045, 16, 12]} />
-          <meshStandardMaterial color="#facc15" emissive="#b45309" emissiveIntensity={0.22} metalness={0.35} roughness={0.25} />
+          <meshStandardMaterial color="#facc15" emissive="#b45309" emissiveIntensity={0.22} metalness={0.35} roughness={0.25} transparent={opacity < 1} opacity={opacity} />
         </mesh>
       </group>
     )
   }
 
   if (opening.type === 'window') {
-    const frameColor = '#7dd3fc'
+    const frameColor = selected ? '#38bdf8' : '#7dd3fc'
     return (
-      <group position={[cx, WINDOW_SILL_HEIGHT + WINDOW_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+      <group
+        position={[cx, WINDOW_SILL_HEIGHT + WINDOW_OPENING_HEIGHT / 2, cz]}
+        rotation={[0, -angle, 0]}
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          onSelect?.()
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setScenePointer(true)
+        }}
+        onPointerOut={() => setScenePointer(false)}
+      >
         <mesh>
           <boxGeometry args={[width, WINDOW_OPENING_HEIGHT - 0.12, 0.035]} />
           <meshPhysicalMaterial
             color="#7dd3fc"
             transmission={0.62}
             transparent
-            opacity={0.28}
+            opacity={0.28 * opacity}
             roughness={0.08}
             metalness={0}
             thickness={0.08}
@@ -240,55 +336,67 @@ function OpeningMesh({ opening, wall }: { opening: WallOpening2D; wall: Wall2D }
         </mesh>
         <mesh position={[-width / 2, 0, 0.025]}>
           <boxGeometry args={[0.045, WINDOW_OPENING_HEIGHT, WALL_DEPTH]} />
-          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[width / 2, 0, 0.025]}>
           <boxGeometry args={[0.045, WINDOW_OPENING_HEIGHT, WALL_DEPTH]} />
-          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[0, WINDOW_OPENING_HEIGHT / 2, 0.025]}>
           <boxGeometry args={[width + 0.07, 0.045, WALL_DEPTH]} />
-          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[0, -WINDOW_OPENING_HEIGHT / 2, 0.025]}>
           <boxGeometry args={[width + 0.07, 0.045, WALL_DEPTH]} />
-          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} transparent={opacity < 1} opacity={opacity} />
         </mesh>
         <mesh position={[0, 0, 0.035]}>
           <boxGeometry args={[0.03, WINDOW_OPENING_HEIGHT - 0.14, WALL_DEPTH * 0.85]} />
-          <meshStandardMaterial color="#e0f2fe" emissive="#38bdf8" emissiveIntensity={0.18} roughness={0.22} />
+          <meshStandardMaterial color="#e0f2fe" emissive="#38bdf8" emissiveIntensity={0.18} roughness={0.22} transparent={opacity < 1} opacity={opacity} />
         </mesh>
       </group>
     )
   }
 
   return (
-    <group position={[cx, PASS_OPENING_BOTTOM + PASS_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+    <group
+      position={[cx, PASS_OPENING_BOTTOM + PASS_OPENING_HEIGHT / 2, cz]}
+      rotation={[0, -angle, 0]}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onSelect?.()
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        setScenePointer(true)
+      }}
+      onPointerOut={() => setScenePointer(false)}
+    >
       <mesh position={[-width / 2, 0, 0]}>
         <boxGeometry args={[0.055, PASS_OPENING_HEIGHT, frameDepth]} />
-        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} transparent={opacity < 1} opacity={opacity} />
       </mesh>
       <mesh position={[width / 2, 0, 0]}>
         <boxGeometry args={[0.055, PASS_OPENING_HEIGHT, frameDepth]} />
-        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} transparent={opacity < 1} opacity={opacity} />
       </mesh>
       <mesh position={[0, PASS_OPENING_HEIGHT / 2, 0]}>
         <boxGeometry args={[width + 0.07, 0.055, frameDepth]} />
-        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} transparent={opacity < 1} opacity={opacity} />
       </mesh>
       <mesh position={[0, -PASS_OPENING_HEIGHT / 2, 0]}>
         <boxGeometry args={[width + 0.07, 0.055, frameDepth]} />
-        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} transparent={opacity < 1} opacity={opacity} />
       </mesh>
       <mesh position={[0, 0, depth / 2 + 0.012]}>
         <boxGeometry args={[width * 0.82, 0.035, 0.035]} />
-        <meshBasicMaterial color="#fde68a" transparent opacity={0.78} />
+        <meshBasicMaterial color="#fde68a" transparent opacity={0.78 * opacity} />
       </mesh>
     </group>
   )
 }
 
-function RoomFloorMesh({ room }: { room: Room2D }) {
+function RoomFloorMesh({ room, opacity = 1 }: { room: Room2D; opacity?: number }) {
   const geometry = useMemo(() => {
     if (room.points && room.points.length >= 3) {
       const shape = new THREE.Shape()
@@ -305,30 +413,46 @@ function RoomFloorMesh({ room }: { room: Room2D }) {
   if (room.points && room.points.length >= 3) {
     return (
       <mesh geometry={geometry} position={[0, 0.004, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color="#6b7280" roughness={0.84} metalness={0.02} side={THREE.DoubleSide} />
+        <meshStandardMaterial
+          color="#6b7280"
+          roughness={0.84}
+          metalness={0.02}
+          side={THREE.DoubleSide}
+          transparent={opacity < 1}
+          opacity={opacity}
+          depthWrite={opacity >= 0.99}
+        />
       </mesh>
     )
   }
 
   return (
     <mesh geometry={geometry} position={[room.x + room.w / 2, 0.004, room.y + room.h / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-      <meshStandardMaterial color="#6b7280" roughness={0.84} metalness={0.02} side={THREE.DoubleSide} />
+      <meshStandardMaterial
+        color="#6b7280"
+        roughness={0.84}
+        metalness={0.02}
+        side={THREE.DoubleSide}
+        transparent={opacity < 1}
+        opacity={opacity}
+        depthWrite={opacity >= 0.99}
+      />
     </mesh>
   )
 }
 
-function FloorMesh({ rooms }: { rooms: Room2D[] }) {
+function FloorMesh({ rooms, opacity = 1 }: { rooms: Room2D[]; opacity?: number }) {
   if (rooms.length === 0) return null
   return (
     <group>
       {rooms.map((room, index) => (
-        <RoomFloorMesh key={`${room.label ?? 'room'}-${index}`} room={room} />
+        <RoomFloorMesh key={`${room.label ?? 'room'}-${index}`} room={room} opacity={opacity} />
       ))}
     </group>
   )
 }
 
-function RoomArea({ room, selected }: { room: Room2D; selected?: boolean }) {
+function RoomArea({ room, selected, opacity = 1, onSelect }: { room: Room2D; selected?: boolean; opacity?: number; onSelect?: (() => void) | undefined }) {
   const { x, y, w, h, points } = room
   const geometry = useMemo(() => {
     if (!points || points.length < 3) return null
@@ -343,11 +467,24 @@ function RoomArea({ room, selected }: { room: Room2D; selected?: boolean }) {
 
   if (geometry) {
     return (
-      <mesh geometry={geometry} position={[0, 0.025, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh
+        geometry={geometry}
+        position={[0, 0.025, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          onSelect?.()
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setScenePointer(true)
+        }}
+        onPointerOut={() => setScenePointer(false)}
+      >
         <meshStandardMaterial
           color={selected ? '#38bdf8' : '#6b7280'}
           transparent
-          opacity={selected ? 0.34 : 0.18}
+          opacity={(selected ? 0.34 : 0.18) * opacity}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
@@ -356,12 +493,24 @@ function RoomArea({ room, selected }: { room: Room2D; selected?: boolean }) {
   }
 
   return (
-    <mesh position={[x + w / 2, 0.025, y + h / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh
+      position={[x + w / 2, 0.025, y + h / 2]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onSelect?.()
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        setScenePointer(true)
+      }}
+      onPointerOut={() => setScenePointer(false)}
+    >
       <planeGeometry args={[w - 0.3, h - 0.3]} />
       <meshStandardMaterial
         color={selected ? '#38bdf8' : '#6b7280'}
         transparent
-        opacity={selected ? 0.32 : 0.16}
+        opacity={(selected ? 0.32 : 0.16) * opacity}
         side={2}
         depthWrite={false}
       />
@@ -369,7 +518,7 @@ function RoomArea({ room, selected }: { room: Room2D; selected?: boolean }) {
   )
 }
 
-function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?: boolean }) {
+function DeviceMarker({ device, selected, opacity = 1, onSelect }: { device: SecurityDevice; selected?: boolean; opacity?: number; onSelect?: (() => void) | undefined }) {
   const color = DEVICE_COLORS[device.device_type] || '#94a3b8'
   const isSelected = selected === true
   const finalColor = isSelected ? '#facc15' : color
@@ -382,6 +531,9 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
       emissiveIntensity={isSelected ? 0.65 : 0.28}
       metalness={0.28}
       roughness={0.32}
+      transparent={opacity < 1}
+      opacity={opacity}
+      depthWrite={opacity >= 0.99}
     />
   )
 
@@ -400,11 +552,11 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
             </mesh>
             <mesh position={[0, 0.34, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.1, 0.13, 0.18, 24]} />
-              <meshStandardMaterial color="#05070a" metalness={0.7} roughness={0.18} />
+              <meshStandardMaterial color="#05070a" metalness={0.7} roughness={0.18} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
             <mesh position={[0, 0.34, 0.36]} rotation={[Math.PI / 2, 0, 0]}>
               <circleGeometry args={[0.12, 24]} />
-              <meshBasicMaterial color={finalColor} transparent opacity={0.5} depthWrite={false} />
+              <meshBasicMaterial color={finalColor} transparent opacity={0.5 * opacity} depthWrite={false} />
             </mesh>
           </group>
         )
@@ -421,7 +573,7 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
             </mesh>
             <mesh position={[0, 0.31, 0.01]}>
               <sphereGeometry args={[0.055, 16, 16]} />
-              <meshStandardMaterial color="#f8fafc" emissive={finalColor} emissiveIntensity={1.2} />
+              <meshStandardMaterial color="#f8fafc" emissive={finalColor} emissiveIntensity={1.2 * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
           </group>
         )
@@ -434,11 +586,11 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
             </mesh>
             <mesh position={[0, 0.27, 0]}>
               <cylinderGeometry args={[0.12, 0.18, 0.2, 28]} />
-              <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={isSelected ? 0.9 : 0.45} />
+              <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={(isSelected ? 0.9 : 0.45) * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
             <mesh position={[0, 0.42, 0]}>
               <sphereGeometry args={[0.08, 18, 18]} />
-              <meshStandardMaterial color="#fee2e2" emissive="#ef4444" emissiveIntensity={1.1} />
+              <meshStandardMaterial color="#fee2e2" emissive="#ef4444" emissiveIntensity={1.1 * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
           </group>
         )
@@ -451,11 +603,11 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
             </mesh>
             <mesh position={[0, 0.31, 0.055]}>
               <boxGeometry args={[0.18, 0.1, 0.018]} />
-              <meshStandardMaterial color="#05070a" metalness={0.6} roughness={0.2} />
+              <meshStandardMaterial color="#05070a" metalness={0.6} roughness={0.2} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
             <mesh position={[0.08, 0.18, 0.064]}>
               <sphereGeometry args={[0.035, 14, 14]} />
-              <meshStandardMaterial color="#bbf7d0" emissive="#22c55e" emissiveIntensity={1.2} />
+              <meshStandardMaterial color="#bbf7d0" emissive="#22c55e" emissiveIntensity={1.2 * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
             </mesh>
           </group>
         )
@@ -470,29 +622,98 @@ function DeviceMarker({ device, selected }: { device: SecurityDevice; selected?:
   }
 
   return (
-    <group position={[device.x, 0.02, device.y]} rotation={[0, -angle, 0]}>
-      <pointLight color={finalColor} intensity={isSelected ? 1.45 : 0.8} distance={3.2} position={[0.28, 0.48, 0.14]} />
+    <group
+      position={[device.x, 0.02, device.y]}
+      rotation={[0, -angle, 0]}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onSelect?.()
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        setScenePointer(true)
+      }}
+      onPointerOut={() => setScenePointer(false)}
+    >
+      <pointLight color={finalColor} intensity={(isSelected ? 1.45 : 0.8) * opacity} distance={3.2} position={[0.28, 0.48, 0.14]} />
       <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4}>
         <circleGeometry args={[isSelected ? 0.55 : 0.42, 48]} />
-        <meshBasicMaterial color={finalColor} transparent opacity={isSelected ? 0.18 : 0.09} depthWrite={false} />
+        <meshBasicMaterial color={finalColor} transparent opacity={(isSelected ? 0.18 : 0.09) * opacity} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0.008, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
         <ringGeometry args={[0.24, isSelected ? 0.56 : 0.42, 56]} />
-        <meshBasicMaterial color={finalColor} transparent opacity={isSelected ? 0.46 : 0.28} depthWrite={false} />
+        <meshBasicMaterial color={finalColor} transparent opacity={(isSelected ? 0.46 : 0.28) * opacity} depthWrite={false} />
       </mesh>
       <mesh position={[0.32, 0.44, 0.14]}>
         <sphereGeometry args={[0.045, 14, 14]} />
-        <meshStandardMaterial color="#ffffff" emissive={finalColor} emissiveIntensity={1.5} />
+        <meshStandardMaterial color="#ffffff" emissive={finalColor} emissiveIntensity={1.5 * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
       </mesh>
       {renderGeometry()}
       {isSelected && (
         <mesh position={[0, 0.68, 0]}>
           <sphereGeometry args={[0.09, 12, 12]} />
-          <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={1.1} />
+          <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={1.1 * opacity} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 0.99} />
         </mesh>
       )}
     </group>
   )
+}
+
+function CoverageOverlay({ devices, layerVisibility, opacity = 0.5 }: { devices: SecurityDevice[]; layerVisibility: Partial<Record<LayerId, boolean>>; opacity?: number }) {
+  return (
+    <group>
+      {devices.map((device) => {
+        const layerId = deviceLayerId(device)
+        if (layerVisibility[layerId] === false) return null
+        if (device.device_type !== 'camera' && device.device_type !== 'sensor') return null
+        const color = device.device_type === 'camera' ? '#38bdf8' : '#22c55e'
+        const radius = device.device_type === 'camera' ? 4.5 : 2.8
+        return (
+          <mesh key={`coverage-${device.id}`} position={[device.x, 0.018, device.y]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
+            <circleGeometry args={[radius, 64]} />
+            <meshBasicMaterial color={color} transparent opacity={0.16 * opacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
+function HeatmapOverlay({ rooms, opacity = 0.5 }: { rooms: Room2D[]; opacity?: number }) {
+  return (
+    <group>
+      {rooms.map((room, index) => (
+        <RoomArea
+          key={`heatmap-${room.label ?? index}`}
+          room={room}
+          selected={index % 2 === 0}
+          opacity={opacity * 0.9}
+        />
+      ))}
+    </group>
+  )
+}
+
+function PathwayOverlay({ devices, layerVisibility, opacity = 0.5 }: { devices: SecurityDevice[]; layerVisibility: Partial<Record<LayerId, boolean>>; opacity?: number }) {
+  const lineObject = useMemo(() => {
+    const visibleDevices = devices.filter((device) => layerVisibility[deviceLayerId(device)] !== false)
+    if (visibleDevices.length < 2) return null
+    const points = visibleDevices.map((device) => new THREE.Vector3(device.x, 0.07, device.y))
+    const geometry = new THREE.BufferGeometry().setFromPoints(points)
+    const material = new THREE.LineBasicMaterial({ color: '#22d3ee', transparent: true, opacity })
+    return new THREE.Line(geometry, material)
+  }, [devices, layerVisibility, opacity])
+
+  useEffect(() => {
+    return () => {
+      lineObject?.geometry.dispose()
+      if (Array.isArray(lineObject?.material)) lineObject.material.forEach((material) => material.dispose())
+      else lineObject?.material.dispose()
+    }
+  }, [lineObject])
+
+  if (!lineObject) return null
+  return <primitive object={lineObject} />
 }
 
 function normalizePointCloud(points: Array<{ x: number; y: number; z: number; r?: number; g?: number; b?: number }>, maxPoints: number): ParsedPointCloud {
@@ -850,26 +1071,83 @@ function CameraBoundsController({ distance, span }: { distance: number; span: nu
   return null
 }
 
-function Scene({ walls = [], rooms = [], openings = [], devices = [], selectedDeviceIdx, pointClouds, sceneCenter = { x: 0, y: 0 } }: Props & { sceneCenter?: { x: number; y: number } }) {
+function deviceLayerId(device: SecurityDevice): LayerId {
+  if (device.device_type === 'camera') return 'cameras'
+  if (device.device_type === 'sensor') return 'sensors'
+  if (device.device_type === 'alarm') return 'alarms'
+  return 'access'
+}
+
+function Scene({
+  walls = [],
+  rooms = [],
+  openings = [],
+  devices = [],
+  selectedDeviceIdx,
+  selectedWallIdx,
+  selectedRoomIdx,
+  selectedOpeningIdx,
+  onSelectWall,
+  onSelectRoom,
+  onSelectOpening,
+  onSelectDevice,
+  pointClouds,
+  sceneCenter = { x: 0, y: 0 },
+  visibleLayers = DEFAULT_VISIBLE_LAYERS,
+  layerVisibility = {},
+  layerOpacity = {},
+}: Props & { sceneCenter?: { x: number; y: number } }) {
+  const visibleOpenings = useMemo(
+    () => openings.filter((opening) => visibleLayers.openings && layerVisibility[openingLayerId(opening.type)] !== false),
+    [layerVisibility, openings, visibleLayers.openings],
+  )
   return (
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 15, 10]} intensity={0.8} />
       <group position={[-sceneCenter.x, 0, -sceneCenter.y]}>
-        <FloorMesh rooms={rooms} />
-        {rooms.map((r, i) => <RoomArea key={i} room={r} />)}
-        {walls.map((wall, i) => (
-          <WallMesh
+        {visibleLayers.rooms && <FloorMesh rooms={rooms} opacity={layerOpacity.rooms ?? 1} />}
+        {visibleLayers.rooms && rooms.map((r, i) => (
+          <RoomArea
             key={i}
-            wall={wall}
-            openings={openings.filter((opening) => opening.wallIdx === i)}
+            room={r}
+            selected={i === selectedRoomIdx}
+            opacity={layerOpacity.rooms ?? 1}
+            onSelect={() => onSelectRoom?.(i)}
           />
         ))}
-        {openings.map((opening, i) => {
+        {visibleLayers.walls && walls.map((wall, i) => (
+          <WallMesh
+            key={`${i}-${layerOpacity.walls ?? 1}`}
+            wall={wall}
+            openings={visibleOpenings.filter((opening) => opening.wallIdx === i)}
+            selected={i === selectedWallIdx}
+            opacity={layerOpacity.walls ?? 1}
+            onSelect={() => onSelectWall?.(i)}
+          />
+        ))}
+        {visibleOpenings.map((opening, i) => {
           const wall = walls[opening.wallIdx]
-          return wall ? <OpeningMesh key={`${opening.type}-${opening.wallIdx}-${i}`} opening={opening} wall={wall} /> : null
+          const openingIdx = openings.indexOf(opening)
+          return wall ? (
+            <OpeningMesh
+              key={`${opening.type}-${opening.wallIdx}-${i}`}
+              opening={opening}
+              wall={wall}
+              selected={openingIdx === selectedOpeningIdx}
+              opacity={layerOpacity[openingLayerId(opening.type)] ?? 1}
+              onSelect={() => onSelectOpening?.(openingIdx)}
+            />
+          ) : null
         })}
-        {devices.map((d, i) => <DeviceMarker key={d.id} device={d} selected={i === selectedDeviceIdx} />)}
+        {visibleLayers.devices && devices.map((d, i) => {
+          const layerId = deviceLayerId(d)
+          if (layerVisibility[layerId] === false) return null
+          return <DeviceMarker key={d.id} device={d} selected={i === selectedDeviceIdx} opacity={layerOpacity[layerId] ?? 1} onSelect={() => onSelectDevice?.(i)} />
+        })}
+        {visibleLayers.coverage && <CoverageOverlay devices={devices} layerVisibility={layerVisibility} opacity={layerOpacity.coverage ?? 0.5} />}
+        {visibleLayers.heatmap && <HeatmapOverlay rooms={rooms} opacity={layerOpacity.heatmap ?? 0.5} />}
+        {visibleLayers.pathway && <PathwayOverlay devices={devices} layerVisibility={layerVisibility} opacity={layerOpacity.pathway ?? 0.5} />}
       </group>
       {pointClouds?.map((asset, i) => (
         <PointCloudObject
@@ -880,21 +1158,42 @@ function Scene({ walls = [], rooms = [], openings = [], devices = [], selectedDe
         />
       ))}
       {/* Unified grid: large area, same spacing/section pattern as 2D */}
-      <Grid
-        position={[0, -0.01, 0]}
-        args={[100, 100]}
-        cellSize={1}
-        cellThickness={0.4}
-        cellColor="#1f2937"
-        sectionSize={5}
-        sectionThickness={1}
-        sectionColor="#334155"
-      />
+      {visibleLayers.grid && (
+        <Grid
+          position={[0, -0.01, 0]}
+          args={[100, 100]}
+          cellSize={1}
+          cellThickness={0.4 * (layerOpacity.grid ?? 1)}
+          cellColor="#1f2937"
+          sectionSize={5}
+          sectionThickness={1 * (layerOpacity.grid ?? 1)}
+          sectionColor="#334155"
+        />
+      )}
     </>
   )
 }
 
-export function ThreeJSViewer({ walls = [], rooms = [], openings = [], devices = [], selectedDeviceIdx = null, pointClouds = [], showAxisGizmo = false }: Props) {
+export function ThreeJSViewer({
+  walls = [],
+  rooms = [],
+  openings = [],
+  devices = [],
+  selectedDeviceIdx = null,
+  selectedWallIdx = null,
+  selectedRoomIdx = null,
+  selectedOpeningIdx = null,
+  onSelectWall,
+  onSelectRoom,
+  onSelectOpening,
+  onSelectDevice,
+  onSelectEmpty,
+  pointClouds = [],
+  showAxisGizmo = false,
+  visibleLayers = DEFAULT_VISIBLE_LAYERS,
+  layerVisibility = {},
+  layerOpacity = {},
+}: Props) {
   const axisRef = useRef<HTMLCanvasElement | null>(null);
   const bounds = useMemo(() => sceneBounds(walls, rooms, devices), [devices, rooms, walls])
   const cameraDistance = Math.max(14, bounds.span * 1.25)
@@ -913,7 +1212,25 @@ export function ThreeJSViewer({ walls = [], rooms = [], openings = [], devices =
       <Canvas camera={{ position: [cameraDistance, cameraDistance, cameraDistance], fov: 50 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <color attach="background" args={['#111113']} />
         <CameraBoundsController distance={cameraDistance} span={bounds.span} />
-        <Scene walls={walls} rooms={rooms} openings={openings} devices={devices} selectedDeviceIdx={selectedDeviceIdx} pointClouds={pointClouds} sceneCenter={{ x: bounds.centerX, y: bounds.centerY }} />
+        <Scene
+          walls={walls}
+          rooms={rooms}
+          openings={openings}
+          devices={devices}
+          selectedDeviceIdx={selectedDeviceIdx}
+          selectedWallIdx={selectedWallIdx}
+          selectedRoomIdx={selectedRoomIdx}
+          selectedOpeningIdx={selectedOpeningIdx}
+          onSelectWall={onSelectWall}
+          onSelectRoom={onSelectRoom}
+          onSelectOpening={onSelectOpening}
+          onSelectDevice={onSelectDevice}
+          pointClouds={pointClouds}
+          sceneCenter={{ x: bounds.centerX, y: bounds.centerY }}
+          visibleLayers={visibleLayers}
+          layerVisibility={layerVisibility}
+          layerOpacity={layerOpacity}
+        />
         <OrbitControls
           makeDefault={showAxisGizmo}
           enableDamping
@@ -927,6 +1244,12 @@ export function ThreeJSViewer({ walls = [], rooms = [], openings = [], devices =
             RIGHT: THREE.MOUSE.PAN,
           }}
         />
+        {onSelectEmpty && (
+          <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onSelectEmpty}>
+            <planeGeometry args={[500, 500]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        )}
         {showAxisGizmo && <AxisIndicator3D canvasRef={axisRef} />}
       </Canvas>
 
