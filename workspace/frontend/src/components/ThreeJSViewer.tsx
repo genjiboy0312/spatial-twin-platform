@@ -1,9 +1,9 @@
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid } from '@react-three/drei'
 import { AxisIndicator3D } from './AxisIndicator3D'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { Wall2D, Room2D } from './Canvas2DViewer'
+import type { Wall2D, Room2D, WallOpening2D } from './Canvas2DViewer'
 import type { SecurityDevice } from '../stores/editorStore'
 import { DEVICE_COLORS } from '../constants/devices'
 import type { UploadAsset } from '../api/uploads'
@@ -11,6 +11,7 @@ import type { UploadAsset } from '../api/uploads'
 type Props = {
   walls?: Wall2D[]
   rooms?: Room2D[]
+  openings?: WallOpening2D[]
   devices?: SecurityDevice[]
   selectedDeviceIdx?: number | null
   onSelectDevice?: (idx: number) => void
@@ -21,6 +22,12 @@ type Props = {
 
 const FLOOR_HEIGHT = 0.15
 const WALL_HEIGHT = 3
+const WALL_DEPTH = 0.1
+const DOOR_OPENING_HEIGHT = 2.12
+const WINDOW_SILL_HEIGHT = 1.02
+const WINDOW_OPENING_HEIGHT = 1.02
+const PASS_OPENING_BOTTOM = 0.52
+const PASS_OPENING_HEIGHT = 1.55
 const POINTCLOUD_MAX_POINTS = 2_000_000
 const POINTCLOUD_FAST_PREVIEW_POINTS = 100_000
 
@@ -48,50 +55,313 @@ function pointBudgetForAsset(index: number, totalAssets: number) {
   return base + (index < remainder ? 1 : 0)
 }
 
-function WallMesh({ x1, y1, x2, y2, selected }: Wall2D & { selected?: boolean }) {
-  const dx = x2 - x1
-  const dy = y2 - y1
+function WallSegmentMesh({
+  centerX,
+  centerZ,
+  length,
+  height,
+  y,
+  angle,
+  selected,
+}: {
+  centerX: number
+  centerZ: number
+  length: number
+  height: number
+  y: number
+  angle: number
+  selected?: boolean | undefined
+}) {
+  if (length < 0.02 || height < 0.02) return null
+  return (
+    <mesh position={[centerX, y, centerZ]} rotation={[0, -angle, 0]}>
+      <boxGeometry args={[length, height, WALL_DEPTH]} />
+      <meshStandardMaterial color={selected ? '#38bdf8' : '#90a4ae'} roughness={0.8} />
+    </mesh>
+  )
+}
+
+function remainingWallBands(type: WallOpening2D['type']) {
+  if (type === 'door') {
+    return [{ bottom: DOOR_OPENING_HEIGHT, top: WALL_HEIGHT }]
+  }
+  if (type === 'window') {
+    return [
+      { bottom: 0, top: WINDOW_SILL_HEIGHT },
+      { bottom: WINDOW_SILL_HEIGHT + WINDOW_OPENING_HEIGHT, top: WALL_HEIGHT },
+    ]
+  }
+  return [
+    { bottom: 0, top: PASS_OPENING_BOTTOM },
+    { bottom: PASS_OPENING_BOTTOM + PASS_OPENING_HEIGHT, top: WALL_HEIGHT },
+  ]
+}
+
+function WallMesh({ wall, openings = [], selected }: { wall: Wall2D; openings?: WallOpening2D[]; selected?: boolean }) {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
   const length = Math.sqrt(dx * dx + dy * dy)
   if (length < 0.01) return null
   const angle = Math.atan2(dy, dx)
-  const cx = (x1 + x2) / 2
-  const cy = (y1 + y2) / 2
+  const ux = dx / length
+  const uy = dy / length
+  const rawCuts = openings
+    .map((opening) => {
+      const width = Math.max(0.2, Math.min(opening.width, length))
+      const center = opening.position * length
+      return {
+        ...opening,
+        start: Math.max(0, center - width / 2),
+        end: Math.min(length, center + width / 2),
+      }
+    })
+    .filter((opening) => opening.end - opening.start > 0.05)
+    .sort((a, b) => a.start - b.start)
+
+  const cuts: typeof rawCuts = []
+  for (const cut of rawCuts) {
+    const last = cuts[cuts.length - 1]
+    if (last && cut.start <= last.end) {
+      last.end = Math.max(last.end, cut.end)
+    } else {
+      cuts.push({ ...cut })
+    }
+  }
+
+  const wallPieces: Array<{ start: number; end: number; height?: number; y?: number }> = []
+  let cursor = 0
+  for (const cut of cuts) {
+    if (cut.start > cursor) wallPieces.push({ start: cursor, end: cut.start })
+    cursor = Math.max(cursor, cut.end)
+
+    for (const band of remainingWallBands(cut.type)) {
+      const height = Math.max(0, band.top - band.bottom)
+      if (height > 0.04) {
+        wallPieces.push({
+          start: cut.start,
+          end: cut.end,
+          height,
+          y: band.bottom + height / 2,
+        })
+      }
+    }
+  }
+  if (cursor < length) wallPieces.push({ start: cursor, end: length })
 
   return (
-    <mesh position={[cx, WALL_HEIGHT / 2, cy]} rotation={[0, -angle, 0]}>
-      <boxGeometry args={[length, WALL_HEIGHT, 0.15]} />
-      <meshStandardMaterial color={selected ? '#38bdf8' : '#90a4ae'} roughness={0.8} />
+    <group>
+      {wallPieces.map((piece, index) => {
+        const segmentLength = piece.end - piece.start
+        const midpoint = (piece.start + piece.end) / 2
+        const centerX = wall.x1 + ux * midpoint
+        const centerZ = wall.y1 + uy * midpoint
+        return (
+          <WallSegmentMesh
+            key={`${piece.start}-${piece.end}-${index}`}
+            centerX={centerX}
+            centerZ={centerZ}
+            length={segmentLength}
+            height={piece.height ?? WALL_HEIGHT}
+            y={piece.y ?? WALL_HEIGHT / 2}
+            angle={angle}
+            selected={selected}
+          />
+        )
+      })}
+    </group>
+  )
+}
+
+function OpeningMesh({ opening, wall }: { opening: WallOpening2D; wall: Wall2D }) {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const wallLength = Math.hypot(dx, dy)
+  if (wallLength < 0.01) return null
+
+  const angle = Math.atan2(dy, dx)
+  const normalX = -dy / wallLength
+  const normalZ = dx / wallLength
+  const faceOffset = WALL_DEPTH / 2 + 0.01
+  const cx = wall.x1 + dx * opening.position + normalX * faceOffset
+  const cz = wall.y1 + dy * opening.position + normalZ * faceOffset
+  const width = Math.max(0.25, Math.min(opening.width, wallLength))
+  const depth = WALL_DEPTH
+  const frameDepth = WALL_DEPTH + 0.035
+
+  if (opening.type === 'door') {
+    const frameColor = '#8b5a2b'
+    return (
+      <group position={[cx, DOOR_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+        <mesh position={[0, 0.02, 0]}>
+          <boxGeometry args={[width * 0.84, DOOR_OPENING_HEIGHT - 0.22, 0.075]} />
+          <meshStandardMaterial color="#6f4523" roughness={0.55} metalness={0.08} />
+        </mesh>
+        <mesh position={[0, 0.03, depth / 2 + 0.018]}>
+          <boxGeometry args={[width * 0.68, DOOR_OPENING_HEIGHT - 0.58, 0.028]} />
+          <meshStandardMaterial color="#9a6738" roughness={0.46} />
+        </mesh>
+        <mesh position={[-width / 2, 0, 0]}>
+          <boxGeometry args={[0.07, DOOR_OPENING_HEIGHT, frameDepth]} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} />
+        </mesh>
+        <mesh position={[width / 2, 0, 0]}>
+          <boxGeometry args={[0.07, DOOR_OPENING_HEIGHT, frameDepth]} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} />
+        </mesh>
+        <mesh position={[0, DOOR_OPENING_HEIGHT / 2, 0]}>
+          <boxGeometry args={[width + 0.1, 0.08, frameDepth]} />
+          <meshStandardMaterial color={frameColor} roughness={0.42} />
+        </mesh>
+        <mesh position={[width * 0.26, 0.02, depth / 2 + 0.06]}>
+          <sphereGeometry args={[0.045, 16, 12]} />
+          <meshStandardMaterial color="#facc15" emissive="#b45309" emissiveIntensity={0.22} metalness={0.35} roughness={0.25} />
+        </mesh>
+      </group>
+    )
+  }
+
+  if (opening.type === 'window') {
+    const frameColor = '#7dd3fc'
+    return (
+      <group position={[cx, WINDOW_SILL_HEIGHT + WINDOW_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+        <mesh>
+          <boxGeometry args={[width, WINDOW_OPENING_HEIGHT - 0.12, 0.035]} />
+          <meshPhysicalMaterial
+            color="#7dd3fc"
+            transmission={0.62}
+            transparent
+            opacity={0.28}
+            roughness={0.08}
+            metalness={0}
+            thickness={0.08}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh position={[-width / 2, 0, 0.025]}>
+          <boxGeometry args={[0.045, WINDOW_OPENING_HEIGHT, WALL_DEPTH]} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+        </mesh>
+        <mesh position={[width / 2, 0, 0.025]}>
+          <boxGeometry args={[0.045, WINDOW_OPENING_HEIGHT, WALL_DEPTH]} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+        </mesh>
+        <mesh position={[0, WINDOW_OPENING_HEIGHT / 2, 0.025]}>
+          <boxGeometry args={[width + 0.07, 0.045, WALL_DEPTH]} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+        </mesh>
+        <mesh position={[0, -WINDOW_OPENING_HEIGHT / 2, 0.025]}>
+          <boxGeometry args={[width + 0.07, 0.045, WALL_DEPTH]} />
+          <meshStandardMaterial color={frameColor} emissive="#0284c7" emissiveIntensity={0.2} roughness={0.28} />
+        </mesh>
+        <mesh position={[0, 0, 0.035]}>
+          <boxGeometry args={[0.03, WINDOW_OPENING_HEIGHT - 0.14, WALL_DEPTH * 0.85]} />
+          <meshStandardMaterial color="#e0f2fe" emissive="#38bdf8" emissiveIntensity={0.18} roughness={0.22} />
+        </mesh>
+      </group>
+    )
+  }
+
+  return (
+    <group position={[cx, PASS_OPENING_BOTTOM + PASS_OPENING_HEIGHT / 2, cz]} rotation={[0, -angle, 0]}>
+      <mesh position={[-width / 2, 0, 0]}>
+        <boxGeometry args={[0.055, PASS_OPENING_HEIGHT, frameDepth]} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+      </mesh>
+      <mesh position={[width / 2, 0, 0]}>
+        <boxGeometry args={[0.055, PASS_OPENING_HEIGHT, frameDepth]} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+      </mesh>
+      <mesh position={[0, PASS_OPENING_HEIGHT / 2, 0]}>
+        <boxGeometry args={[width + 0.07, 0.055, frameDepth]} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+      </mesh>
+      <mesh position={[0, -PASS_OPENING_HEIGHT / 2, 0]}>
+        <boxGeometry args={[width + 0.07, 0.055, frameDepth]} />
+        <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.16} roughness={0.32} />
+      </mesh>
+      <mesh position={[0, 0, depth / 2 + 0.012]}>
+        <boxGeometry args={[width * 0.82, 0.035, 0.035]} />
+        <meshBasicMaterial color="#fde68a" transparent opacity={0.78} />
+      </mesh>
+    </group>
+  )
+}
+
+function RoomFloorMesh({ room }: { room: Room2D }) {
+  const geometry = useMemo(() => {
+    if (room.points && room.points.length >= 3) {
+      const shape = new THREE.Shape()
+      room.points.forEach((point, index) => {
+        if (index === 0) shape.moveTo(point.x, point.y)
+        else shape.lineTo(point.x, point.y)
+      })
+      shape.closePath()
+      return new THREE.ShapeGeometry(shape)
+    }
+    return new THREE.PlaneGeometry(Math.max(0.05, room.w), Math.max(0.05, room.h))
+  }, [room.h, room.points, room.w])
+
+  if (room.points && room.points.length >= 3) {
+    return (
+      <mesh geometry={geometry} position={[0, 0.004, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#6b7280" roughness={0.84} metalness={0.02} side={THREE.DoubleSide} />
+      </mesh>
+    )
+  }
+
+  return (
+    <mesh geometry={geometry} position={[room.x + room.w / 2, 0.004, room.y + room.h / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+      <meshStandardMaterial color="#6b7280" roughness={0.84} metalness={0.02} side={THREE.DoubleSide} />
     </mesh>
   )
 }
 
 function FloorMesh({ rooms }: { rooms: Room2D[] }) {
   if (rooms.length === 0) return null
-  const minX = Math.min(...rooms.map((r) => r.x))
-  const maxX = Math.max(...rooms.map((r) => r.x + r.w))
-  const minY = Math.min(...rooms.map((r) => r.y))
-  const maxY = Math.max(...rooms.map((r) => r.y + r.h))
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
-  const w = maxX - minX
-  const h = maxY - minY
-
   return (
-    <mesh position={[cx, -FLOOR_HEIGHT / 2, cy]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[w + 2, h + 2]} />
-      <meshStandardMaterial color="#1e293b" roughness={0.9} />
-    </mesh>
+    <group>
+      {rooms.map((room, index) => (
+        <RoomFloorMesh key={`${room.label ?? 'room'}-${index}`} room={room} />
+      ))}
+    </group>
   )
 }
 
-function RoomArea({ x, y, w, h, label, selected }: Room2D & { selected?: boolean }) {
+function RoomArea({ room, selected }: { room: Room2D; selected?: boolean }) {
+  const { x, y, w, h, points } = room
+  const geometry = useMemo(() => {
+    if (!points || points.length < 3) return null
+    const shape = new THREE.Shape()
+    points.forEach((point, index) => {
+      if (index === 0) shape.moveTo(point.x, point.y)
+      else shape.lineTo(point.x, point.y)
+    })
+    shape.closePath()
+    return new THREE.ShapeGeometry(shape)
+  }, [points])
+
+  if (geometry) {
+    return (
+      <mesh geometry={geometry} position={[0, 0.025, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial
+          color={selected ? '#38bdf8' : '#6b7280'}
+          transparent
+          opacity={selected ? 0.34 : 0.18}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+    )
+  }
+
   return (
-    <mesh position={[x + w / 2, 0.01, y + h / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh position={[x + w / 2, 0.025, y + h / 2]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[w - 0.3, h - 0.3]} />
       <meshStandardMaterial
-        color={selected ? '#38bdf8' : '#94a3b8'}
+        color={selected ? '#38bdf8' : '#6b7280'}
         transparent
-        opacity={selected ? 0.25 : 0.12}
+        opacity={selected ? 0.32 : 0.16}
         side={2}
         depthWrite={false}
       />
@@ -549,15 +819,58 @@ function PointCloudObject({ asset, index, pointCount }: { asset: UploadAsset; in
   )
 }
 
-function Scene({ walls, rooms, devices, selectedDeviceIdx, pointClouds }: Props) {
+function sceneBounds(walls: Wall2D[], rooms: Room2D[], devices: SecurityDevice[]) {
+  const roomXs = rooms.flatMap((room) => room.points?.map((point) => point.x) ?? [room.x, room.x + room.w])
+  const roomYs = rooms.flatMap((room) => room.points?.map((point) => point.y) ?? [room.y, room.y + room.h])
+  const xs = [...walls.flatMap((wall) => [wall.x1, wall.x2]), ...roomXs, ...devices.map((device) => device.x)]
+  const ys = [...walls.flatMap((wall) => [wall.y1, wall.y2]), ...roomYs, ...devices.map((device) => device.y)]
+  if (xs.length === 0 || ys.length === 0) return { centerX: 0, centerY: 0, span: 16 }
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return {
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+    span: Math.max(maxX - minX, maxY - minY, 8),
+  }
+}
+
+function CameraBoundsController({ distance, span }: { distance: number; span: number }) {
+  const { camera } = useThree()
+
+  useEffect(() => {
+    camera.position.set(distance, distance, distance)
+    camera.near = Math.max(0.01, distance / 1000)
+    camera.far = Math.max(2000, span * 12)
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+  }, [camera, distance, span])
+
+  return null
+}
+
+function Scene({ walls = [], rooms = [], openings = [], devices = [], selectedDeviceIdx, pointClouds, sceneCenter = { x: 0, y: 0 } }: Props & { sceneCenter?: { x: number; y: number } }) {
   return (
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 15, 10]} intensity={0.8} />
-      <FloorMesh rooms={rooms ?? []} />
-      {rooms?.map((r, i) => <RoomArea key={i} {...r} />)}
-      {walls?.map((w, i) => <WallMesh key={i} {...w} />)}
-      {devices?.map((d, i) => <DeviceMarker key={d.id} device={d} selected={i === selectedDeviceIdx} />)}
+      <group position={[-sceneCenter.x, 0, -sceneCenter.y]}>
+        <FloorMesh rooms={rooms} />
+        {rooms.map((r, i) => <RoomArea key={i} room={r} />)}
+        {walls.map((wall, i) => (
+          <WallMesh
+            key={i}
+            wall={wall}
+            openings={openings.filter((opening) => opening.wallIdx === i)}
+          />
+        ))}
+        {openings.map((opening, i) => {
+          const wall = walls[opening.wallIdx]
+          return wall ? <OpeningMesh key={`${opening.type}-${opening.wallIdx}-${i}`} opening={opening} wall={wall} /> : null
+        })}
+        {devices.map((d, i) => <DeviceMarker key={d.id} device={d} selected={i === selectedDeviceIdx} />)}
+      </group>
       {pointClouds?.map((asset, i) => (
         <PointCloudObject
           key={asset.id}
@@ -581,8 +894,10 @@ function Scene({ walls, rooms, devices, selectedDeviceIdx, pointClouds }: Props)
   )
 }
 
-export function ThreeJSViewer({ walls = [], rooms = [], devices = [], selectedDeviceIdx = null, pointClouds = [], showAxisGizmo = false }: Props) {
+export function ThreeJSViewer({ walls = [], rooms = [], openings = [], devices = [], selectedDeviceIdx = null, pointClouds = [], showAxisGizmo = false }: Props) {
   const axisRef = useRef<HTMLCanvasElement | null>(null);
+  const bounds = useMemo(() => sceneBounds(walls, rooms, devices), [devices, rooms, walls])
+  const cameraDistance = Math.max(14, bounds.span * 1.25)
   return (
     <div
       style={{
@@ -595,15 +910,16 @@ export function ThreeJSViewer({ walls = [], rooms = [], devices = [], selectedDe
         background: '#111113',
       }}
     >
-      <Canvas camera={{ position: [12, 12, 12], fov: 50 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      <Canvas camera={{ position: [cameraDistance, cameraDistance, cameraDistance], fov: 50 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <color attach="background" args={['#111113']} />
-        <Scene walls={walls} rooms={rooms} devices={devices} selectedDeviceIdx={selectedDeviceIdx} pointClouds={pointClouds} />
+        <CameraBoundsController distance={cameraDistance} span={bounds.span} />
+        <Scene walls={walls} rooms={rooms} openings={openings} devices={devices} selectedDeviceIdx={selectedDeviceIdx} pointClouds={pointClouds} sceneCenter={{ x: bounds.centerX, y: bounds.centerY }} />
         <OrbitControls
           makeDefault={showAxisGizmo}
           enableDamping
           dampingFactor={0.15}
           minDistance={3}
-          maxDistance={60}
+          maxDistance={Math.max(60, bounds.span * 4)}
           maxPolarAngle={Math.PI / 2.2}
           mouseButtons={{
             LEFT: THREE.MOUSE.ROTATE,

@@ -17,12 +17,36 @@ export type RoomGeometry = {
   y: number
   w: number
   h: number
+  points?: Array<{ x: number; y: number }> | null
+}
+
+export type DoorGeometry = {
+  id?: number
+  floor_id?: number
+  x: number
+  y: number
+  width: number
+  rotation_degrees: number
+  door_type?: string
+}
+
+export type WindowGeometry = {
+  id?: number
+  floor_id?: number
+  x: number
+  y: number
+  width: number
+  rotation_degrees: number
+  window_type?: string
+  sill_height_meters?: number
 }
 
 export type FloorGeometry = {
   floor_id: number
   walls: WallGeometry[]
   rooms: RoomGeometry[]
+  doors?: DoorGeometry[]
+  windows?: WindowGeometry[]
 }
 
 export function getFloorGeometry(floorId: number): Promise<FloorGeometry> {
@@ -31,9 +55,9 @@ export function getFloorGeometry(floorId: number): Promise<FloorGeometry> {
 
 export function syncFloorGeometry(
   floorId: number,
-  payload: { walls: WallGeometry[]; rooms: RoomGeometry[] },
+  payload: { walls: WallGeometry[]; rooms: RoomGeometry[]; doors?: DoorGeometry[]; windows?: WindowGeometry[] },
 ): Promise<FloorGeometry> {
-  return sendJson<FloorGeometry, { walls: WallGeometry[]; rooms: RoomGeometry[] }>(
+  return sendJson<FloorGeometry, { walls: WallGeometry[]; rooms: RoomGeometry[]; doors?: DoorGeometry[]; windows?: WindowGeometry[] }>(
     `/api/floors/${floorId}/geometry`,
     'PUT',
     payload,

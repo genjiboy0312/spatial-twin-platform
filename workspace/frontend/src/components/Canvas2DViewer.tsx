@@ -3,33 +3,61 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
 
 export type Wall2D = { x1: number; y1: number; x2: number; y2: number }
-export type Room2D = { x: number; y: number; w: number; h: number; label?: string }
+export type Room2D = {
+  x: number
+  y: number
+  w: number
+  h: number
+  label?: string
+  generated?: boolean
+  points?: Array<{ x: number; y: number }> | null
+}
 export type Door2D = { wallIdx: number; position: number; width: number }
 export type Window2D = { wallIdx: number; position: number; width: number }
 export type Opening2D = { wallIdx: number; position: number; width: number }
+export type WallOpening2D = {
+  type: 'door' | 'window' | 'opening'
+  wallIdx: number
+  position: number
+  width: number
+}
+type OpeningCursorPreview = {
+  type: WallOpening2D['type']
+  x: number
+  y: number
+  angle: number
+  width: number
+}
 
 type EditMode = 'select' | 'wall' | 'delete' | 'device' | 'room' | 'door' | 'window' | 'opening'
 type Props = {
   walls: Wall2D[]
   rooms: Room2D[]
+  openings?: WallOpening2D[]
   devices: SecurityDevice[]
   selectedWallIdx?: number | null
   selectedRoomIdx?: number | null
+  selectedOpeningIdx?: number | null
   selectedDeviceIdx?: number | null
   editMode: EditMode
   visibleLayers: { walls: boolean; rooms: boolean; devices: boolean }
+  showEndpoints?: boolean
   width?: number
   height?: number
   onSelectWall?: (idx: number) => void
   onSelectRoom?: (idx: number) => void
+  onSelectOpening?: (idx: number) => void
   onSelectDevice?: (idx: number) => void
   onDrawWall?: (x1: number, y1: number, x2: number, y2: number) => void
+  onDrawWalls?: (walls: Wall2D[]) => void
   onDeleteAt?: (worldX: number, worldY: number) => void
-  onMoveWall?: (idx: number, dx: number, dy: number) => void
+  onDeleteOpening?: (idx: number) => void
+  onUpdateWall?: (idx: number, wall: Partial<Wall2D>, recordHistory?: boolean) => void
+  onMoveWallEndpoint?: (idx: number, endpoint: 'start' | 'end', x: number, y: number, recordHistory?: boolean) => void
+  onBeginEdit?: () => void
   onFinishMoveWall?: (idx: number, x1: number, y1: number, x2: number, y2: number) => void
   onAddDevice?: (device: SecurityDevice) => void
-  onAddRoom?: (room: Room2D) => void
-  onAddOpening?: (type: 'door' | 'window' | 'opening', wallIdx: number, pos: number) => void
+  onAddOpening?: (opening: WallOpening2D) => void
   snapPoint?: (x: number, y: number) => { x: number; y: number }
   deviceType?: SecurityDeviceType
 }
@@ -37,8 +65,13 @@ type Props = {
 const PADDING = 40
 const GRID_PX_SPACING = 28
 const SECTION_MULTIPLE = 5
-const HIT_THRESHOLD_PX = 8
+const HIT_THRESHOLD_PX = 16
+const OPENING_HIT_THRESHOLD_PX = 30
 const ENDPOINT_RADIUS_PX = 6
+const MIN_SEGMENT_LENGTH = 0.02
+const DEFAULT_DOOR_WIDTH = 1.0
+const DEFAULT_WINDOW_WIDTH = 1.5
+const DEFAULT_OPENING_WIDTH = 0.9
 
 function distToSegment(
   px: number, py: number,
@@ -69,11 +102,129 @@ function findNearestWallIdx(
   return bestDist <= HIT_THRESHOLD_PX ? bestIdx : -1
 }
 
+function findClosestWallIdx(wx: number, wy: number, walls: Wall2D[]): number {
+  let bestIdx = -1
+  let bestDist = Infinity
+  for (const [i, w] of walls.entries()) {
+    const d = distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2)
+    if (d < bestDist) {
+      bestDist = d
+      bestIdx = i
+    }
+  }
+  return bestIdx
+}
+
+function findOpeningWallIdx(wx: number, wy: number, walls: Wall2D[], scale: number): number {
+  let bestIdx = -1
+  let bestDistPx = Infinity
+  for (const [i, wall] of walls.entries()) {
+    const dPx = distToSegment(wx, wy, wall.x1, wall.y1, wall.x2, wall.y2) * scale
+    if (dPx < bestDistPx) {
+      bestDistPx = dPx
+      bestIdx = i
+    }
+  }
+  return bestDistPx <= OPENING_HIT_THRESHOLD_PX ? bestIdx : -1
+}
+
+function nearestPointOnWall(wx: number, wy: number, wall: Wall2D) {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return { x: wall.x1, y: wall.y1, t: 0 }
+  const rawT = ((wx - wall.x1) * dx + (wy - wall.y1) * dy) / lenSq
+  const t = Math.max(0, Math.min(1, rawT))
+  return { x: wall.x1 + dx * t, y: wall.y1 + dy * t, t }
+}
+
+function openingWidthForType(type: WallOpening2D['type']) {
+  if (type === 'door') return DEFAULT_DOOR_WIDTH
+  if (type === 'window') return DEFAULT_WINDOW_WIDTH
+  return DEFAULT_OPENING_WIDTH
+}
+
+function openingCursorWidthForType(type: WallOpening2D['type']) {
+  return openingWidthForType(type) * 0.62
+}
+
+function computeWallConstrainedOpening(wall: Wall2D, localPoint: { x: number; y: number }, desiredWidth: number): WallOpening2D | null {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const wallLength = Math.hypot(dx, dy)
+  if (wallLength <= 0) return null
+
+  const width = Math.max(0.1, Math.min(desiredWidth, wallLength))
+  const halfWidth = width / 2
+  const rawDistance = ((localPoint.x - wall.x1) * dx + (localPoint.y - wall.y1) * dy) / wallLength
+  const distance = Math.max(halfWidth, Math.min(wallLength - halfWidth, rawDistance))
+  return {
+    type: 'door',
+    wallIdx: -1,
+    position: distance / wallLength,
+    width,
+  }
+}
+
+function findNearestEndpoint(
+  wx: number,
+  wy: number,
+  walls: Wall2D[],
+  scale: number,
+): { wallIdx: number; endpoint: 'start' | 'end'; x: number; y: number } | null {
+  let best: { wallIdx: number; endpoint: 'start' | 'end'; x: number; y: number; distancePx: number } | null = null
+  for (const [wallIdx, wall] of walls.entries()) {
+    const endpoints = [
+      { endpoint: 'start' as const, x: wall.x1, y: wall.y1 },
+      { endpoint: 'end' as const, x: wall.x2, y: wall.y2 },
+    ]
+    for (const point of endpoints) {
+      const distancePx = Math.hypot(wx - point.x, wy - point.y) * scale
+      if (distancePx <= ENDPOINT_RADIUS_PX + 6 && (!best || distancePx < best.distancePx)) {
+        best = { wallIdx, ...point, distancePx }
+      }
+    }
+  }
+  return best ? { wallIdx: best.wallIdx, endpoint: best.endpoint, x: best.x, y: best.y } : null
+}
+
 function findRoomIdx(wx: number, wy: number, rooms: Room2D[]): number {
   for (const [i, r] of rooms.entries()) {
+    if (r.points && r.points.length >= 3 && pointInPolygon(wx, wy, r.points)) return i
     if (wx >= r.x && wx <= r.x + r.w && wy >= r.y && wy <= r.y + r.h) return i
   }
   return -1
+}
+
+function findOpeningIdx(wx: number, wy: number, walls: Wall2D[], openings: WallOpening2D[], scale: number): number {
+  let bestIdx = -1
+  let bestDistPx = Infinity
+  for (const [idx, opening] of openings.entries()) {
+    const wall = walls[opening.wallIdx]
+    if (!wall) continue
+    const point = nearestPointOnWall(
+      wall.x1 + (wall.x2 - wall.x1) * opening.position,
+      wall.y1 + (wall.y2 - wall.y1) * opening.position,
+      wall,
+    )
+    const distancePx = Math.hypot(wx - point.x, wy - point.y) * scale
+    if (distancePx < bestDistPx) {
+      bestDistPx = distancePx
+      bestIdx = idx
+    }
+  }
+  return bestDistPx <= HIT_THRESHOLD_PX + 8 ? bestIdx : -1
+}
+
+function pointInPolygon(x: number, y: number, points: Array<{ x: number; y: number }>) {
+  let inside = false
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const a = points[i]!
+    const b = points[j]!
+    const intersects = ((a.y > y) !== (b.y > y)) && (x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x)
+    if (intersects) inside = !inside
+  }
+  return inside
 }
 
 function drawDevice(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: number, sel: boolean) {
@@ -133,45 +284,69 @@ function getWallAngleAndCenter(x1: number, y1: number, x2: number, y2: number) {
   return { angle, cx, cy }
 }
 
-function drawWallMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, angle: number, type: string) {
+function openingColor(type: WallOpening2D['type']) {
+  if (type === 'door') return '#a16207'
+  if (type === 'window') return '#38bdf8'
+  return '#facc15'
+}
+
+function drawWallMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, angle: number, type: WallOpening2D['type'], width = 16, selected = false) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(angle)
-  const w = 8
-  const h = 12
-  ctx.strokeStyle = type === 'door' ? '#facc15' : type === 'window' ? '#38bdf8' : '#a78bfa'
-  ctx.lineWidth = 2
-  ctx.strokeRect(-w/2, -h/2, w, h)
+  const w = Math.max(12, width)
+  const h = 10
+  ctx.strokeStyle = selected ? '#f8fafc' : openingColor(type)
+  ctx.lineWidth = selected ? 5 : 3
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(-w / 2, 0)
+  ctx.lineTo(w / 2, 0)
+  ctx.stroke()
   if (type === 'door') {
     ctx.beginPath()
-    ctx.arc(h/2, 0, h/2, -Math.PI/2, Math.PI/2)
+    ctx.lineWidth = 1.5
+    ctx.arc(-w / 2, 0, h, -Math.PI / 2, 0)
     ctx.stroke()
   }
   ctx.restore()
 }
 
+function openingFromPointer(type: WallOpening2D['type'], wallIdx: number, wall: Wall2D, point: { x: number; y: number }): WallOpening2D | null {
+  const constrained = computeWallConstrainedOpening(wall, point, openingWidthForType(type))
+  if (!constrained) return null
+  return { ...constrained, type, wallIdx }
+}
+
 export function Canvas2DViewer({
   walls,
   rooms,
+  openings = [],
   devices,
   selectedWallIdx,
   selectedRoomIdx,
+  selectedOpeningIdx,
   selectedDeviceIdx,
   editMode,
   visibleLayers,
+  showEndpoints = true,
   onSelectWall,
   onSelectRoom,
+  onSelectOpening,
   onSelectDevice,
   onDrawWall,
+  onDrawWalls,
   onDeleteAt,
-  onMoveWall,
+  onDeleteOpening,
+  onUpdateWall,
+  onMoveWallEndpoint,
+  onBeginEdit,
   onFinishMoveWall,
   onAddDevice,
-  onAddRoom,
   onAddOpening,
   snapPoint,
   deviceType = 'camera',
-  }: Props) {
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 760, height: 480 })
@@ -199,13 +374,22 @@ export function Canvas2DViewer({
   const [cameraOffset, setCameraOffset] = useState({ x: 0, y: 0 })
   const isPanning = useRef(false)
   const panStart = useRef({ screenX: 0, screenY: 0, offsetX: 0, offsetY: 0 })
+  const interactionTransformRef = useRef<{ scale: number; ox: number; oy: number } | null>(null)
 
   // ── Base scale computed from content bounds ──
-  const maxX = Math.max(...walls.flatMap((w) => [w.x1, w.x2]), ...rooms.map((r) => r.x + r.w), ...devices.map((d) => d.x), 1)
-  const maxY = Math.max(...walls.flatMap((w) => [w.y1, w.y2]), ...rooms.map((r) => r.y + r.h), ...devices.map((d) => d.y), 1)
-  const baseScale = Math.min((width - PADDING * 2) / maxX, (height - PADDING * 2) / maxY)
-  const baseOx = (width - maxX * baseScale) / 2
-  const baseOy = (height - maxY * baseScale) / 2
+  const roomXs = rooms.flatMap((room) => room.points?.map((point) => point.x) ?? [room.x, room.x + room.w])
+  const roomYs = rooms.flatMap((room) => room.points?.map((point) => point.y) ?? [room.y, room.y + room.h])
+  const worldXs = [...walls.flatMap((w) => [w.x1, w.x2]), ...roomXs, ...devices.map((d) => d.x)]
+  const worldYs = [...walls.flatMap((w) => [w.y1, w.y2]), ...roomYs, ...devices.map((d) => d.y)]
+  const minX = worldXs.length > 0 ? Math.min(...worldXs) : 0
+  const maxX = worldXs.length > 0 ? Math.max(...worldXs) : 1
+  const minY = worldYs.length > 0 ? Math.min(...worldYs) : 0
+  const maxY = worldYs.length > 0 ? Math.max(...worldYs) : 1
+  const contentWidth = Math.max(maxX - minX, 1)
+  const contentHeight = Math.max(maxY - minY, 1)
+  const baseScale = Math.min((width - PADDING * 2) / contentWidth, (height - PADDING * 2) / contentHeight)
+  const baseOx = (width - contentWidth * baseScale) / 2 - minX * baseScale
+  const baseOy = (height - contentHeight * baseScale) / 2 - minY * baseScale
 
   // Effective transform (base × camera)
   const effectiveScale = baseScale * cameraZoom
@@ -216,6 +400,14 @@ export function Canvas2DViewer({
     (sx: number, sy: number) => ({ x: (sx - effectiveOx) / effectiveScale, y: (sy - effectiveOy) / effectiveScale }),
     [effectiveOx, effectiveOy, effectiveScale],
   )
+  const screenToWorldDuringInteraction = useCallback(
+    (sx: number, sy: number) => {
+      const locked = interactionTransformRef.current
+      if (!locked) return screenToWorld(sx, sy)
+      return { x: (sx - locked.ox) / locked.scale, y: (sy - locked.oy) / locked.scale }
+    },
+    [screenToWorld],
+  )
 
   // Drag state
   const [dragInfo, setDragInfo] = useState<{
@@ -223,16 +415,35 @@ export function Canvas2DViewer({
     startMouse: { x: number; y: number }
     startWall: Wall2D
   } | null>(null)
+  const [endpointDragInfo, setEndpointDragInfo] = useState<{
+    wallIdx: number
+    endpoint: 'start' | 'end'
+  } | null>(null)
 
   // Drawing preview state
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
   const [drawLine, setDrawLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 
   // Room drawing state
+  const roomStartRef = useRef<{ x: number; y: number } | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const [openingPreview, setOpeningPreview] = useState<WallOpening2D | null>(null)
+  const [openingCursorPreview, setOpeningCursorPreview] = useState<OpeningCursorPreview | null>(null)
 
   // Snap preview
   const [snapPointVisible, setSnapPointVisible] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    drawStartRef.current = null
+    roomStartRef.current = null
+    setDrawLine(null)
+    setRoomDrag(null)
+    setOpeningPreview(null)
+    setOpeningCursorPreview(null)
+    setSnapPointVisible(null)
+    setDragInfo(null)
+    setEndpointDragInfo(null)
+  }, [editMode])
 
   // ── Drag & drop state ──
   const [isDragOver, setIsDragOver] = useState(false)
@@ -349,21 +560,34 @@ export function Canvas2DViewer({
     // ── Rooms ──
     if (visibleLayers.rooms) {
       for (const [i, room] of rooms.entries()) {
-        const rx = effectiveOx + room.x * effectiveScale
-        const ry = effectiveOy + room.y * effectiveScale
-        const rw = room.w * effectiveScale
-        const rh = room.h * effectiveScale
         const isSel = i === selectedRoomIdx
         ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.15)' : 'rgba(148, 163, 184, 0.06)'
-        ctx.fillRect(rx, ry, rw, rh)
         ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(148, 163, 184, 0.25)'
         ctx.lineWidth = isSel ? 2 : 1
-        ctx.strokeRect(rx, ry, rw, rh)
+        if (room.points && room.points.length >= 3) {
+          ctx.beginPath()
+          room.points.forEach((point, pointIndex) => {
+            const sx = effectiveOx + point.x * effectiveScale
+            const sy = effectiveOy + point.y * effectiveScale
+            if (pointIndex === 0) ctx.moveTo(sx, sy)
+            else ctx.lineTo(sx, sy)
+          })
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+        } else {
+          const rx = effectiveOx + room.x * effectiveScale
+          const ry = effectiveOy + room.y * effectiveScale
+          const rw = room.w * effectiveScale
+          const rh = room.h * effectiveScale
+          ctx.fillRect(rx, ry, rw, rh)
+          ctx.strokeRect(rx, ry, rw, rh)
+        }
         if (room.label) {
           ctx.fillStyle = '#94a3b8'
           ctx.font = '12px Inter, sans-serif'
           ctx.textAlign = 'center'
-          ctx.fillText(room.label, rx + rw / 2, ry + rh / 2 + 4)
+          ctx.fillText(room.label, effectiveOx + (room.x + room.w / 2) * effectiveScale, effectiveOy + (room.y + room.h / 2) * effectiveScale + 4)
         }
       }
     }
@@ -379,15 +603,79 @@ export function Canvas2DViewer({
         ctx.lineWidth = isSel ? 5 : 3
         ctx.lineCap = 'round'
         ctx.stroke()
-        if (isSel) {
+        if (showEndpoints || isSel) {
           for (const pt of [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]) {
             ctx.beginPath()
             ctx.arc(effectiveOx + pt.x * effectiveScale, effectiveOy + pt.y * effectiveScale, 5, 0, Math.PI * 2)
             ctx.fillStyle = '#38bdf8'
             ctx.fill()
+            ctx.strokeStyle = 'rgba(17, 17, 19, 0.9)'
+            ctx.lineWidth = 1.5
+            ctx.stroke()
           }
         }
       }
+    }
+
+    for (const [openingIdx, opening] of openings.entries()) {
+      const wall = walls[opening.wallIdx]
+      if (!wall) continue
+      const point = nearestPointOnWall(
+        wall.x1 + (wall.x2 - wall.x1) * opening.position,
+        wall.y1 + (wall.y2 - wall.y1) * opening.position,
+        wall,
+      )
+      const { angle } = getWallAngleAndCenter(wall.x1, wall.y1, wall.x2, wall.y2)
+      drawWallMarker(
+        ctx,
+        effectiveOx + point.x * effectiveScale,
+        effectiveOy + point.y * effectiveScale,
+        angle,
+        opening.type,
+        opening.width * effectiveScale,
+        openingIdx === selectedOpeningIdx,
+      )
+      if (showEndpoints) {
+        const dx = Math.cos(angle) * (opening.width * effectiveScale) / 2
+        const dy = Math.sin(angle) * (opening.width * effectiveScale) / 2
+        for (const end of [{ x: effectiveOx + point.x * effectiveScale - dx, y: effectiveOy + point.y * effectiveScale - dy }, { x: effectiveOx + point.x * effectiveScale + dx, y: effectiveOy + point.y * effectiveScale + dy }]) {
+          ctx.beginPath()
+          ctx.arc(end.x, end.y, 3.5, 0, Math.PI * 2)
+          ctx.fillStyle = openingColor(opening.type)
+          ctx.fill()
+        }
+      }
+    }
+
+    if (openingPreview) {
+      const wall = walls[openingPreview.wallIdx]
+      if (wall) {
+        const point = nearestPointOnWall(
+          wall.x1 + (wall.x2 - wall.x1) * openingPreview.position,
+          wall.y1 + (wall.y2 - wall.y1) * openingPreview.position,
+          wall,
+        )
+        const { angle } = getWallAngleAndCenter(wall.x1, wall.y1, wall.x2, wall.y2)
+        drawWallMarker(
+          ctx,
+          effectiveOx + point.x * effectiveScale,
+          effectiveOy + point.y * effectiveScale,
+          angle,
+          openingPreview.type,
+          openingPreview.width * effectiveScale,
+        )
+      }
+    }
+
+    if (openingCursorPreview) {
+      drawWallMarker(
+        ctx,
+        effectiveOx + openingCursorPreview.x * effectiveScale,
+        effectiveOy + openingCursorPreview.y * effectiveScale,
+        openingCursorPreview.angle,
+        openingCursorPreview.type,
+        openingCursorPreview.width * effectiveScale,
+      )
     }
 
     // ── Devices ──
@@ -469,8 +757,8 @@ export function Canvas2DViewer({
     ctx.textAlign = 'center'
     ctx.fillText(`${barMeters}m`, width - PADDING - barPx / 2, height - 28)
   }, [
-    walls, rooms, devices, selectedWallIdx, selectedRoomIdx, selectedDeviceIdx, editMode, visibleLayers,
-    drawLine, snapPointVisible, dragInfo, roomDrag, width, height, maxX, maxY, baseScale, baseOx, baseOy,
+    walls, rooms, openings, devices, selectedWallIdx, selectedRoomIdx, selectedOpeningIdx, selectedDeviceIdx, editMode, visibleLayers,
+    drawLine, snapPointVisible, dragInfo, endpointDragInfo, roomDrag, openingPreview, openingCursorPreview, showEndpoints, width, height, maxX, maxY, baseScale, baseOx, baseOy,
     cameraZoom, cameraOffset,
   ])
 
@@ -496,9 +784,24 @@ export function Canvas2DViewer({
     const wPos = screenToWorld(pos.x, pos.y)
 
     if (editMode === 'select') {
+      const endpointHit = showEndpoints ? findNearestEndpoint(wPos.x, wPos.y, walls, effectiveScale) : null
+      if (endpointHit) {
+        onSelectWall?.(endpointHit.wallIdx)
+        onBeginEdit?.()
+        interactionTransformRef.current = { scale: effectiveScale, ox: effectiveOx, oy: effectiveOy }
+        setEndpointDragInfo({ wallIdx: endpointHit.wallIdx, endpoint: endpointHit.endpoint })
+        return
+      }
+      const openingIdx = findOpeningIdx(wPos.x, wPos.y, walls, openings, effectiveScale)
+      if (openingIdx >= 0) {
+        onSelectOpening?.(openingIdx)
+        return
+      }
       const wIdx = findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
       if (wIdx >= 0) {
         onSelectWall?.(wIdx)
+        onBeginEdit?.()
+        interactionTransformRef.current = { scale: effectiveScale, ox: effectiveOx, oy: effectiveOy }
         setDragInfo({
           wallIdx: wIdx,
           startMouse: { x: pos.x, y: pos.y },
@@ -516,26 +819,60 @@ export function Canvas2DViewer({
         } else {
           onSelectWall?.(-1)
           onSelectRoom?.(-1)
+          onSelectOpening?.(-1)
           onSelectDevice?.(-1)
         }
       }
     }
 
     if (editMode === 'wall') {
-      const snapped = snapPoint ? snapPoint(wPos.x, wPos.y) : wPos
-      drawStartRef.current = snapped
-      setDrawLine(null)
+      const snapped = wPos
+      if (!drawStartRef.current) {
+        drawStartRef.current = snapped
+        setDrawLine({ x1: snapped.x, y1: snapped.y, x2: snapped.x, y2: snapped.y })
+      } else {
+        const start = drawStartRef.current
+        const dxPx = Math.abs((snapped.x - start.x) * effectiveScale)
+        const dyPx = Math.abs((snapped.y - start.y) * effectiveScale)
+        if (dxPx > HIT_THRESHOLD_PX || dyPx > HIT_THRESHOLD_PX) {
+          onDrawWall?.(start.x, start.y, snapped.x, snapped.y)
+        }
+        drawStartRef.current = null
+        setDrawLine(null)
+        setSnapPointVisible(null)
+      }
     }
 
     if (editMode === 'room') {
-      const snapped = snapPoint ? snapPoint(wPos.x, wPos.y) : wPos
-      setRoomDrag({ startX: snapped.x, startY: snapped.y, currentX: snapped.x, currentY: snapped.y })
+      const start = roomStartRef.current
+      if (!start) {
+        roomStartRef.current = { x: wPos.x, y: wPos.y }
+        setRoomDrag({ startX: wPos.x, startY: wPos.y, currentX: wPos.x, currentY: wPos.y })
+      } else {
+        const dx = Math.abs(wPos.x - start.x)
+        const dy = Math.abs(wPos.y - start.y)
+        if (dx > MIN_SEGMENT_LENGTH && dy > MIN_SEGMENT_LENGTH) {
+          const x = Math.min(start.x, wPos.x)
+          const y = Math.min(start.y, wPos.y)
+          onDrawWalls?.([
+            { x1: x, y1: y, x2: x + dx, y2: y },
+            { x1: x + dx, y1: y, x2: x + dx, y2: y + dy },
+            { x1: x + dx, y1: y + dy, x2: x, y2: y + dy },
+            { x1: x, y1: y + dy, x2: x, y2: y },
+          ])
+        }
+        roomStartRef.current = null
+        setRoomDrag(null)
+        setSnapPointVisible(null)
+      }
     }
 
     if (editMode === 'door' || editMode === 'window' || editMode === 'opening') {
-      const wIdx = findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+      const wIdx = openingPreview?.type === editMode ? openingPreview.wallIdx : findOpeningWallIdx(wPos.x, wPos.y, walls, effectiveScale)
       if (wIdx >= 0) {
-        onAddOpening?.(editMode, wIdx, 0.5)
+        const wall = walls[wIdx]!
+        const opening = openingFromPointer(editMode, wIdx, wall, wPos)
+        if (opening) onAddOpening?.(opening)
       }
     }
     if (editMode === 'device') {
@@ -567,41 +904,69 @@ export function Canvas2DViewer({
     const wPos = screenToWorld(pos.x, pos.y)
 
     // Wall drag
+    if (editMode === 'select' && endpointDragInfo) {
+      const raw = screenToWorldDuringInteraction(pos.x, pos.y)
+      onMoveWallEndpoint?.(endpointDragInfo.wallIdx, endpointDragInfo.endpoint, raw.x, raw.y, false)
+      setSnapPointVisible(null)
+      return
+    }
+
     if (editMode === 'select' && dragInfo) {
-      const dx = (pos.x - dragInfo.startMouse.x) / effectiveScale
-      const dy = (pos.y - dragInfo.startMouse.y) / effectiveScale
-      onMoveWall?.(dragInfo.wallIdx, dx, dy)
+      const scale = interactionTransformRef.current?.scale ?? effectiveScale
+      const dx = (pos.x - dragInfo.startMouse.x) / scale
+      const dy = (pos.y - dragInfo.startMouse.y) / scale
+      onUpdateWall?.(dragInfo.wallIdx, {
+        x1: dragInfo.startWall.x1 + dx,
+        y1: dragInfo.startWall.y1 + dy,
+        x2: dragInfo.startWall.x2 + dx,
+        y2: dragInfo.startWall.y2 + dy,
+      }, false)
       return
     }
 
     // Drawing preview with snap
     if (editMode === 'wall' && drawStartRef.current) {
       const raw = screenToWorld(pos.x, pos.y)
-      const snapped = snapPoint ? snapPoint(raw.x, raw.y) : raw
       setDrawLine({
         x1: drawStartRef.current.x,
         y1: drawStartRef.current.y,
-        x2: snapped.x,
-        y2: snapped.y,
+        x2: raw.x,
+        y2: raw.y,
       })
-      if (snapped.x !== raw.x || snapped.y !== raw.y) {
-        setSnapPointVisible(snapped)
-      } else {
-        setSnapPointVisible(null)
-      }
+      setSnapPointVisible(null)
       return
     }
 
     // Room drag preview
     if (editMode === 'room' && roomDrag) {
       const raw = screenToWorld(pos.x, pos.y)
-      const snapped = snapPoint ? snapPoint(raw.x, raw.y) : raw
-      setRoomDrag((prev) => prev ? { ...prev, currentX: snapped.x, currentY: snapped.y } : null)
+      setRoomDrag((prev) => prev ? { ...prev, currentX: raw.x, currentY: raw.y } : null)
+      setSnapPointVisible(null)
+      return
+    }
+
+    if (editMode === 'door' || editMode === 'window' || editMode === 'opening') {
+      const wIdx = findOpeningWallIdx(wPos.x, wPos.y, walls, effectiveScale)
+      if (wIdx >= 0) {
+        const wall = walls[wIdx]!
+        const { angle } = getWallAngleAndCenter(wall.x1, wall.y1, wall.x2, wall.y2)
+        setOpeningPreview(openingFromPointer(editMode, wIdx, wall, wPos))
+        setOpeningCursorPreview({
+          type: editMode,
+          x: wPos.x,
+          y: wPos.y,
+          angle,
+          width: openingCursorWidthForType(editMode),
+        })
+      } else {
+        setOpeningPreview(null)
+        setOpeningCursorPreview(null)
+      }
       return
     }
 
     // Hover snap
-    if ((editMode === 'wall' || editMode === 'device' || editMode === 'room' || editMode === 'door' || editMode === 'window' || editMode === 'opening') && snapPoint) {
+    if (editMode === 'device' && snapPoint) {
       const snapped = snapPoint(wPos.x, wPos.y)
       if (snapped.x !== wPos.x || snapped.y !== wPos.y) {
         setSnapPointVisible(snapped)
@@ -623,6 +988,15 @@ export function Canvas2DViewer({
     const pos = getPos(e)
     if (!pos) return
 
+    if (editMode === 'select' && endpointDragInfo) {
+      const raw = screenToWorldDuringInteraction(pos.x, pos.y)
+      onMoveWallEndpoint?.(endpointDragInfo.wallIdx, endpointDragInfo.endpoint, raw.x, raw.y, true)
+      setEndpointDragInfo(null)
+      interactionTransformRef.current = null
+      setSnapPointVisible(null)
+      return
+    }
+
     // Finish wall drag
     if (editMode === 'select' && dragInfo) {
       const wall = walls[dragInfo.wallIdx]
@@ -630,39 +1004,19 @@ export function Canvas2DViewer({
         onFinishMoveWall?.(dragInfo.wallIdx, wall.x1, wall.y1, wall.x2, wall.y2)
       }
       setDragInfo(null)
+      interactionTransformRef.current = null
       return
-    }
-
-    // Finish wall drawing
-    if (editMode === 'wall' && drawStartRef.current) {
-      const wPos = screenToWorld(pos.x, pos.y)
-      const snapped = snapPoint ? snapPoint(wPos.x, wPos.y) : wPos
-      const start = drawStartRef.current
-      const dxPx = Math.abs((snapped.x - start.x) * effectiveScale)
-      const dyPx = Math.abs((snapped.y - start.y) * effectiveScale)
-      if (dxPx > HIT_THRESHOLD_PX || dyPx > HIT_THRESHOLD_PX) {
-        onDrawWall?.(start.x, start.y, snapped.x, snapped.y)
-      }
-      drawStartRef.current = null
-      setDrawLine(null)
-      setSnapPointVisible(null)
-    }
-
-    // Finish room drawing
-    if (editMode === 'room' && roomDrag) {
-      const dx = Math.abs(roomDrag.currentX - roomDrag.startX)
-      const dy = Math.abs(roomDrag.currentY - roomDrag.startY)
-      if (dx > 0.5 && dy > 0.5) {
-        const x = Math.min(roomDrag.startX, roomDrag.currentX)
-        const y = Math.min(roomDrag.startY, roomDrag.currentY)
-        onAddRoom?.({ x, y, w: dx, h: dy, label: `Room ${rooms.length + 1}` })
-      }
-      setRoomDrag(null)
     }
 
     // Delete mode
     if (editMode === 'delete') {
       const wPos = screenToWorld(pos.x, pos.y)
+      const openingIdx = findOpeningIdx(wPos.x, wPos.y, walls, openings, effectiveScale)
+      if (openingIdx >= 0) {
+        onSelectOpening?.(openingIdx)
+        onDeleteOpening?.(openingIdx)
+        return
+      }
       const wIdx = findNearestWallIdx(wPos.x, wPos.y, walls, effectiveScale)
       if (wIdx >= 0) {
         onSelectWall?.(wIdx)
@@ -677,13 +1031,16 @@ export function Canvas2DViewer({
     setDrawLine(null)
     setSnapPointVisible(null)
     setDragInfo(null)
+    setEndpointDragInfo(null)
+    interactionTransformRef.current = null
+    roomStartRef.current = null
     setRoomDrag(null)
+    setOpeningPreview(null)
+    setOpeningCursorPreview(null)
   }
 
   // ── Mouse wheel zoom ──
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-
     // 1. 현재 마우스 위치(화면 좌표) 계산
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -724,7 +1081,7 @@ export function Canvas2DViewer({
   // ── Middle-click auto-scroll cursor ──
   const cursor =
     isPanning.current ? 'grabbing' :
-    editMode === 'wall' || editMode === 'device' || editMode === 'room' ? 'crosshair' :
+    editMode === 'wall' || editMode === 'device' || editMode === 'room' || editMode === 'door' || editMode === 'window' || editMode === 'opening' ? 'crosshair' :
     editMode === 'delete' ? 'not-allowed' : 'default'
 
   return (

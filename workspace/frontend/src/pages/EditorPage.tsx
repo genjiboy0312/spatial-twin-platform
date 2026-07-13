@@ -7,9 +7,9 @@ import { ObjectSnapPanel } from '../components/ObjectSnapPanel'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { createFloor, listFloors, type Floor } from '../api/floors'
-import { getFloorGeometry, syncFloorGeometry } from '../api/geometry'
+import { getFloorGeometry, syncFloorGeometry, type DoorGeometry, type WindowGeometry } from '../api/geometry'
 import { usePreferences } from '../app/preferences'
-import { Canvas2DViewer, type Wall2D } from '../components/Canvas2DViewer'
+import { Canvas2DViewer, type Room2D, type Wall2D, type WallOpening2D } from '../components/Canvas2DViewer'
 import { PropertyPanel } from '../components/PropertyPanel'
 import { DrawingToolbar } from '../components/DrawingToolbar'
 import { EnhancedLayerPanel } from '../components/layer/EnhancedLayerPanel'
@@ -24,6 +24,7 @@ import { PageHeader } from './PageHeader'
 import { UploadModal } from '../components/UploadModal'
 import { ExportModal } from '../components/ExportModal'
 import { FloorPositionModal } from '../components/FloorPositionModal'
+import { FloorCreateModal } from '../components/FloorCreateModal'
 
 import { SnapType, type SnapConfig } from '../utils/objectSnap'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
@@ -95,6 +96,7 @@ const copy = {
 
 type ViewMode = '2d' | 'split' | '3d' | 'pointcloud' | 'ifc'
 type EditorSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
+type LoadBuildingFloorsOptions = { preferGeometryFloorId?: number }
 
 const viewModes: ViewMode[] = ['2d', '3d', 'split', 'pointcloud', 'ifc']
 const POINTCLOUD_MAX_POINTS = 2_000_000
@@ -109,7 +111,8 @@ function formatPointCount(value: number) {
 
 function isEditorSnapshot(value: unknown): value is {
   walls?: Wall2D[]
-  rooms?: Array<{ x: number; y: number; w: number; h: number; label?: string }>
+  rooms?: Room2D[]
+  openings?: WallOpening2D[]
   devices?: SecurityDevice[]
   visibleLayers?: { walls: boolean; rooms: boolean; devices: boolean }
   snapMode?: 'grid' | 'endpoint' | 'both' | 'none'
@@ -131,14 +134,118 @@ function floorSelectionKey(floorId: number | '') {
   return floorId === '' ? 'building' : String(floorId)
 }
 
-function roomToGeometry(room: { x: number; y: number; w: number; h: number; label?: string }) {
+function roomToGeometry(room: Room2D) {
   return {
     name: room.label?.trim() || 'Room',
     x: room.x,
     y: room.y,
     w: room.w,
     h: room.h,
+    points: room.points ?? null,
   }
+}
+
+function roomFromGeometry(room: { x: number; y: number; w: number; h: number; name: string; points?: Array<{ x: number; y: number }> | null }): Room2D {
+  const nextRoom: Room2D = {
+    x: room.x,
+    y: room.y,
+    w: room.w,
+    h: room.h,
+    label: room.name,
+    generated: Boolean(room.points && room.points.length >= 3),
+  }
+  if (room.points && room.points.length >= 3) nextRoom.points = room.points
+  return nextRoom
+}
+
+function nearestPointOnWall(x: number, y: number, wall: Wall2D) {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return { x: wall.x1, y: wall.y1, position: 0 }
+  const t = Math.max(0, Math.min(1, ((x - wall.x1) * dx + (y - wall.y1) * dy) / lenSq))
+  return { x: wall.x1 + dx * t, y: wall.y1 + dy * t, position: t }
+}
+
+function openingPoint(opening: WallOpening2D, walls: Wall2D[]) {
+  const wall = walls[opening.wallIdx]
+  if (!wall) return null
+  const x = wall.x1 + (wall.x2 - wall.x1) * opening.position
+  const y = wall.y1 + (wall.y2 - wall.y1) * opening.position
+  const rotation_degrees = (Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1) * 180) / Math.PI
+  return { x, y, rotation_degrees }
+}
+
+function openingsToDoorGeometry(openings: WallOpening2D[], walls: Wall2D[]): DoorGeometry[] {
+  return openings
+    .filter((opening) => opening.type !== 'window')
+    .reduce<DoorGeometry[]>((items, opening) => {
+      const point = openingPoint(opening, walls)
+      if (!point) return items
+      items.push({
+        x: point.x,
+        y: point.y,
+        width: opening.width,
+        rotation_degrees: point.rotation_degrees,
+        door_type: opening.type === 'opening' ? 'opening' : 'door',
+      })
+      return items
+    }, [])
+}
+
+function openingsToWindowGeometry(openings: WallOpening2D[], walls: Wall2D[]): WindowGeometry[] {
+  return openings
+    .filter((opening) => opening.type === 'window')
+    .reduce<WindowGeometry[]>((items, opening) => {
+      const point = openingPoint(opening, walls)
+      if (!point) return items
+      items.push({
+        x: point.x,
+        y: point.y,
+        width: opening.width,
+        rotation_degrees: point.rotation_degrees,
+        window_type: 'window',
+        sill_height_meters: 0.9,
+      })
+      return items
+    }, [])
+}
+
+function geometryToOpenings(doors: DoorGeometry[] | undefined, windows: WindowGeometry[] | undefined, walls: Wall2D[]): WallOpening2D[] {
+  const fromDoor = (doors ?? []).map((door) => {
+    const wallIdx = nearestWallIndex(door.x, door.y, walls)
+    if (wallIdx < 0) return null
+    const wall = walls[wallIdx]!
+    const point = nearestPointOnWall(door.x, door.y, wall)
+    return {
+      type: door.door_type === 'opening' ? 'opening' as const : 'door' as const,
+      wallIdx,
+      position: point.position,
+      width: door.width,
+    }
+  })
+  const fromWindow = (windows ?? []).map((window) => {
+    const wallIdx = nearestWallIndex(window.x, window.y, walls)
+    if (wallIdx < 0) return null
+    const wall = walls[wallIdx]!
+    const point = nearestPointOnWall(window.x, window.y, wall)
+    return { type: 'window' as const, wallIdx, position: point.position, width: window.width }
+  })
+  return [...fromDoor, ...fromWindow].filter((item): item is WallOpening2D => item !== null)
+}
+
+function nearestWallIndex(x: number, y: number, walls: Wall2D[]) {
+  let bestIdx = -1
+  let bestDistance = Infinity
+  for (const [idx, wall] of walls.entries()) {
+    const point = nearestPointOnWall(x, y, wall)
+    const distance = Math.hypot(x - point.x, y - point.y)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      bestIdx = idx
+    }
+  }
+  return bestDistance <= 1.2 ? bestIdx : -1
 }
 
 function placementFromDevice(device: SecurityDevice, floorId: number | '') {
@@ -221,10 +328,11 @@ export function EditorPage() {
   const [floors, setFloors] = useState<Floor[]>([])
   const [selectedFloorId, setSelectedFloorId] = useState<number | ''>('')
   const [allFloorsView, setAllFloorsView] = useState(false)
+  const [isFloorCreateOpen, setIsFloorCreateOpen] = useState(false)
+  const [creatingFloor, setCreatingFloor] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [initialized, setInitialized] = useState(false)
   const [deviceType, setDeviceType] = useState<SecurityDeviceType>('camera')
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
@@ -246,26 +354,32 @@ export function EditorPage() {
   const mode = useEditorStore((state) => state.mode)
   const walls = useEditorStore((state) => state.walls)
   const rooms = useEditorStore((state) => state.rooms)
+  const openings = useEditorStore((state) => state.openings)
   const devices = useEditorStore((state) => state.devices)
   const selectedWallIdx = useEditorStore((state) => state.selectedWallIdx)
   const selectedRoomIdx = useEditorStore((state) => state.selectedRoomIdx)
+  const selectedOpeningIdx = useEditorStore((state) => state.selectedOpeningIdx)
   const selectedDeviceIdx = useEditorStore((state) => state.selectedDeviceIdx)
   const visibleLayers = useEditorStore((state) => state.visibleLayers)
   const snapMode = useEditorStore((state) => state.snapMode)
   const setMode = useEditorStore((state) => state.setMode)
   const addWall = useEditorStore((state) => state.addWall)
-  const addRoom = useEditorStore((state) => state.addRoom)
+  const addWalls = useEditorStore((state) => state.addWalls)
+  const addOpening = useEditorStore((state) => state.addOpening)
   const selectWall = useEditorStore((state) => state.selectWall)
   const selectRoom = useEditorStore((state) => state.selectRoom)
+  const selectOpening = useEditorStore((state) => state.selectOpening)
   const selectDevice = useEditorStore((state) => state.selectDevice)
   const deleteWallAt = useEditorStore((state) => state.deleteWallAt)
   const removeDevice = useEditorStore((state) => state.removeDevice)
+  const removeOpening = useEditorStore((state) => state.removeOpening)
+  const removeSelected = useEditorStore((state) => state.removeSelected)
   const updateDevice = useEditorStore((state) => state.updateDevice)
   const updateRoom = useEditorStore((state) => state.updateRoom)
   const updateWall = useEditorStore((state) => state.updateWall)
+  const updateOpening = useEditorStore((state) => state.updateOpening)
+  const updateWallEndpoint = useEditorStore((state) => state.updateWallEndpoint)
   const loadSample = useEditorStore((state) => state.loadSample)
-  const clearAll = useEditorStore((state) => state.clearAll)
-  const moveWall = useEditorStore((state) => state.moveWall)
   const pushHistory = useEditorStore((state) => state.pushHistory)
   const snapPoint = useEditorStore((state) => state.snapPoint)
   const addDevice = useEditorStore((state) => state.addDevice)
@@ -273,6 +387,7 @@ export function EditorPage() {
   const redo = useEditorStore((state) => state.redo)
   const setSnapMode = useEditorStore((state) => state.setSnapMode)
   const loadEditorState = useEditorStore((state) => state.loadEditorState)
+  const [showWallEndpoints, setShowWallEndpoints] = useState(true)
 
   const toggleSnapEnabled = useCallback(() => {
     setSnapConfig(prev => ({ ...prev, enabled: !prev.enabled }))
@@ -296,10 +411,14 @@ export function EditorPage() {
   }, [])
 
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
+  const nextFloorNumber = useMemo(() => Math.max(0, ...floors.map((floor) => floor.floor_number)) + 1, [floors])
+  const existingFloorNumbers = useMemo(() => floors.map((floor) => floor.floor_number), [floors])
   const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId)
   const selectedFloor = floors.find((floor) => floor.id === selectedFloorId)
   const selectedDevice: SecurityDevice | null =
     selectedDeviceIdx != null && selectedDeviceIdx < devices.length ? (devices[selectedDeviceIdx] as SecurityDevice) : null
+  const selectedOpening: WallOpening2D | null =
+    selectedOpeningIdx != null && selectedOpeningIdx < openings.length ? (openings[selectedOpeningIdx] as WallOpening2D) : null
 
   const handleDeviceRefresh = useCallback(() => {
     selectDevice(null)
@@ -337,10 +456,12 @@ export function EditorPage() {
       .filter((placement) => placement.floor_id === floorId)
       .map(deviceFromPlacement)
       .filter((device): device is SecurityDevice => device !== null)
+    const nextWalls = floorGeometry?.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })) ?? []
     loadEditorState({
-      walls: floorGeometry?.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })) ?? [],
-      rooms: floorGeometry?.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })) ?? [],
+      walls: nextWalls,
+      rooms: floorGeometry?.rooms.map(roomFromGeometry) ?? [],
       devices: placementDevices,
+      openings: floorGeometry ? geometryToOpenings(floorGeometry.doors, floorGeometry.windows, nextWalls) : [],
     })
     setFloorSceneHydrated(true)
   }, [loadEditorState])
@@ -350,15 +471,17 @@ export function EditorPage() {
     await syncFloorGeometry(selectedFloorId, {
       walls,
       rooms: rooms.map(roomToGeometry),
+      doors: openingsToDoorGeometry(openings, walls),
+      windows: openingsToWindowGeometry(openings, walls),
     })
     const syncedPlacements = await syncDevicePlacements(selectedBuildingId, selectedFloorId, devices)
     objectPlacementsRef.current = [
       ...objectPlacementsRef.current.filter((placement) => placement.floor_id !== selectedFloorId),
       ...syncedPlacements,
     ]
-  }, [devices, rooms, selectedBuildingId, selectedFloorId, syncDevicePlacements, walls])
+  }, [devices, openings, rooms, selectedBuildingId, selectedFloorId, syncDevicePlacements, walls])
 
-  const loadBuildingFloors = useCallback(async (buildingId: number) => {
+  const loadBuildingFloors = useCallback(async (buildingId: number, options: LoadBuildingFloorsOptions = {}) => {
     setEditorHydrated(false)
     setSaveStatus('loading')
     try {
@@ -380,36 +503,41 @@ export function EditorPage() {
       } else {
         setPointCloudSelectionByFloor({})
       }
+      const preferredFloorId = options.preferGeometryFloorId && data.some((floor) => floor.id === options.preferGeometryFloorId)
+        ? options.preferGeometryFloorId
+        : null
       const fallbackFloorId =
-        isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)
+        preferredFloorId ??
+        (isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)
           ? editorSnapshot.selectedFloorId
-          : data[0]?.id ?? null
+          : data[0]?.id ?? null)
       const floorGeometry = fallbackFloorId !== null ? await getFloorGeometry(fallbackFloorId).catch(() => null) : null
-      const placementDevices = placements.map(deviceFromPlacement).filter((device): device is SecurityDevice => device !== null)
-      if (isEditorSnapshot(editorSnapshot)) {
+      const placementDevices = placements
+        .filter((placement) => placement.floor_id === fallbackFloorId)
+        .map(deviceFromPlacement)
+        .filter((device): device is SecurityDevice => device !== null)
+      const editorPrefs = isEditorSnapshot(editorSnapshot)
+        ? {
+            ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
+            ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
+          }
+        : {}
+      if (floorGeometry) {
+        const nextWalls = floorGeometry.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 }))
         loadEditorState({
-          walls: Array.isArray(editorSnapshot.walls) ? editorSnapshot.walls : (floorGeometry?.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })) ?? []),
-          rooms: Array.isArray(editorSnapshot.rooms) ? editorSnapshot.rooms : (floorGeometry?.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })) ?? []),
-          devices: Array.isArray(editorSnapshot.devices) ? editorSnapshot.devices : placementDevices,
-          ...(editorSnapshot.visibleLayers ? { visibleLayers: editorSnapshot.visibleLayers } : {}),
-          ...(editorSnapshot.snapMode ? { snapMode: editorSnapshot.snapMode } : {}),
+          walls: nextWalls,
+          rooms: floorGeometry.rooms.map(roomFromGeometry),
+          devices: placementDevices,
+          openings: geometryToOpenings(floorGeometry.doors, floorGeometry.windows, nextWalls),
+          ...editorPrefs,
         })
-        if (editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
+        if (isEditorSnapshot(editorSnapshot) && editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
       } else {
-        if (floorGeometry && (floorGeometry.walls.length > 0 || floorGeometry.rooms.length > 0)) {
-          loadEditorState({
-            walls: floorGeometry.walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 })),
-            rooms: floorGeometry.rooms.map((room) => ({ x: room.x, y: room.y, w: room.w, h: room.h, label: room.name })),
-            devices: placementDevices,
-          })
-        } else {
-          loadSample()
-        }
-        if (placementDevices.length > 0) {
-          loadEditorState({ devices: placementDevices })
-        }
+        loadEditorState({ walls: [], rooms: [], openings: [], devices: placementDevices, ...editorPrefs })
+        if (isEditorSnapshot(editorSnapshot) && editorSnapshot.viewMode) setViewMode(editorSnapshot.viewMode)
       }
       setSelectedFloorId((current) => {
+        if (preferredFloorId !== null) return preferredFloorId
         if (isEditorSnapshot(editorSnapshot) && editorSnapshot.selectedFloorId && data.some((floor) => floor.id === editorSnapshot.selectedFloorId)) {
           return editorSnapshot.selectedFloorId
         }
@@ -429,7 +557,7 @@ export function EditorPage() {
       setFloorSceneHydrated(false)
       setSaveStatus('error')
     }
-  }, [loadEditorState, loadSample])
+  }, [loadEditorState])
 
   useEffect(() => { loadBuildings() }, [loadBuildings])
 
@@ -462,6 +590,19 @@ export function EditorPage() {
   }, [loadBuildingFloors, selectedBuildingId])
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (selectedWallIdx === null && selectedRoomIdx === null && selectedOpeningIdx === null && selectedDeviceIdx === null) return
+      event.preventDefault()
+      removeSelected()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [removeSelected, selectedDeviceIdx, selectedOpeningIdx, selectedRoomIdx, selectedWallIdx])
+
+  useEffect(() => {
     if (!editorHydrated || selectedFloorId === '') return undefined
     let cancelled = false
     loadFloorScene(selectedFloorId, objectPlacementsRef.current)
@@ -470,7 +611,7 @@ export function EditorPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          loadEditorState({ walls: [], rooms: [], devices: [] })
+          loadEditorState({ walls: [], rooms: [], openings: [], devices: [] })
           setFloorSceneHydrated(true)
         }
       })
@@ -490,12 +631,6 @@ export function EditorPage() {
   }, [pointCloudSelectionByFloor, pointCloudUploads, selectedFloorId])
 
   useEffect(() => {
-    if (selectedBuildingId !== '' || initialized) return
-    loadSample()
-    setInitialized(true)
-  }, [initialized, loadSample, selectedBuildingId])
-
-  useEffect(() => {
     if (selectedBuildingId === '' || !editorHydrated || !floorSceneHydrated) return undefined
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
@@ -503,6 +638,7 @@ export function EditorPage() {
       saveProjectSnapshotSection(selectedBuildingId, 'editor', {
         walls,
         rooms,
+        openings,
         devices,
         visibleLayers,
         snapMode,
@@ -516,6 +652,8 @@ export function EditorPage() {
           return syncFloorGeometry(selectedFloorId, {
             walls,
             rooms: rooms.map(roomToGeometry),
+            doors: openingsToDoorGeometry(openings, walls),
+            windows: openingsToWindowGeometry(openings, walls),
           })
         })
         .then(() => {
@@ -540,6 +678,7 @@ export function EditorPage() {
     devices,
     editorHydrated,
     floorSceneHydrated,
+    openings,
     rooms,
     selectedBuildingId,
     selectedFloorId,
@@ -551,19 +690,30 @@ export function EditorPage() {
     walls,
   ])
 
-  const handleAddFloor = async () => {
+  const handleCreateFloor = async ({ floorNumber, floorName }: { floorNumber: number; floorName: string }) => {
     if (selectedBuildingId === '') return
-    const nextNumber = (sortedFloors[0]?.floor_number ?? floors.length) + 1
-    await createFloor(selectedBuildingId, {
-      floor_number: nextNumber,
-      floor_name: `${nextNumber}${labels.floorSuffix}`,
-      height_meters: 3.2,
-    })
-    await loadBuildingFloors(selectedBuildingId)
+    setCreatingFloor(true)
+    try {
+      const created = await createFloor(selectedBuildingId, {
+        floor_number: floorNumber,
+        floor_name: floorName,
+        height_meters: 3.2,
+        input_type: 'manual',
+      })
+      await loadBuildingFloors(selectedBuildingId, { preferGeometryFloorId: created.id })
+      setIsFloorCreateOpen(false)
+    } finally {
+      setCreatingFloor(false)
+    }
   }
 
   const handleFloorSelect = useCallback(async (floorId: number) => {
     if (floorId === selectedFloorId) return
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    setFloorSceneHydrated(false)
     setSaveStatus('saving')
     try {
       await persistCurrentFloorScene()
@@ -574,30 +724,31 @@ export function EditorPage() {
     }
   }, [persistCurrentFloorScene, selectedFloorId])
 
-  const handleAddOpening = (type: 'door' | 'window' | 'opening', wallIdx: number, _pos: number) => {
-    // Placeholder - stores will be expanded for doors/windows/openings
-    pushHistory()
-  }
-
   const renderCanvas2d = () => (
     <Canvas2DViewer
       walls={walls}
       rooms={rooms}
+      openings={openings}
       devices={devices}
       selectedWallIdx={selectedWallIdx}
       selectedRoomIdx={selectedRoomIdx}
+      selectedOpeningIdx={selectedOpeningIdx}
       selectedDeviceIdx={selectedDeviceIdx}
       visibleLayers={visibleLayers}
+      showEndpoints={showWallEndpoints}
       editMode={mode}
       onSelectWall={(idx) => selectWall(idx >= 0 ? idx : null)}
       onSelectRoom={(idx) => selectRoom(idx >= 0 ? idx : null)}
+      onSelectOpening={(idx) => selectOpening(idx >= 0 ? idx : null)}
       onSelectDevice={(idx) => selectDevice(idx >= 0 ? idx : null)}
       onDrawWall={(x1, y1, x2, y2) => addWall(x1, y1, x2, y2)}
-      onAddRoom={(room) => addRoom(room)}
-      onAddOpening={handleAddOpening}
+      onDrawWalls={(nextWalls) => addWalls(nextWalls)}
+      onAddOpening={(opening) => addOpening(opening)}
       onDeleteAt={(wx, wy) => deleteWallAt(wx, wy)}
-      onMoveWall={(idx, dx, dy) => moveWall(idx, dx, dy)}
-      onFinishMoveWall={() => pushHistory()}
+      onDeleteOpening={(idx) => removeOpening(idx)}
+      onUpdateWall={(idx, wall, recordHistory) => updateWall(idx, wall, recordHistory)}
+      onMoveWallEndpoint={(idx, endpoint, x, y, recordHistory) => updateWallEndpoint(idx, endpoint, x, y, recordHistory)}
+      onBeginEdit={pushHistory}
       snapPoint={(x, y) => snapPoint(x, y)}
       onAddDevice={(device) => addDevice(device)}
       deviceType={deviceType}
@@ -609,6 +760,7 @@ export function EditorPage() {
       <ThreeJSViewer
         walls={walls}
         rooms={rooms}
+        openings={openings}
         devices={devices}
         selectedDeviceIdx={selectedDeviceIdx}
         showAxisGizmo
@@ -743,11 +895,11 @@ export function EditorPage() {
             </div>
             <button
               className="editor-floor-add-btn"
-              onClick={handleAddFloor}
+              onClick={() => setIsFloorCreateOpen(true)}
               type="button"
-              disabled={selectedBuildingId === ''}
+              disabled={selectedBuildingId === '' || creatingFloor}
             >
-              + {labels.addFloor}
+              + {creatingFloor ? (language === 'ko' ? '생성 중...' : 'Creating...') : labels.addFloor}
             </button>
             <div className="editor-sidebar-divider" />
             <div className="editor-sidebar-label">전층 보기</div>
@@ -795,12 +947,15 @@ export function EditorPage() {
             <div className="editor-viewport-overlay-bottom-left">
               <DrawingToolbar
                 mode={mode}
+                language={language}
                 onChange={setMode}
                 onLoadSample={loadSample}
-                onClear={clearAll}
+                onClear={removeSelected}
                 wallCount={walls.length}
                 deviceType={deviceType}
                 onDeviceTypeChange={setDeviceType}
+                showEndpoints={showWallEndpoints}
+                onToggleEndpoints={() => setShowWallEndpoints((value) => !value)}
               />
             </div>
           </div>
@@ -857,6 +1012,7 @@ export function EditorPage() {
 
           {/* Properties */}
           <PropertyPanel
+            language={language}
             selectedWall={selectedWallIdx != null && selectedWallIdx < walls.length ? walls[selectedWallIdx]! : null}
             wallIndex={selectedWallIdx}
             wallCount={walls.length}
@@ -865,12 +1021,17 @@ export function EditorPage() {
             selectedRoomIdx={selectedRoomIdx}
             selectedDevice={selectedDevice}
             selectedDeviceIdx={selectedDeviceIdx}
+            selectedOpening={selectedOpening}
+            selectedOpeningIdx={selectedOpeningIdx}
             deviceCount={devices.length}
+            openingCount={openings.length}
             saveStatus={saveStatus}
             onBeginEdit={pushHistory}
             onUpdateWall={updateWall}
             onUpdateRoom={updateRoom}
             onUpdateDevice={updateDevice}
+            onUpdateOpening={updateOpening}
+            onDeleteSelected={removeSelected}
           />
         </aside>
       </div>
@@ -882,7 +1043,9 @@ export function EditorPage() {
         selectedBuildingId={selectedBuildingId}
         selectedFloorId={selectedFloorId}
         onUploaded={() => {
-          if (selectedBuildingId !== '') return loadBuildingFloors(selectedBuildingId)
+          if (selectedBuildingId !== '') {
+            return loadBuildingFloors(selectedBuildingId, selectedFloorId === '' ? {} : { preferGeometryFloorId: selectedFloorId })
+          }
           return undefined
         }}
       />
@@ -898,6 +1061,15 @@ export function EditorPage() {
         floors={sortedFloors}
         selectedFloorId={selectedFloorId}
         onSelectFloor={(floorId) => setSelectedFloorId(floorId)}
+      />
+      <FloorCreateModal
+        isOpen={isFloorCreateOpen}
+        language={language}
+        defaultFloorNumber={nextFloorNumber}
+        existingFloorNumbers={existingFloorNumbers}
+        isSubmitting={creatingFloor}
+        onClose={() => setIsFloorCreateOpen(false)}
+        onSubmit={handleCreateFloor}
       />
     </section>
   )

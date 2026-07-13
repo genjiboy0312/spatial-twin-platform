@@ -286,8 +286,18 @@ class Room(Base):
     y: Mapped[float]
     w: Mapped[float]
     h: Mapped[float]
+    points_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    @property
+    def points(self) -> list[dict[str, float]] | None:
+        if not self.points_json:
+            return None
+        import json
+
+        value = json.loads(self.points_json)
+        return value if isinstance(value, list) else None
 
 
 class SecurityDevice(Base):

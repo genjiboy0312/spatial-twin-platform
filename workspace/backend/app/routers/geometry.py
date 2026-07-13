@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +25,14 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["geometry"])
+
+
+def _room_kwargs(payload: RoomCreate | RoomUpdate) -> dict[str, object]:
+    data = payload.model_dump(exclude_unset=True)
+    points = data.pop("points", None)
+    if points is not None:
+        data["points_json"] = json.dumps(points)
+    return data
 
 
 # ── Walls ──
@@ -173,7 +183,7 @@ def list_rooms(floor_id: int, db: Session = Depends(get_db)) -> list[Room]:
 @router.post("/floors/{floor_id}/rooms", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
 def create_room(floor_id: int, payload: RoomCreate, db: Session = Depends(get_db)) -> Room:
     _ensure_floor_exists(db, floor_id)
-    room = Room(floor_id=floor_id, **payload.model_dump())
+    room = Room(floor_id=floor_id, **_room_kwargs(payload))
     db.add(room)
     try:
         db.commit()
@@ -189,7 +199,9 @@ def get_floor_geometry(floor_id: int, db: Session = Depends(get_db)) -> FloorGeo
     _ensure_floor_exists(db, floor_id)
     walls = list(db.scalars(select(Wall).where(Wall.floor_id == floor_id).order_by(Wall.id)))
     rooms = list(db.scalars(select(Room).where(Room.floor_id == floor_id).order_by(Room.id)))
-    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms)
+    doors = list(db.scalars(select(Door).where(Door.floor_id == floor_id).order_by(Door.id)))
+    windows = list(db.scalars(select(Window).where(Window.floor_id == floor_id).order_by(Window.id)))
+    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms, doors=doors, windows=windows)
 
 
 @router.put("/floors/{floor_id}/geometry", response_model=FloorGeometrySyncRead)
@@ -203,18 +215,24 @@ def sync_floor_geometry(
         db.delete(wall)
     for room in db.scalars(select(Room).where(Room.floor_id == floor_id)):
         db.delete(room)
+    for door in db.scalars(select(Door).where(Door.floor_id == floor_id)):
+        db.delete(door)
+    for window in db.scalars(select(Window).where(Window.floor_id == floor_id)):
+        db.delete(window)
 
     walls = [Wall(floor_id=floor_id, **wall.model_dump()) for wall in payload.walls]
-    rooms = [Room(floor_id=floor_id, **room.model_dump()) for room in payload.rooms]
-    db.add_all([*walls, *rooms])
+    rooms = [Room(floor_id=floor_id, **_room_kwargs(room)) for room in payload.rooms]
+    doors = [Door(floor_id=floor_id, **door.model_dump()) for door in payload.doors]
+    windows = [Window(floor_id=floor_id, **window.model_dump()) for window in payload.windows]
+    db.add_all([*walls, *rooms, *doors, *windows])
     try:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid floor geometry") from exc
-    for item in [*walls, *rooms]:
+    for item in [*walls, *rooms, *doors, *windows]:
         db.refresh(item)
-    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms)
+    return FloorGeometrySyncRead(floor_id=floor_id, walls=walls, rooms=rooms, doors=doors, windows=windows)
 
 
 @router.put("/rooms/{room_id}", response_model=RoomRead)
@@ -222,7 +240,7 @@ def update_room(room_id: int, payload: RoomUpdate, db: Session = Depends(get_db)
     room = db.get(Room, room_id)
     if room is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    for field, value in _room_kwargs(payload).items():
         setattr(room, field, value)
     db.commit()
     db.refresh(room)
