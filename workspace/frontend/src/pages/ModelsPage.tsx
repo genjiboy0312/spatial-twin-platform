@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { listFloors, type Floor } from '../api/floors'
+import { getFloorGeometry } from '../api/geometry'
+import { getProjectData, type ProjectData } from '../api/projectData'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
-import { useEditorStore } from '../stores/editorStore'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
@@ -23,6 +24,16 @@ type SourceGroup = {
   uploads: UploadAsset[]
   count: number
   status: 'ready' | 'partial' | 'empty'
+}
+
+type ModelProjectSignal = {
+  geometryCount: number
+  deviceCount: number
+}
+
+const emptyModelSignal: ModelProjectSignal = {
+  geometryCount: 0,
+  deviceCount: 0,
 }
 
 const sourceConfigs: SourceConfig[] = [
@@ -282,6 +293,30 @@ function latestFloorUpload(floor: Floor, uploads: UploadAsset[]) {
   return uploads.filter((upload) => upload.floor_id === floor.id).slice(-1)[0] ?? null
 }
 
+function countSecurityPlacements(data: ProjectData): number {
+  const placementDevices = data.object_placements.filter((placement) => (
+    placement.object_type === 'security_device'
+    || placement.metadata?.editor_source === 'editor-device'
+  )).length
+  return Math.max(placementDevices, data.security_devices.length)
+}
+
+async function loadModelProjectSignal(buildingId: number): Promise<ModelProjectSignal> {
+  const data = await getProjectData(buildingId)
+  const geometryCounts = await Promise.all(
+    data.floors.map((floor) => (
+      getFloorGeometry(floor.id)
+        .then((geometry) => geometry.walls.length + geometry.rooms.length)
+        .catch(() => 0)
+    )),
+  )
+
+  return {
+    geometryCount: geometryCounts.reduce((sum, count) => sum + count, 0),
+    deviceCount: countSecurityPlacements(data),
+  }
+}
+
 function SourceCard({
   config,
   group,
@@ -334,13 +369,11 @@ export function ModelsPage() {
   const { language } = usePreferences()
   const labels = copy[language]
   const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
-  const walls = useEditorStore((state) => state.walls)
-  const rooms = useEditorStore((state) => state.rooms)
-  const devices = useEditorStore((state) => state.devices)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
   const [floors, setFloors] = useState<Floor[]>([])
   const [uploads, setUploads] = useState<UploadAsset[]>([])
+  const [modelSignal, setModelSignal] = useState<ModelProjectSignal>(emptyModelSignal)
   const [loading, setLoading] = useState(false)
 
   const selectedBuilding = useMemo(
@@ -353,8 +386,8 @@ export function ModelsPage() {
   const connectedFloors = useMemo(() => floors.filter((floor) => hasFloorModelSource(floor, uploads)).length, [floors, uploads])
   const pointCloudCount = useMemo(() => uploads.filter((upload) => upload.source_type === 'pointcloud').length, [uploads])
   const totalAssets = uploads.length
-  const localModelSignal = walls.length + rooms.length + devices.length
-  const hasAnySource = connectedFloors > 0 || uploads.some((upload) => upload.source_type !== 'pointcloud') || localModelSignal > 0
+  const persistedModelSignal = modelSignal.geometryCount + modelSignal.deviceCount
+  const hasAnySource = connectedFloors > 0 || uploads.some((upload) => upload.source_type !== 'pointcloud') || persistedModelSignal > 0
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -374,12 +407,18 @@ export function ModelsPage() {
   const loadBuildingSources = useCallback(async (buildingId: number) => {
     setLoading(true)
     try {
-      const [nextFloors, nextUploads] = await Promise.all([listFloors(buildingId), listUploadsByBuilding(buildingId)])
+      const [nextFloors, nextUploads, nextSignal] = await Promise.all([
+        listFloors(buildingId),
+        listUploadsByBuilding(buildingId),
+        loadModelProjectSignal(buildingId).catch(() => emptyModelSignal),
+      ])
       setFloors(nextFloors)
       setUploads(nextUploads)
+      setModelSignal(nextSignal)
     } catch {
       setFloors([])
       setUploads([])
+      setModelSignal(emptyModelSignal)
     } finally {
       setLoading(false)
     }
@@ -393,6 +432,7 @@ export function ModelsPage() {
     if (selectedBuildingId === null) {
       setFloors([])
       setUploads([])
+      setModelSignal(emptyModelSignal)
       return
     }
     loadBuildingSources(selectedBuildingId)
@@ -446,6 +486,10 @@ export function ModelsPage() {
           <span>
             <strong>{totalAssets}</strong>
             {labels.uploadAssets}
+          </span>
+          <span>
+            <strong>{modelSignal.geometryCount + modelSignal.deviceCount}</strong>
+            {labels.sourceStatus}
           </span>
         </div>
       </section>
