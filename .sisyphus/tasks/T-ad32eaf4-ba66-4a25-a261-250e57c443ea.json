@@ -1,0 +1,19 @@
+{
+  "id": "T-ad32eaf4-ba66-4a25-a261-250e57c443ea",
+  "subject": "Inspect upload frontend flow",
+  "description": "Trace UploadModal, upload API/client, and existing UI notification/error patterns before making changes.",
+  "status": "completed",
+  "activeForm": "Inspecting upload frontend flow",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "metadata": {
+    "project": "workspace/frontend",
+    "files": [
+      "frontend/src/components/UploadModal.tsx",
+      "frontend/src/api/uploads.ts",
+      "frontend/src/api/client.ts"
+    ]
+  },
+  "threadID": "ses_0a6373c94ffeDPGhDlkv3mWVBJ"
+}

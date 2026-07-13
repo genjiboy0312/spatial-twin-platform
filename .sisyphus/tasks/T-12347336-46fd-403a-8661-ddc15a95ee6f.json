@@ -1,0 +1,12 @@
+{
+  "id": "T-12347336-46fd-403a-8661-ddc15a95ee6f",
+  "subject": "현재 시스템 상태 확인",
+  "description": "Docker 상태, 백엔드 실행 여부, 실제 에러 로그 확인",
+  "status": "in_progress",
+  "activeForm": "시스템 상태 확인 중",
+  "blocks": [],
+  "blockedBy": [
+    "T-2725bf69-f343-44d2-8f8b-4fa832e2486d"
+  ],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

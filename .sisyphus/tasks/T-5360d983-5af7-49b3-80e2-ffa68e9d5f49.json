@@ -1,0 +1,14 @@
+{
+  "id": "T-5360d983-5af7-49b3-80e2-ffa68e9d5f49",
+  "subject": "Test DXF parsing with a simple file",
+  "description": "Add or run a focused test using a simple generated DXF file to verify parser extraction and upload integration behavior without breaking existing uploads.",
+  "status": "completed",
+  "activeForm": "Testing DXF parsing with a simple file",
+  "blocks": [],
+  "blockedBy": [
+    "T-04bb2b9b-3d37-40de-b8c7-82cd2a5698c7"
+  ],
+  "owner": "Sisyphus-Junior",
+  "repoURL": "C:\\spatial-twin-platform\\workspace\\backend",
+  "threadID": "ses_0a636f5ccffebf1jXDTdl25fbU"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "T-69438606-8008-4520-862a-36180dbd936c",
+  "subject": "Docker 빌드 및 의존성 검증",
+  "description": "convert_dwg_to_dxf.py 포함 여부, Python 패키지 설치 상태 확인",
+  "status": "pending",
+  "activeForm": "Docker 빌드 및 의존성 검증 중",
+  "blocks": [],
+  "blockedBy": [
+    "T-2725bf69-f343-44d2-8f8b-4fa832e2486d"
+  ],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

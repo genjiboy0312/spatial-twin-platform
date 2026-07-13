@@ -1,0 +1,10 @@
+{
+  "id": "T-98d236c5-abe8-4c71-a3e6-c8c8f15fa8da",
+  "subject": "Test DXF upload endpoint",
+  "description": "Test actual DXF upload via curl to identify failure point in the upload pipeline",
+  "status": "completed",
+  "activeForm": "Testing DXF upload endpoint",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

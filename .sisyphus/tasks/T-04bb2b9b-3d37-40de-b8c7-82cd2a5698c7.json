@@ -1,0 +1,14 @@
+{
+  "id": "T-04bb2b9b-3d37-40de-b8c7-82cd2a5698c7",
+  "subject": "Integrate parsed geometry into uploads",
+  "description": "Modify POST /api/uploads/file to invoke the parser after saving DXF uploads, create existing Wall/Line/Room records as supported by the schema, and include additive parsed geometry info in the response while preserving upload behavior.",
+  "status": "completed",
+  "activeForm": "Integrating parsed geometry into uploads",
+  "blocks": [],
+  "blockedBy": [
+    "T-00a8c10c-1658-4036-bd70-7255cffe8d29"
+  ],
+  "owner": "Sisyphus-Junior",
+  "repoURL": "C:\\spatial-twin-platform\\workspace\\backend",
+  "threadID": "ses_0a636f5ccffebf1jXDTdl25fbU"
+}

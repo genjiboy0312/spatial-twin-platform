@@ -1,0 +1,10 @@
+{
+  "id": "T-7378dbfe-037b-486d-bbe0-df35399adedf",
+  "subject": "Fix DXF/DWG upload frontend failure",
+  "description": "Debug and fix the issue where DXF/DWG upload in the browser shows no reaction after file selection. Add better error handling, logging, and ensure the upload flow works correctly.",
+  "status": "completed",
+  "activeForm": "Fixing DXF/DWG upload frontend",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

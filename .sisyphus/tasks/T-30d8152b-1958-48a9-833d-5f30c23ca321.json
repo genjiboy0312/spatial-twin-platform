@@ -1,0 +1,10 @@
+{
+  "id": "T-30d8152b-1958-48a9-833d-5f30c23ca321",
+  "subject": "Implement DXF/DWG geometry parsing in backend",
+  "description": "Add actual DXF/DWG geometry parsing to the backend. Currently the upload endpoint just saves files and marks as \"ready\" without parsing. Need to implement ezdxf-based DXF parsing to extract walls, rooms, layers, and create proper geometry records.",
+  "status": "completed",
+  "activeForm": "Implementing DXF/DWG parsing backend",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

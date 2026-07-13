@@ -1,0 +1,14 @@
+{
+  "id": "T-00a8c10c-1658-4036-bd70-7255cffe8d29",
+  "subject": "Implement DXF parser service and dependency",
+  "description": "Add ezdxf to backend requirements and create app/services/dxf_parser.py to extract line, polyline, layer, wall, and room candidates from DXF files.",
+  "status": "completed",
+  "activeForm": "Implementing DXF parser service and dependency",
+  "blocks": [],
+  "blockedBy": [
+    "T-312250d2-4a71-4a3f-ac7b-ec68deaef8df"
+  ],
+  "owner": "Sisyphus-Junior",
+  "repoURL": "C:\\spatial-twin-platform\\workspace\\backend",
+  "threadID": "ses_0a636f5ccffebf1jXDTdl25fbU"
+}

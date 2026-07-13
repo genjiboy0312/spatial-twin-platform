@@ -1,0 +1,16 @@
+{
+  "id": "T-507567d7-4b53-487a-ac80-7fca9547f091",
+  "subject": "Implement upload debugging and visible errors",
+  "description": "Add console tracing, robust file state handling, and visible toast/banner errors while keeping existing upload types intact.",
+  "status": "completed",
+  "activeForm": "Implementing upload debugging and visible errors",
+  "blocks": [],
+  "blockedBy": [
+    "T-ad32eaf4-ba66-4a25-a261-250e57c443ea"
+  ],
+  "owner": "Sisyphus-Junior",
+  "metadata": {
+    "project": "workspace/frontend"
+  },
+  "threadID": "ses_0a6373c94ffeDPGhDlkv3mWVBJ"
+}
