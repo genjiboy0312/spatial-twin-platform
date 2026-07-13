@@ -6,9 +6,10 @@ interface Props {
   children: ReactNode
   defaultOpen?: boolean
   count?: number
+  language: 'en' | 'ko'
 }
 
-export function CollapsibleLayerGroup({ category, children, defaultOpen = true, count }: Props) {
+export function CollapsibleLayerGroup({ category, children, defaultOpen = true, count, language }: Props) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -19,10 +20,10 @@ export function CollapsibleLayerGroup({ category, children, defaultOpen = true, 
         onClick={() => setOpen(!open)}
       >
         <span className="collapsible-layer-arrow" data-open={open}>
-          ▶
+          &rsaquo;
         </span>
         <span className="collapsible-layer-icon">{category.icon}</span>
-        <span className="collapsible-layer-label">{category.label}</span>
+        <span className="collapsible-layer-label">{language === 'ko' ? category.label : category.labelEn}</span>
         {count !== undefined && (
           <span className="collapsible-layer-count">{count}</span>
         )}
