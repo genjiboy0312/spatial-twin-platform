@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { listBuildings, type Building } from '../api/buildings'
 import { listFloors, type Floor } from '../api/floors'
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
-import { deleteUpload, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
+import { deleteUpload, generatePointCloudMesh, listUploadsByBuilding, uploadFile, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
@@ -242,6 +242,7 @@ export function PointCloudPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'connected'>('upload')
   const [selectedUploadIdsByFloor, setSelectedUploadIdsByFloor] = useState<Record<string, number[]>>({})
   const [deletingUploadId, setDeletingUploadId] = useState<number | null>(null)
+  const [meshingUploadId, setMeshingUploadId] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pointCloudHydrated, setPointCloudHydrated] = useState(false)
@@ -472,6 +473,23 @@ export function PointCloudPage() {
     }
   }
 
+  const handleGenerateMesh = async (asset: UploadAsset) => {
+    if (selectedBuildingId === null || meshingUploadId !== null) return
+    setMeshingUploadId(asset.id)
+    setError(null)
+    setMessage(null)
+    try {
+      await generatePointCloudMesh(asset.id)
+      await refreshBuildingData(selectedBuildingId)
+      setMessage(language === 'ko' ? `${asset.filename} 메시 생성이 완료되었습니다.` : `${asset.filename} mesh is ready.`)
+    } catch (meshError) {
+      setError(meshError instanceof Error ? meshError.message : language === 'ko' ? '메시 생성에 실패했습니다.' : 'Mesh generation failed.')
+      await refreshBuildingData(selectedBuildingId)
+    } finally {
+      setMeshingUploadId(null)
+    }
+  }
+
   return (
     <section className="page-grid pointcloud-page">
       <PageHeader eyebrow={labels.eyebrow} title={labels.title} description={labels.description} />
@@ -658,6 +676,19 @@ export function PointCloudPage() {
                                 <strong>{asset.filename}</strong>
                                 <div className="pointcloud-source-actions">
                                   <em>{labels.status[status]}</em>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    type="button"
+                                    disabled={meshingUploadId !== null || !asset.filename.toLowerCase().endsWith('.las')}
+                                    title={!asset.filename.toLowerCase().endsWith('.las') ? 'LAS files are currently supported' : undefined}
+                                    onClick={() => handleGenerateMesh(asset)}
+                                  >
+                                    {meshingUploadId === asset.id
+                                      ? (language === 'ko' ? '메시 생성 중...' : 'Generating...')
+                                      : asset.pointcloud_mesh_url
+                                        ? (language === 'ko' ? '메시 재생성' : 'Regenerate Mesh')
+                                        : (language === 'ko' ? '메시 생성' : 'Generate Mesh')}
+                                  </button>
                                   <button
                                     className="pointcloud-delete-btn"
                                     type="button"
