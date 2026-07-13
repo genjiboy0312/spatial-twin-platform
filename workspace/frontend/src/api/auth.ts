@@ -1,4 +1,4 @@
-import { sendJson } from './client'
+import { getJson, sendJson } from './client'
 import type { UserRole } from '../stores/sessionStore'
 
 export type LoginRequest = {
@@ -14,6 +14,15 @@ export type LoginResponse = {
   role: UserRole
 }
 
+export type MeResponse = {
+  username: string
+  role: UserRole
+}
+
 export function login(payload: LoginRequest): Promise<LoginResponse> {
   return sendJson<LoginResponse, LoginRequest>('/api/auth/login', 'POST', payload)
+}
+
+export function getCurrentUser(): Promise<MeResponse> {
+  return getJson<MeResponse>('/api/auth/me')
 }

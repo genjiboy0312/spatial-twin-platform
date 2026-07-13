@@ -29,6 +29,7 @@ SOURCE_EXTENSIONS = {
 }
 POINTCLOUD_EXTENSIONS = SOURCE_EXTENSIONS["pointcloud"]
 READY_SOURCE_TYPES = {"image", "dxf", "dwg", "ifc", "glb", "pointcloud"}
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 PIPELINE_PROGRESS = {
     "queued": 5,
     "pending": 10,
@@ -96,6 +97,8 @@ def metadata_for_upload(upload: UploadAsset, *, stored_name: str | None = None, 
         metadata["stored_name"] = stored_name
     if size_bytes is not None:
         metadata["size_bytes"] = size_bytes
+    if upload.source_type == "pointcloud":
+        metadata.update(pointcloud_metadata_for_upload(upload, stored_name=stored_name))
     return json.dumps(metadata, ensure_ascii=False)
 
 
@@ -126,9 +129,11 @@ def pipeline_details_for_upload(
     if size_bytes is not None:
         details["size_bytes"] = size_bytes
     if upload.source_type == "pointcloud":
+        pointcloud_metadata = pointcloud_metadata_for_upload(upload)
         details["max_render_points"] = 2_000_000
         details["rgb_supported"] = True
         details["preview_url"] = upload.pointcloud_preview_url
+        details.update(pointcloud_metadata)
     elif upload.source_type == "image":
         details["thumbnail_status"] = "planned"
     elif upload.source_type in {"dxf", "dwg"}:
@@ -188,6 +193,109 @@ def validate_source_extension(source_type: str, filename: str | None) -> str:
             detail=f"Unsupported {source_type} file type. Allowed: {allowed_list}",
         )
     return ext
+
+
+async def write_upload_stream(file: UploadFile, file_path: Path, max_bytes: int) -> int:
+    size_bytes = 0
+    try:
+        with file_path.open("wb") as target:
+            while True:
+                chunk = await file.read(UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                size_bytes += len(chunk)
+                if size_bytes > max_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=f"Upload exceeds {max_bytes} byte limit",
+                    )
+                target.write(chunk)
+    except Exception:
+        file_path.unlink(missing_ok=True)
+        raise
+    return size_bytes
+
+
+def validate_pointcloud_source(file_path: Path) -> dict[str, object]:
+    ext = file_path.suffix.lower()
+    if ext == ".las":
+        with file_path.open("rb") as file:
+            if file.read(4) != b"LASF":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid LAS pointcloud file")
+            file.seek(104)
+            point_format = struct.unpack("<B", file.read(1))[0] & 0b0011_1111
+            point_record_length = struct.unpack("<H", file.read(2))[0]
+            legacy_count = struct.unpack("<I", file.read(4))[0]
+            point_count = legacy_count
+            if point_count == 0:
+                file.seek(247)
+                point_count = struct.unpack("<Q", file.read(8))[0]
+            if point_record_length <= 0:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid LAS point record")
+            return {
+                "pointcloud_format": "las",
+                "point_format": point_format,
+                "point_record_length": point_record_length,
+                "source_point_count": int(point_count),
+                "preview_supported": True,
+                "rgb_supported": las_rgb_offset(point_format, point_record_length) is not None,
+            }
+    if ext == ".ply":
+        with file_path.open("rb") as file:
+            header = file.read(64_000).decode("utf-8", errors="ignore")
+        if not header.startswith("ply") or "end_header" not in header:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid PLY pointcloud file")
+        vertex_count = 0
+        for line in header.splitlines():
+            parts = line.strip().split()
+            if len(parts) == 3 and parts[0] == "element" and parts[1] == "vertex":
+                vertex_count = int(parts[2]) if parts[2].isdigit() else 0
+                break
+        return {
+            "pointcloud_format": "ply",
+            "source_point_count": vertex_count,
+            "preview_supported": False,
+            "rgb_supported": any(name in header for name in (" red", " green", " blue", " r", " g", " b")),
+        }
+    if ext == ".laz":
+        return {
+            "pointcloud_format": "laz",
+            "source_point_count": None,
+            "preview_supported": False,
+            "rgb_supported": None,
+        }
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported pointcloud file")
+
+
+def pointcloud_metadata_for_upload(upload: UploadAsset, stored_name: str | None = None) -> dict[str, object]:
+    if upload.source_type != "pointcloud":
+        return {}
+    stored = stored_name or stored_filename_from_message(upload.message)
+    if stored is None:
+        return {
+            "pointcloud_format": None,
+            "source_point_count": None,
+            "preview_supported": False,
+            "rgb_supported": None,
+        }
+    file_path = (Path(get_settings().upload_dir) / stored).resolve()
+    upload_dir = Path(get_settings().upload_dir).resolve()
+    if upload_dir not in file_path.parents or not file_path.exists():
+        return {
+            "pointcloud_format": None,
+            "source_point_count": None,
+            "preview_supported": False,
+            "rgb_supported": None,
+        }
+    try:
+        return validate_pointcloud_source(file_path)
+    except HTTPException:
+        return {
+            "pointcloud_format": file_path.suffix.lower().lstrip(".") or None,
+            "source_point_count": None,
+            "preview_supported": False,
+            "rgb_supported": None,
+        }
 
 
 def project_asset_to_read(asset: ProjectAsset) -> ProjectAssetRead:
@@ -409,10 +517,12 @@ def las_preview_bytes(file_path: Path, max_points: int) -> tuple[bytes, int, str
                 payload_offset += 24
                 packed_count += 1
 
-    if valid_count == 0:
+    if packed_count == 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No LAS points found")
-    cache_path.write_bytes(payload)
-    return bytes(payload), valid_count, "float32-xyzrgb"
+    packed_payload = bytes(payload[:packed_count * 24])
+    cache_path.with_suffix(f"{cache_path.suffix}.tmp").write_bytes(packed_payload)
+    cache_path.with_suffix(f"{cache_path.suffix}.tmp").replace(cache_path)
+    return packed_payload, packed_count, "float32-xyzrgb"
 
 
 @router.get("", response_model=list[UploadAssetRead])
@@ -486,19 +596,19 @@ async def upload_file(
     unique_name = f"{uuid4().hex}{ext}"
     file_path = upload_dir / unique_name
 
-    content = await file.read()
     max_bytes = max_upload_bytes_for_source(source_type)
-    if len(content) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Upload exceeds {max_bytes} byte limit for {source_type}",
-        )
-    file_path.write_bytes(content)
+    try:
+        size_bytes = await write_upload_stream(file, file_path, max_bytes)
+        if source_type == "pointcloud":
+            validate_pointcloud_source(file_path)
+    except HTTPException:
+        file_path.unlink(missing_ok=True)
+        raise
     status_value = "ready" if source_type in READY_SOURCE_TYPES else "uploaded"
     message = (
-        f"PointCloud object ready from {file_path.name} ({len(content)} bytes)"
+        f"PointCloud object ready from {file_path.name} ({size_bytes} bytes)"
         if source_type == "pointcloud"
-        else f"{source_type.upper()} source ready at {file_path.name} ({len(content)} bytes)"
+        else f"{source_type.upper()} source ready at {file_path.name} ({size_bytes} bytes)"
     )
 
     upload = UploadAsset(

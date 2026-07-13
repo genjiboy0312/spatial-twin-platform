@@ -21,7 +21,8 @@ export function authHeaders(): HeadersInit {
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, { headers: authHeaders() })
   if (!response.ok) {
-    throw new Error(`GET ${path} failed with ${response.status}`)
+    const payload = await response.json().catch(() => null) as { detail?: string } | null
+    throw new Error(payload?.detail ?? `GET ${path} failed with ${response.status}`)
   }
   return response.json() as Promise<T>
 }
@@ -33,7 +34,8 @@ export async function sendJson<TResponse, TPayload>(path: string, method: 'POST'
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    throw new Error(`${method} ${path} failed with ${response.status}`)
+    const errorPayload = await response.json().catch(() => null) as { detail?: string } | null
+    throw new Error(errorPayload?.detail ?? `${method} ${path} failed with ${response.status}`)
   }
   return response.json() as Promise<TResponse>
 }

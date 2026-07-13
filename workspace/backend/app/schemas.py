@@ -455,3 +455,8 @@ class LoginResponse(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     username: str
     role: Literal["admin", "manager", "editor", "viewer"]
+
+
+class MeResponse(BaseModel):
+    username: str
+    role: Literal["admin", "manager", "editor", "viewer"]

@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.settings import get_settings
 
 client = TestClient(app)
 
@@ -69,6 +70,36 @@ def test_pointcloud_file_upload_creates_ready_asset() -> None:
     assert body["status"] == "ready"
     assert body["floor_id"] == floor["id"]
     assert "PointCloud object ready" in body["message"]
+
+
+def test_pointcloud_file_upload_rejects_malformed_las() -> None:
+    building = client.post("/api/buildings", json={"name": "Malformed PointCloud Parent"}).json()
+
+    response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "pointcloud", "building_id": str(building["id"])},
+        files={"file": ("broken.las", b"not a las file", "application/octet-stream")},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid LAS pointcloud file"}
+
+
+def test_pointcloud_file_upload_enforces_streamed_size_limit(monkeypatch) -> None:
+    monkeypatch.setenv("UPLOAD_MAX_BYTES_POINTCLOUD", "8")
+    get_settings.cache_clear()
+    try:
+        building = client.post("/api/buildings", json={"name": "PointCloud Limit Parent"}).json()
+        response = client.post(
+            "/api/uploads/file",
+            data={"source_type": "pointcloud", "building_id": str(building["id"])},
+            files={"file": ("too-large.ply", b"ply\nformat ascii 1.0\nend_header\n", "application/octet-stream")},
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 413
+    assert "Upload exceeds" in response.json()["detail"]
 
 
 def test_file_upload_rejects_wrong_source_extension() -> None:

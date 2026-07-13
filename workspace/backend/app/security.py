@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
+from app.auth_sessions import is_valid_token
 from app.settings import get_settings
 
 PUBLIC_API_PATHS = {"/api/auth/login"}
@@ -50,7 +51,7 @@ async def api_token_middleware(
         _log_request(request, response, started_at, settings.request_logging_enabled)
         return response
 
-    if token_from_request(request) != settings.api_access_token:
+    if not is_valid_token(token_from_request(request)):
         return JSONResponse(status_code=401, content={"detail": "Invalid or missing API token"})
 
     response = await call_next(request)

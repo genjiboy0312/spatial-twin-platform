@@ -40,7 +40,7 @@ const uploads = [
     status: 'preview_ready',
     message: null,
     file_url: '/uploads/scan-ops.las',
-    pointcloud_preview_url: '/api/pointcloud/preview/3002',
+    pointcloud_preview_url: '/api/uploads/3002/pointcloud-preview',
     created_at: '2026-07-13T00:00:00Z',
   },
 ]
@@ -102,6 +102,28 @@ const snapshot = {
   saved: true,
   updated_at: '2026-07-13T00:00:00Z',
   state: {
+    editor: {
+      selectedFloorId: floor.id,
+      walls: geometry.walls.map(({ x1, y1, x2, y2 }) => ({ x1, y1, x2, y2 })),
+      rooms: geometry.rooms.map(({ name, x, y, w, h }) => ({ label: name, x, y, w, h })),
+      devices: [
+        {
+          id: 'camera-e2e',
+          name: 'Lobby Camera',
+          device_type: 'camera',
+          x: 2,
+          y: 3,
+          z: 0,
+          rotation: 30,
+          status: 'online',
+        },
+      ],
+    },
+    pointcloud: {
+      selected_floor_id: floor.id,
+      selected_upload_ids: [uploads[1].id],
+      selected_upload_ids_by_floor: { [String(floor.id)]: [uploads[1].id] },
+    },
     alignment: {
       selectedFloorId: floor.id,
       alignmentMethod: 'osm',
@@ -175,6 +197,16 @@ async function mockProjectApi(page: Page) {
       return
     }
 
+    if (path === `/api/buildings/${building.id}/object-placements`) {
+      await route.fulfill({ json: objectPlacements })
+      return
+    }
+
+    if (path === `/api/buildings/${building.id}/object-placements/sync`) {
+      await route.fulfill({ json: objectPlacements })
+      return
+    }
+
     if (path === `/api/buildings/${building.id}/project-snapshot`) {
       await route.fulfill({ json: snapshot })
       return
@@ -192,6 +224,21 @@ async function mockProjectApi(page: Page) {
 
     if (path === `/api/uploads/by-building/${building.id}`) {
       await route.fulfill({ json: uploads })
+      return
+    }
+
+    const uploadPipeline = uploads.find((upload) => path === `/api/uploads/${upload.id}/pipeline`)
+    if (uploadPipeline) {
+      await route.fulfill({
+        json: {
+          upload: uploadPipeline,
+          project_assets: projectAssets.filter((asset) => asset.upload_asset_id === uploadPipeline.id),
+          next_actions: ['Review in editor', 'Run alignment'],
+          current_stage: uploadPipeline.status,
+          progress: uploadPipeline.status === 'ready' || uploadPipeline.status === 'preview_ready' ? 100 : 50,
+          details: { mocked: true },
+        },
+      })
       return
     }
 
@@ -266,5 +313,36 @@ test.describe('persisted spatial twin workflow', () => {
     await expect(page.getByRole('main').locator('strong').filter({ hasText: 'scan-ops.las' })).toBeVisible()
     await page.close()
     await context.close()
+  })
+
+  test('source upload, editor, validation, and monitor share the same saved project', async ({ page }) => {
+    await page.goto('/data-sources')
+    await expect(page.getByRole('heading', { name: 'Data Sources' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /1F Operations/ })).toBeVisible()
+    await expect(page.getByRole('main').getByText('floor-ops.dxf').first()).toBeVisible()
+    await expect(page.getByRole('main').getByText('scan-ops.las').first()).toBeVisible()
+
+    await page.goto('/editor/1001')
+    await expect(page.getByRole('heading', { name: 'Spatial Editor Scene' })).toBeVisible()
+    await expect(page.locator('.editor-building-name').getByText('E2E Tower')).toBeVisible()
+    await expect(page.getByRole('button', { name: '1F Operations' })).toBeVisible()
+    await expect(page.getByText('Lobby Camera')).toBeVisible()
+
+    await page.goto('/alignment')
+    await expect(page.getByRole('heading', { name: 'GPS Alignment' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /1F Operations/ })).toBeVisible()
+    await expect(page.getByText(/Origin set|37\.462413/).first()).toBeVisible()
+
+    await page.goto('/validation')
+    await expect(page.getByRole('heading', { name: 'Validation' })).toBeVisible()
+    await expect(page.getByText('E2E Tower')).toBeVisible()
+    await expect(page.getByRole('button', { name: /1F Operations/ })).toBeVisible()
+    await expect(page.getByText(/1 floors.*1 devices/).first()).toBeVisible()
+
+    await page.goto('/monitor')
+    await expect(page.getByRole('heading', { name: 'Realtime Monitor' })).toBeVisible()
+    await expect(page.getByText('E2E Tower').first()).toBeVisible()
+    await expect(page.getByText('1F Operations').first()).toBeVisible()
+    await expect(page.getByText('Lobby Camera').first()).toBeVisible()
   })
 })

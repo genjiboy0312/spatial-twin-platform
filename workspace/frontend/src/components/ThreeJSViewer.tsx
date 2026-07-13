@@ -413,6 +413,7 @@ function parseLas(buffer: ArrayBuffer, maxPoints: number): ParsedPointCloud | nu
 }
 
 async function loadPointCloud(asset: UploadAsset, maxPoints: number): Promise<ParsedPointCloud | null> {
+  const extension = asset.filename.split('.').pop()?.toLowerCase()
   if (asset.pointcloud_preview_url) {
     const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
     const response = await fetch(`${baseUrl}${asset.pointcloud_preview_url}?max_points=${maxPoints}`)
@@ -456,12 +457,14 @@ async function loadPointCloud(asset: UploadAsset, maxPoints: number): Promise<Pa
     }
   }
 
+  if (extension === 'las' || extension === 'laz') {
+    return null
+  }
   if (!asset.file_url) return null
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
   const response = await fetch(`${baseUrl}${asset.file_url}`)
   if (!response.ok) return null
   const buffer = await response.arrayBuffer()
-  const extension = asset.filename.split('.').pop()?.toLowerCase()
   if (extension === 'ply') {
     const textHeader = new TextDecoder().decode(buffer.slice(0, Math.min(buffer.byteLength, 512)))
     if (textHeader.includes('format ascii')) return parseAsciiPly(new TextDecoder().decode(buffer), maxPoints)

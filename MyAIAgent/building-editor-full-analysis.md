@@ -1246,3 +1246,7 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 # 2026-07-13 진행 완료
 
 - [x] E2E saved project workflow: Playwright 시나리오를 추가해 Dashboard, Models, Devices, Export, Alignment 페이지가 같은 저장 프로젝트 데이터(building, floors, uploads, geometry, object placements, alignment snapshot)를 읽는지 검증하도록 구성
+- [x] Playwright Windows 종료 안정화: E2E 테스트가 성공 출력 후 프로세스 반환 없이 타임아웃되던 문제를 wrapper runner로 보정해 전체 E2E가 정상 종료 코드로 반환되도록 수정
+- [x] 통합 E2E 시나리오 확장: Data Sources 업로드 목록, Editor 복원, Alignment 기준점, Validation 요약, Monitor 지도/장치 화면이 같은 저장 프로젝트 데이터를 공유하는지 검증하는 workflow 테스트 추가
+- [x] PointCloud 실파일 업로드 안정화: 백엔드 업로드를 스트리밍 저장 방식으로 전환하고, LAS/PLY/LAZ 헤더 검증 및 포인트클라우드 메타데이터를 pipeline에 반영하며, 프론트 렌더러가 실패한 LAS/LAZ 프리뷰에서 대용량 원본을 재다운로드하지 않도록 보강
+- [x] 인증/계정 시스템 백엔드 연결: 로그인 API가 세션 토큰을 발급하고 `/api/auth/me`로 현재 계정을 검증하도록 확장, API token middleware가 세션 토큰을 허용하도록 변경, 프론트 로그인/상단 계정 전환이 백엔드 인증 흐름을 사용하도록 연결

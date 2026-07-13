@@ -66,17 +66,10 @@ export function LoginPage() {
       })
       setLoading(false)
       navigate('/home')
-    } catch {
-      window.setTimeout(() => {
-        setApiToken(null)
-        setSession({
-          username: username.trim(),
-          role,
-          accessToken: null,
-        })
-        setLoading(false)
-        navigate('/home')
-      }, 260)
+    } catch (loginError) {
+      setApiToken(null)
+      setError(loginError instanceof Error ? loginError.message : '로그인에 실패했습니다.')
+      setLoading(false)
     }
   }
 

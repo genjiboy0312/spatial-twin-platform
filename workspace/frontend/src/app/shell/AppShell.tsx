@@ -1,6 +1,8 @@
-import { Fragment, Suspense, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
+import { getCurrentUser, login } from '../../api/auth'
+import { setApiToken } from '../../api/client'
 import { type UserRole, useSessionStore } from '../../stores/sessionStore'
 import { useWorkflowStore, type WorkflowStep } from '../../stores/workflowStore'
 import { setPreference, type Language, usePreferences } from '../preferences'
@@ -163,6 +165,12 @@ const roleLabels: Record<UserRole, string> = {
 }
 
 const accountRoles: UserRole[] = ['admin', 'manager', 'editor', 'viewer']
+const demoAccountCredentials: Record<UserRole, { username: string; password: string }> = {
+  admin: { username: 'admin', password: 'admin123' },
+  manager: { username: 'manager', password: 'manager123' },
+  editor: { username: 'editor', password: 'editor123' },
+  viewer: { username: 'viewer', password: 'viewer123' },
+}
 
 const scenarioSteps: Array<{ id: WorkflowStep; label: NavLabel; shortEn: string; shortKo: string; to: string }> = [
   { id: 'projects', label: 'Projects', shortEn: 'Project', shortKo: '프로젝트', to: '/projects' },
@@ -323,7 +331,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const labels = APP_LABELS[language]
   const user = useSessionStore((state) => state.user)
-  const setRole = useSessionStore((state) => state.setRole)
+  const setSession = useSessionStore((state) => state.setSession)
   const logout = useSessionStore((state) => state.logout)
   const workflowCurrentStep = useWorkflowStore((state) => state.currentStep)
   const completedSteps = useWorkflowStore((state) => state.completedSteps)
@@ -342,6 +350,27 @@ export function AppShell() {
   const currentScenario = scenarioSteps[scenarioIndex]!
   const previousScenario = scenarioSteps[scenarioIndex - 1]
   const nextScenario = scenarioSteps[scenarioIndex + 1]
+
+  useEffect(() => {
+    if (!user.accessToken) return
+    const accessToken = user.accessToken
+    let cancelled = false
+    getCurrentUser()
+      .then((currentUser) => {
+        if (cancelled) return
+        setSession({
+          username: currentUser.username,
+          role: currentUser.role,
+          accessToken,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) logout()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [logout, setSession, user.accessToken])
 
   const goScenario = (target: typeof scenarioSteps[number]) => {
     setWorkflowCurrentStep(target.id)
@@ -366,6 +395,18 @@ export function AppShell() {
 
   const resetSession = () => {
     logout()
+    setRoleMenuOpen(false)
+  }
+
+  const switchDemoAccount = async (role: UserRole) => {
+    const account = demoAccountCredentials[role]
+    const response = await login({ username: account.username, password: account.password, role })
+    setApiToken(response.access_token)
+    setSession({
+      username: response.username,
+      role: response.role,
+      accessToken: response.access_token,
+    })
     setRoleMenuOpen(false)
   }
 
@@ -460,10 +501,7 @@ export function AppShell() {
                       className={user.role === role ? 'active' : ''}
                       type="button"
                       role="menuitem"
-                      onClick={() => {
-                        setRole(role)
-                        setRoleMenuOpen(false)
-                      }}
+                      onClick={() => void switchDemoAccount(role)}
                     >
                       <TopbarIcon name="user" />
                       <span>{roleLabels[role]}</span>

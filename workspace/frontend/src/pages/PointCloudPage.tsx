@@ -402,8 +402,8 @@ export function PointCloudPage() {
       await refreshBuildingData(selectedBuildingId)
       setMessage(labels.uploadComplete)
       setActiveTab('connected')
-    } catch {
-      setError(labels.uploadFailed)
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : labels.uploadFailed)
     } finally {
       setUploading(false)
     }

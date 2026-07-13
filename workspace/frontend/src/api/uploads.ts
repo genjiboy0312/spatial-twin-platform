@@ -87,7 +87,8 @@ export async function uploadFile(
     body: formData,
   })
   if (!response.ok) {
-    throw new Error(`Upload failed with ${response.status}`)
+    const payload = await response.json().catch(() => null) as { detail?: string } | null
+    throw new Error(payload?.detail ?? `Upload failed with ${response.status}`)
   }
   return response.json() as Promise<UploadAsset>
 }
