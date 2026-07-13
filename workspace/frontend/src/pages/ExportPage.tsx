@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageHeader } from './PageHeader'
 import type { Wall2D, Room2D } from '../components/Canvas2DViewer'
 import { exportDxfWithFallback, exportPackage } from '../api/exportApi'
-import { useEditorStore, type SecurityDevice } from '../stores/editorStore'
+import { listBuildings, type Building } from '../api/buildings'
+import { getFloorGeometry } from '../api/geometry'
+import { getProjectData, getProjectSnapshot, type ProjectData, type ProjectSecurityDevice, type ProjectSnapshot } from '../api/projectData'
+import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
+import { DEVICE_TYPE_LIST } from '../constants/devices'
+import { deviceFromObjectPlacement } from '../utils/projectObjectPlacements'
 import { downloadBlob, exportToCsv, exportToObj, exportToPdf } from '../utils/exportUtils'
 
 type ExportFormat = 'obj' | 'dxf' | 'csv' | 'package' | 'pdf'
@@ -25,6 +31,15 @@ const FORMAT_CARDS: { format: ExportFormat; title: string; description: string; 
   { format: 'package', title: 'Package', description: 'Backend JSON package with geometry, devices, and summary metadata.', extension: '.json' },
   { format: 'pdf', title: 'PDF', description: 'Open the browser print dialog for print-to-PDF output.', extension: 'print' },
 ]
+
+type ExportProjectScene = {
+  walls: Wall2D[]
+  rooms: Room2D[]
+  devices: SecurityDevice[]
+  pointCloudUploads: number
+  alignment: Record<string, unknown> | null
+  projectData: ProjectData | null
+}
 
 function formatTimestamp(): string {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
@@ -69,13 +84,126 @@ function getPreviewBounds(walls: Wall2D[], rooms: Room2D[], devices: SecurityDev
   )
 }
 
+function isSecurityDeviceType(value: unknown): value is SecurityDeviceType {
+  return typeof value === 'string' && DEVICE_TYPE_LIST.includes(value as SecurityDeviceType)
+}
+
+function legacySecurityDeviceToExport(device: ProjectSecurityDevice): SecurityDevice | null {
+  if (!isSecurityDeviceType(device.device_type)) return null
+  return {
+    id: `security-${device.id}`,
+    name: device.name,
+    device_type: device.device_type,
+    x: device.pos_x,
+    y: device.pos_y,
+    angle: device.angle,
+  }
+}
+
+function devicesFromProjectData(data: ProjectData): SecurityDevice[] {
+  const placementDevices = data.object_placements
+    .map(deviceFromObjectPlacement)
+    .filter((device): device is NonNullable<ReturnType<typeof deviceFromObjectPlacement>> => device !== null)
+    .map(({ floor_id: _floorId, ...device }) => device)
+  const placementIds = new Set(placementDevices.map((device) => device.id))
+  const securityDevices = data.security_devices
+    .map(legacySecurityDeviceToExport)
+    .filter((device): device is SecurityDevice => device !== null)
+    .filter((device) => !placementIds.has(device.id))
+  return [...placementDevices, ...securityDevices]
+}
+
+function snapshotAlignment(snapshot: ProjectSnapshot | null): Record<string, unknown> | null {
+  const alignment = snapshot?.state.alignment
+  return typeof alignment === 'object' && alignment !== null ? alignment as Record<string, unknown> : null
+}
+
+async function loadExportProjectScene(buildingId: number): Promise<ExportProjectScene> {
+  const [projectData, snapshot] = await Promise.all([
+    getProjectData(buildingId),
+    getProjectSnapshot(buildingId).catch(() => null),
+  ])
+  const floorGeometries = await Promise.all(
+    projectData.floors.map((floor) => getFloorGeometry(floor.id).catch(() => null)),
+  )
+
+  return {
+    walls: floorGeometries.flatMap((geometry) => geometry?.walls ?? []),
+    rooms: floorGeometries.flatMap((geometry) => geometry?.rooms ?? []),
+    devices: devicesFromProjectData(projectData),
+    pointCloudUploads: projectData.uploads.filter((upload) => upload.source_type === 'pointcloud').length,
+    alignment: snapshotAlignment(snapshot),
+    projectData,
+  }
+}
+
 export function ExportPage() {
-  const walls = useEditorStore((s) => s.walls)
-  const rooms = useEditorStore((s) => s.rooms)
-  const devices = useEditorStore((s) => s.devices)
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
+  const [buildings, setBuildings] = useState<Building[]>([])
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
+  const [scene, setScene] = useState<ExportProjectScene>({
+    walls: [],
+    rooms: [],
+    devices: [],
+    pointCloudUploads: 0,
+    alignment: null,
+    projectData: null,
+  })
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('obj')
-  const [status, setStatus] = useState('Choose a format and export the current editor scene.')
+  const [status, setStatus] = useState('Choose a format and export the selected project data.')
   const [isExporting, setIsExporting] = useState(false)
+  const [isLoadingScene, setIsLoadingScene] = useState(false)
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
+
+  const loadBuildings = useCallback(async () => {
+    try {
+      const data = await listBuildings()
+      setBuildings(data)
+      setSelectedBuildingId((current) => {
+        const next = preferredBuildingId(data, current ?? globalSelectedBuildingId)
+        setGlobalSelectedBuildingId(next)
+        return next
+      })
+    } catch {
+      setBuildings([])
+      setSelectedBuildingId(null)
+    }
+  }, [globalSelectedBuildingId, setGlobalSelectedBuildingId])
+
+  useEffect(() => {
+    loadBuildings()
+  }, [loadBuildings])
+
+  useEffect(() => {
+    let cancelled = false
+    if (selectedBuildingId === null) {
+      setScene({ walls: [], rooms: [], devices: [], pointCloudUploads: 0, alignment: null, projectData: null })
+      return
+    }
+    setIsLoadingScene(true)
+    loadExportProjectScene(selectedBuildingId)
+      .then((nextScene) => {
+        if (!cancelled) {
+          setScene(nextScene)
+          setStatus('Selected project export data is ready.')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setScene({ walls: [], rooms: [], devices: [], pointCloudUploads: 0, alignment: null, projectData: null })
+          setStatus('Failed to load selected project export data.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingScene(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedBuildingId])
+
+  const { walls, rooms, devices } = scene
 
   const bounds = useMemo(() => getPreviewBounds(walls, rooms, devices), [walls, rooms, devices])
   const hasScene = walls.length > 0 || rooms.length > 0 || devices.length > 0
@@ -108,9 +236,21 @@ export function ExportPage() {
         downloadBlob(exportToCsv(devices, rooms), `${filenameBase}.csv`, 'text/csv')
         setStatus('Downloaded CSV successfully.')
       } else if (selectedFormat === 'package') {
-        const blob = await exportPackage({ walls, rooms, devices })
-        downloadBlob(await blob.text(), `${filenameBase}.json`, 'application/json')
-        setStatus('Downloaded backend project package successfully.')
+        const backendBlob = await exportPackage({ walls, rooms, devices })
+        const backendPackage = JSON.parse(await backendBlob.text()) as Record<string, unknown>
+        const packageContent = JSON.stringify({
+          ...backendPackage,
+          project: scene.projectData?.building ?? null,
+          floors: scene.projectData?.floors ?? [],
+          uploads: scene.projectData?.uploads ?? [],
+          project_assets: scene.projectData?.project_assets ?? [],
+          alignment: scene.alignment,
+          pointcloud: {
+            uploads: scene.pointCloudUploads,
+          },
+        }, null, 2)
+        downloadBlob(packageContent, `${filenameBase}.json`, 'application/json')
+        setStatus('Downloaded project package with saved geometry, devices, uploads, pointcloud, and alignment metadata.')
       } else {
         exportToPdf().print()
         setStatus('Print dialog triggered for PDF export.')
@@ -127,14 +267,35 @@ export function ExportPage() {
       <PageHeader
         eyebrow="Export"
         title="Export"
-        description="Export the current walls, rooms, and security devices for CAD, modeling, reporting, or print workflows."
+        description="Export saved project geometry, security devices, pointcloud references, and alignment metadata for CAD, modeling, reporting, or print workflows."
       />
+
+      {buildings.length > 0 && (
+        <div className="full-width" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <select
+            className="select-input"
+            value={selectedBuildingId ?? ''}
+            onChange={(event) => {
+              const next = event.target.value ? Number(event.target.value) : null
+              setSelectedBuildingId(next)
+              setGlobalSelectedBuildingId(next)
+            }}
+            aria-label="Export project"
+          >
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id}>
+                {building.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="full-width viewer-container" style={{ minWidth: PREVIEW_WIDTH }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
             <div style={{ color: '#eef2ff', fontSize: 14, fontWeight: 700 }}>2D Export Preview</div>
-            <div style={{ color: '#94a3b8', fontSize: 12 }}>Mini overview of the scene that will be exported.</div>
+            <div style={{ color: '#94a3b8', fontSize: 12 }}>Mini overview of the saved project data that will be exported.</div>
           </div>
           <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'right' }}>
             {walls.length} walls · {rooms.length} rooms · {devices.length} devices
@@ -231,8 +392,8 @@ export function ExportPage() {
               DXF tries the backend exporter first, then falls back to the client-side exporter if the service is unavailable.
             </p>
           </div>
-          <button className="btn btn-primary" disabled={isExporting} onClick={handleExport} type="button">
-            {isExporting ? 'Exporting...' : 'Export'}
+          <button className="btn btn-primary" disabled={isExporting || isLoadingScene} onClick={handleExport} type="button">
+            {isExporting ? 'Exporting...' : isLoadingScene ? 'Loading...' : 'Export'}
           </button>
         </div>
 
