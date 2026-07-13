@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getProjectSnapshot, saveProjectSnapshotSection } from '../api/projectData'
 import { getOsmTileStatus, listAlignmentAuditLogs, type AlignmentAuditLog, type OsmTileStatus } from '../api/osm'
+import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import { useEditorStore, type SecurityDevice } from '../stores/editorStore'
@@ -54,6 +55,7 @@ function isAlignmentSnapshot(value: unknown): value is {
   alignGpsInputs?: GpsAlignmentInputs
   alignmentMatrix?: number[][] | null
   alignmentRmse?: number | null
+  selectedPointCloudId?: number | null
   transformedGps?: { lat: number; lng: number } | null
   showAlignedGpsBillboardText?: boolean
   hasJustAligned?: boolean
@@ -123,6 +125,8 @@ export function AlignmentPage() {
     handleFloorSelect,
     handleViewerPointPicked,
     goToProjects,
+    selectedPointCloudId,
+    setSelectedPointCloudId,
   } = useAlignmentPage()
 
   const [cameraViewMode, setCameraViewMode] = useState<'top' | 'perspective'>('perspective')
@@ -151,6 +155,7 @@ export function AlignmentPage() {
   const [saveStatus, setSaveStatus] = useState<AlignmentSaveStatus>('idle')
   const [osmTileStatus, setOsmTileStatus] = useState<OsmTileStatus | null>(null)
   const [alignmentAuditLogs, setAlignmentAuditLogs] = useState<AlignmentAuditLog[]>([])
+  const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
   const autosaveTimerRef = useRef<number | null>(null)
 
   const {
@@ -256,9 +261,26 @@ export function AlignmentPage() {
   useEffect(() => {
     if (!currentBuilding) {
       setAlignmentAuditLogs([])
+      setPointCloudUploads([])
       return
     }
     let cancelled = false
+    listUploadsByBuilding(currentBuilding.id)
+      .then((uploads) => {
+        if (!cancelled) {
+          const pointClouds = uploads.filter((upload) => upload.source_type === 'pointcloud')
+          setPointCloudUploads(pointClouds)
+          setSelectedPointCloudId((current) => (
+            current && pointClouds.some((upload) => upload.id === current) ? current : pointClouds[0]?.id ?? null
+          ))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPointCloudUploads([])
+          setSelectedPointCloudId(null)
+        }
+      })
     listAlignmentAuditLogs(currentBuilding.id)
       .then((logs) => {
         if (!cancelled) setAlignmentAuditLogs(logs)
@@ -269,7 +291,7 @@ export function AlignmentPage() {
     return () => {
       cancelled = true
     }
-  }, [currentBuilding, hasJustAligned, alignmentRmse])
+  }, [currentBuilding, hasJustAligned, alignmentRmse, setSelectedPointCloudId])
 
   useEffect(() => {
     if (!currentBuilding) {
@@ -296,6 +318,7 @@ export function AlignmentPage() {
           if (alignmentSnapshot.alignGpsInputs) setAlignGpsInputs(alignmentSnapshot.alignGpsInputs)
           if (alignmentSnapshot.alignmentMatrix !== undefined) setAlignmentMatrix(alignmentSnapshot.alignmentMatrix)
           if (alignmentSnapshot.alignmentRmse !== undefined) setAlignmentRmse(alignmentSnapshot.alignmentRmse)
+          if (alignmentSnapshot.selectedPointCloudId !== undefined) setSelectedPointCloudId(alignmentSnapshot.selectedPointCloudId)
           if (alignmentSnapshot.transformedGps !== undefined) setTransformedGps(alignmentSnapshot.transformedGps)
           if (typeof alignmentSnapshot.showAlignedGpsBillboardText === 'boolean') {
             setShowAlignedGpsBillboardText(alignmentSnapshot.showAlignedGpsBillboardText)
@@ -335,6 +358,7 @@ export function AlignmentPage() {
     setOsmQuadScale,
     setOsmQuadZoom,
     setQuadOriginInput,
+    setSelectedPointCloudId,
   ])
 
   useEffect(() => {
@@ -356,6 +380,7 @@ export function AlignmentPage() {
         alignGpsInputs,
         alignmentMatrix,
         alignmentRmse,
+        selectedPointCloudId,
         transformedGps,
         showAlignedGpsBillboardText,
         hasJustAligned,
@@ -384,9 +409,12 @@ export function AlignmentPage() {
     pickMode,
     quadOriginInput,
     selectedFloorId,
+    selectedPointCloudId,
     showAlignedGpsBillboardText,
     transformedGps,
   ])
+
+  const selectedPointCloud = pointCloudUploads.find((upload) => upload.id === selectedPointCloudId) ?? null
 
   const providerValue = {
     currentBuilding: currentBuilding ? { id: currentBuilding.id, name: currentBuilding.name } : null,
@@ -450,7 +478,7 @@ export function AlignmentPage() {
             setCameraViewMode={setCameraViewMode}
             buildingOrigin={buildingOrigin}
             hasOsmData={buildingOrigin !== null}
-            hasPointCloudData={false}
+            hasPointCloudData={pointCloudUploads.length > 0}
             language={language}
           />
 
@@ -510,10 +538,42 @@ export function AlignmentPage() {
               </>
             ) : (
               <div className="ap-step-content">
-                <div className="ap-status-card warning">
+                <div className={pointCloudUploads.length > 0 ? 'ap-status-card success' : 'ap-status-card warning'}>
                   <strong>{labels.pointCloudReadyTitle}</strong>
-                  <span>{labels.pointCloudReadyBody}</span>
+                  <span>
+                    {pointCloudUploads.length > 0
+                      ? `${pointCloudUploads.length} PointCloud source(s) connected.`
+                      : labels.pointCloudReadyBody}
+                  </span>
                 </div>
+                {pointCloudUploads.length > 0 && (
+                  <div className="ap-origin-form">
+                    <label>
+                      <span>PointCloud Source</span>
+                      <select
+                        value={selectedPointCloudId ?? ''}
+                        onChange={(event) => setSelectedPointCloudId(event.target.value ? Number(event.target.value) : null)}
+                      >
+                        {pointCloudUploads.map((upload) => (
+                          <option key={upload.id} value={upload.id}>
+                            {upload.filename}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="ap-status-card">
+                      <strong>{selectedPointCloud?.filename ?? 'No PointCloud selected'}</strong>
+                      <span>
+                        Floor #{selectedPointCloud?.floor_id ?? 'building'} · {selectedPointCloud?.status ?? 'unknown'}
+                      </span>
+                    </div>
+                    <div className="ap-action-grid">
+                      <button type="button" onClick={() => setPickMode('origin')}>Pick Origin</button>
+                      <button type="button" onClick={() => setPickMode('point1')}>Pick Point1</button>
+                      <button type="button" onClick={() => setPickMode('point2')}>Pick Point2</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </AlignmentWorkflowPanel>
