@@ -147,6 +147,7 @@ class UploadAssetRead(UploadAssetCreate):
     message: str | None = None
     file_url: str | None = None
     pointcloud_preview_url: str | None = None
+    parsed_geometry: dict[str, Any] | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -337,6 +338,7 @@ class RoomCreate(BaseModel):
     y: float
     w: float = Field(gt=0)
     h: float = Field(gt=0)
+    points: list[dict[str, float]] | None = None
 
 
 class RoomUpdate(BaseModel):
@@ -345,6 +347,7 @@ class RoomUpdate(BaseModel):
     y: float | None = None
     w: float | None = None
     h: float | None = None
+    points: list[dict[str, float]] | None = None
 
 
 class RoomRead(RoomCreate):
@@ -362,12 +365,16 @@ class RoomRead(RoomCreate):
 class FloorGeometrySyncPayload(BaseModel):
     walls: list[WallCreate] = Field(default_factory=list)
     rooms: list[RoomCreate] = Field(default_factory=list)
+    doors: list[DoorCreate] = Field(default_factory=list)
+    windows: list[WindowCreate] = Field(default_factory=list)
 
 
 class FloorGeometrySyncRead(BaseModel):
     floor_id: int
     walls: list[WallRead]
     rooms: list[RoomRead]
+    doors: list[DoorRead] = Field(default_factory=list)
+    windows: list[WindowRead] = Field(default_factory=list)
 
 
 class SecurityDeviceCreate(BaseModel):

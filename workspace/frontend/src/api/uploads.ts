@@ -45,6 +45,26 @@ export type UploadAssetCreate = {
   floor_id?: number
 }
 
+function describeFormDataValue(value: FormDataEntryValue) {
+  if (typeof File !== 'undefined' && value instanceof File) {
+    return {
+      name: value.name,
+      size: value.size,
+      type: value.type || '(empty)',
+      lastModified: value.lastModified,
+    }
+  }
+  return String(value)
+}
+
+function describeFormData(formData: FormData) {
+  const entries: Array<[string, ReturnType<typeof describeFormDataValue>]> = []
+  formData.forEach((value, key) => {
+    entries.push([key, describeFormDataValue(value)])
+  })
+  return entries
+}
+
 export function listUploads(): Promise<UploadAsset[]> {
   return getJson<UploadAsset[]>('/api/uploads')
 }
@@ -73,22 +93,77 @@ export async function uploadFile(
   sourceType: string,
   buildingId?: number,
   floorId?: number,
+  options?: Record<string, string | number | boolean | null | undefined>,
 ): Promise<UploadAsset> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  const endpoint = `${baseUrl}/api/uploads/file`
   const formData = new FormData()
   formData.append('file', file)
   formData.append('source_type', sourceType)
   if (buildingId !== undefined) formData.append('building_id', String(buildingId))
   if (floorId !== undefined) formData.append('floor_id', String(floorId))
+  if (options) {
+    Object.entries(options).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') formData.append(key, String(value))
+    })
+  }
 
-  const response = await fetch(`${baseUrl}/api/uploads/file`, {
+  console.log('[uploadFile] preparing upload request', {
+    endpoint,
+    sourceType,
+    buildingId,
+    floorId,
+    file: describeFormDataValue(file),
+    options,
+  })
+  console.log('[uploadFile] FormData entries', describeFormData(formData))
+
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: formData,
+    })
+  } catch (error) {
+    console.error('[uploadFile] network error', error)
+    throw error
+  }
+
+  console.log('[uploadFile] response received', {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { detail?: string } | null
+    console.error('[uploadFile] response error payload', { status: response.status, payload })
+    throw new Error(payload?.detail ?? `Upload failed with ${response.status}`)
+  }
+  const payload = await response.json() as UploadAsset
+  console.log('[uploadFile] response payload', payload)
+  return payload
+}
+
+export async function uploadModelPackage(
+  files: File[],
+  buildingId?: number,
+  floorId?: number,
+): Promise<UploadAsset> {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+  if (buildingId !== undefined) formData.append('building_id', String(buildingId))
+  if (floorId !== undefined) formData.append('floor_id', String(floorId))
+
+  const response = await fetch(`${baseUrl}/api/uploads/model-package`, {
     method: 'POST',
     headers: authHeaders(),
     body: formData,
   })
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { detail?: string } | null
-    throw new Error(payload?.detail ?? `Upload failed with ${response.status}`)
+    throw new Error(payload?.detail ?? `Model package upload failed with ${response.status}`)
   }
   return response.json() as Promise<UploadAsset>
 }

@@ -6,6 +6,23 @@ from app.settings import get_settings
 client = TestClient(app)
 
 
+def simple_dxf_bytes() -> bytes:
+    return b"".join(
+        line + b"\n"
+        for line in [
+            b"0", b"SECTION", b"2", b"ENTITIES",
+            b"0", b"LINE", b"8", b"A-WALL", b"10", b"0", b"20", b"0", b"30", b"0", b"11", b"5", b"21", b"0", b"31", b"0",
+            b"0", b"POLYLINE", b"8", b"A-ROOM", b"66", b"1", b"70", b"1",
+            b"0", b"VERTEX", b"8", b"A-ROOM", b"10", b"0", b"20", b"0", b"30", b"0",
+            b"0", b"VERTEX", b"8", b"A-ROOM", b"10", b"5", b"20", b"0", b"30", b"0",
+            b"0", b"VERTEX", b"8", b"A-ROOM", b"10", b"5", b"20", b"4", b"30", b"0",
+            b"0", b"VERTEX", b"8", b"A-ROOM", b"10", b"0", b"20", b"4", b"30", b"0",
+            b"0", b"SEQEND",
+            b"0", b"ENDSEC", b"0", b"EOF",
+        ]
+    )
+
+
 def test_create_and_list_building() -> None:
     response = client.post(
         "/api/buildings",
@@ -112,6 +129,111 @@ def test_file_upload_rejects_wrong_source_extension() -> None:
 
     assert response.status_code == 400
     assert "Unsupported image file type" in response.json()["detail"]
+
+
+def test_cad_file_upload_accepts_dxf_and_dwg() -> None:
+    building = client.post("/api/buildings", json={"name": "CAD Upload Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+
+    dxf_response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "dxf", "building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files={"file": ("floor.dxf", b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n", "application/dxf")},
+    )
+    dwg_response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "dxf", "building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files={"file": ("floor.dwg", b"AC1027 mock dwg bytes", "application/octet-stream")},
+    )
+
+    assert dxf_response.status_code == 201
+    assert dxf_response.json()["source_type"] == "dxf"
+    assert dxf_response.json()["status"] == "ready"
+    assert dwg_response.status_code == 201
+    assert dwg_response.json()["source_type"] == "dwg"
+    assert dwg_response.json()["status"] == "ready"
+
+
+def test_dxf_upload_parses_geometry_records() -> None:
+    building = client.post("/api/buildings", json={"name": "Parsed CAD Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+
+    response = client.post(
+        "/api/uploads/file",
+        data={"source_type": "dxf", "building_id": str(building["id"]), "floor_id": str(floor["id"]), "scale_factor": "2"},
+        files={"file": ("parsed-floor.dxf", simple_dxf_bytes(), "application/dxf")},
+    )
+
+    assert response.status_code == 201
+    parsed_geometry = response.json()["parsed_geometry"]
+    assert parsed_geometry["status"] == "parsed"
+    assert parsed_geometry["walls_count"] == 5
+    assert parsed_geometry["rooms_count"] == 1
+    assert parsed_geometry["persistence"]["created_walls_count"] == 5
+    assert parsed_geometry["persistence"]["created_rooms_count"] == 1
+    assert {layer["name"] for layer in parsed_geometry["layers"]} >= {"A-WALL", "A-ROOM"}
+
+    walls_response = client.get(f"/api/floors/{floor['id']}/walls")
+    rooms_response = client.get(f"/api/floors/{floor['id']}/rooms")
+    assert walls_response.status_code == 200
+    assert rooms_response.status_code == 200
+    assert len(walls_response.json()) == 5
+    assert rooms_response.json()[0]["w"] == 10
+    assert rooms_response.json()[0]["h"] == 8
+
+
+def test_model_package_upload_accepts_glb() -> None:
+    building = client.post("/api/buildings", json={"name": "GLB Upload Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+
+    response = client.post(
+        "/api/uploads/model-package",
+        data={"building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files=[("files", ("model.glb", b"glTF mock bytes", "model/gltf-binary"))],
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["source_type"] == "glb"
+    assert body["status"] == "ready"
+    assert body["floor_id"] == floor["id"]
+    assert "model.glb" in body["message"]
+
+
+def test_model_package_upload_accepts_gltf_with_resources() -> None:
+    building = client.post("/api/buildings", json={"name": "GLTF Upload Parent"}).json()
+    floor = client.post(f"/api/buildings/{building['id']}/floors", json={"floor_number": 1}).json()
+    gltf = b'{"asset":{"version":"2.0"},"buffers":[{"uri":"model.bin"}],"images":[{"uri":"texture.png"}]}'
+
+    response = client.post(
+        "/api/uploads/model-package",
+        data={"building_id": str(building["id"]), "floor_id": str(floor["id"])},
+        files=[
+            ("files", ("model.gltf", gltf, "model/gltf+json")),
+            ("files", ("model.bin", b"binary", "application/octet-stream")),
+            ("files", ("texture.png", b"\x89PNG\r\n\x1a\n", "image/png")),
+        ],
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["source_type"] == "glb"
+    assert body["status"] == "ready"
+    assert "model.gltf" in body["message"]
+
+
+def test_model_package_upload_rejects_missing_gltf_refs() -> None:
+    building = client.post("/api/buildings", json={"name": "Missing GLTF Refs Parent"}).json()
+    gltf = b'{"asset":{"version":"2.0"},"buffers":[{"uri":"model.bin"}],"images":[{"uri":"texture.png"}]}'
+
+    response = client.post(
+        "/api/uploads/model-package",
+        data={"building_id": str(building["id"])},
+        files=[("files", ("model.gltf", gltf, "model/gltf+json"))],
+    )
+
+    assert response.status_code == 400
+    assert "GLTF references missing files" in response.json()["detail"]
 
 
 def test_delete_upload_removes_asset_record() -> None:

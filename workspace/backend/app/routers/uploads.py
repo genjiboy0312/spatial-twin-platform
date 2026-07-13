@@ -1,8 +1,11 @@
 import json
+import logging
 import mmap
 import struct
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
@@ -11,11 +14,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Building, Floor, ProjectAsset, UploadAsset
-from app.schemas import ProjectAssetRead, UploadAssetCreate, UploadAssetRead, UploadAssetStatusUpdate, UploadPipelineRead
+from app.models import Building, Floor, ProjectAsset, Room, UploadAsset, Wall
+from app.schemas import AssetType, ProjectAssetRead, UploadAssetCreate, UploadAssetRead, UploadAssetStatusUpdate, UploadPipelineRead
+from app.services.dxf_parser import DxfParseResult, DxfRoom, parse_dxf_file
 from app.settings import get_settings
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
+logger = logging.getLogger(__name__)
 
 ALLOWED_SOURCE_TYPES = {"dxf", "dwg", "image", "ifc", "glb", "pointcloud", "unknown"}
 SOURCE_EXTENSIONS = {
@@ -27,6 +32,7 @@ SOURCE_EXTENSIONS = {
     "pointcloud": {".las", ".laz", ".ply"},
     "unknown": set(),
 }
+MODEL_PACKAGE_EXTENSIONS = {".glb", ".gltf", ".bin", ".png", ".jpg", ".jpeg", ".webp"}
 POINTCLOUD_EXTENSIONS = SOURCE_EXTENSIONS["pointcloud"]
 READY_SOURCE_TYPES = {"image", "dxf", "dwg", "ifc", "glb", "pointcloud"}
 UPLOAD_CHUNK_SIZE = 1024 * 1024
@@ -81,7 +87,13 @@ SOURCE_PIPELINE_GUIDES = {
 }
 
 
-def metadata_for_upload(upload: UploadAsset, *, stored_name: str | None = None, size_bytes: int | None = None) -> str:
+def metadata_for_upload(
+    upload: UploadAsset,
+    *,
+    stored_name: str | None = None,
+    size_bytes: int | None = None,
+    extra: dict[str, object] | None = None,
+) -> str:
     pipeline = pipeline_details_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes)
     metadata: dict[str, object] = {
         "source_type": upload.source_type,
@@ -99,6 +111,8 @@ def metadata_for_upload(upload: UploadAsset, *, stored_name: str | None = None, 
         metadata["size_bytes"] = size_bytes
     if upload.source_type == "pointcloud":
         metadata.update(pointcloud_metadata_for_upload(upload, stored_name=stored_name))
+    if extra:
+        metadata.update(extra)
     return json.dumps(metadata, ensure_ascii=False)
 
 
@@ -193,6 +207,14 @@ def validate_source_extension(source_type: str, filename: str | None) -> str:
             detail=f"Unsupported {source_type} file type. Allowed: {allowed_list}",
         )
     return ext
+
+
+def normalize_source_type_for_extension(source_type: str, ext: str) -> str:
+    if source_type in {"dxf", "dwg"} and ext == ".dwg":
+        return "dwg"
+    if source_type in {"dxf", "dwg"} and ext == ".dxf":
+        return "dxf"
+    return source_type
 
 
 async def write_upload_stream(file: UploadFile, file_path: Path, max_bytes: int) -> int:
@@ -305,7 +327,7 @@ def project_asset_to_read(asset: ProjectAsset) -> ProjectAssetRead:
         building_id=asset.building_id,
         floor_id=asset.floor_id,
         upload_asset_id=asset.upload_asset_id,
-        asset_type=asset.asset_type,
+        asset_type=cast(AssetType, asset.asset_type),
         name=asset.name,
         status=asset.status,
         file_uri=asset.file_uri,
@@ -347,7 +369,57 @@ def delete_upload_files(upload: UploadAsset, upload_dir: Path) -> None:
         resolved_cache = cache_path.resolve()
         if upload_dir_resolved in resolved_cache.parents:
             resolved_cache.unlink(missing_ok=True)
+    if file_path.parent != upload_dir_resolved and upload_dir_resolved in file_path.parent.parents:
+        for package_file in file_path.parent.iterdir():
+            if package_file.is_file():
+                package_file.unlink(missing_ok=True)
+        file_path.parent.rmdir()
+        return
     file_path.unlink(missing_ok=True)
+
+
+def replacement_source_types(source_type: str) -> set[str]:
+    if source_type in {"dxf", "dwg"}:
+        return {"dxf", "dwg"}
+    if source_type in {"glb", "ifc", "image", "pointcloud"}:
+        return {source_type}
+    return {source_type}
+
+
+def clear_cad_geometry_for_upload(db: Session, upload: UploadAsset) -> None:
+    if upload.source_type not in {"dxf", "dwg"} or upload.floor_id is None:
+        return
+
+    for wall in db.scalars(select(Wall).where(Wall.floor_id == upload.floor_id)):
+        db.delete(wall)
+    for room in db.scalars(select(Room).where(Room.floor_id == upload.floor_id)):
+        db.delete(room)
+
+
+def delete_replaced_uploads(
+    db: Session,
+    *,
+    upload_dir: Path,
+    building_id: int | None,
+    floor_id: int | None,
+    source_type: str,
+) -> None:
+    if building_id is None:
+        return
+
+    existing_uploads = list(db.scalars(
+        select(UploadAsset).where(
+            UploadAsset.building_id == building_id,
+            UploadAsset.floor_id == floor_id,
+            UploadAsset.source_type.in_(replacement_source_types(source_type)),
+        )
+    ))
+    for existing in existing_uploads:
+        delete_upload_files(existing, upload_dir)
+        for asset in db.scalars(select(ProjectAsset).where(ProjectAsset.upload_asset_id == existing.id)):
+            db.delete(asset)
+        clear_cad_geometry_for_upload(db, existing)
+        db.delete(existing)
 
 
 def project_asset_status_for_upload(status_value: str) -> str:
@@ -360,7 +432,12 @@ def project_asset_status_for_upload(status_value: str) -> str:
     return "registered"
 
 
-def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> ProjectAsset | None:
+def ensure_project_asset_for_upload(
+    db: Session,
+    upload: UploadAsset,
+    *,
+    extra_metadata: dict[str, object] | None = None,
+) -> ProjectAsset | None:
     if upload.building_id is None or upload.source_type not in READY_SOURCE_TYPES:
         return None
     stored_name = stored_filename_from_message(upload.message)
@@ -376,7 +453,7 @@ def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> Project
         existing.name = upload.filename
         existing.status = project_asset_status_for_upload(upload.status)
         existing.file_uri = upload.file_url
-        existing.metadata_json = metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes)
+        existing.metadata_json = metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes, extra=extra_metadata)
         return existing
 
     asset = ProjectAsset(
@@ -387,10 +464,101 @@ def ensure_project_asset_for_upload(db: Session, upload: UploadAsset) -> Project
         name=upload.filename,
         status=project_asset_status_for_upload(upload.status),
         file_uri=upload.file_url,
-        metadata_json=metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes),
+        metadata_json=metadata_for_upload(upload, stored_name=stored_name, size_bytes=size_bytes, extra=extra_metadata),
     )
     db.add(asset)
     return asset
+
+
+def persist_dxf_geometry(
+    db: Session,
+    parse_result: DxfParseResult,
+    *,
+    floor_id: int | None,
+    scale_factor: float | None = None,
+    invert_y_axis: bool | None = None,
+) -> dict[str, int | str]:
+    if floor_id is None:
+        return {"status": "skipped", "created_walls_count": 0, "created_rooms_count": 0, "reason": "No floor_id provided"}
+
+    for wall in db.scalars(select(Wall).where(Wall.floor_id == floor_id)):
+        db.delete(wall)
+    for room in db.scalars(select(Room).where(Room.floor_id == floor_id)):
+        db.delete(room)
+
+    scale = scale_factor if scale_factor is not None and scale_factor > 0 else 1.0
+    invert = bool(invert_y_axis)
+
+    walls = [
+        Wall(
+            floor_id=floor_id,
+            x1=segment.start[0] * scale,
+            y1=(-segment.start[1] if invert else segment.start[1]) * scale,
+            x2=segment.end[0] * scale,
+            y2=(-segment.end[1] if invert else segment.end[1]) * scale,
+        )
+        for segment in parse_result.walls
+    ]
+    rooms = [
+        Room(floor_id=floor_id, **_scaled_room_payload(room, scale=scale, invert_y_axis=invert))
+        for room in parse_result.rooms
+    ]
+    db.add_all([*walls, *rooms])
+    return {"status": "created", "created_walls_count": len(walls), "created_rooms_count": len(rooms)}
+
+
+def _scaled_room_payload(room: DxfRoom, *, scale: float, invert_y_axis: bool) -> dict[str, object]:
+    room_data = {
+        "name": room.name,
+        "x": room.x,
+        "y": room.y,
+        "w": room.w,
+        "h": room.h,
+    }
+    x_values = [room_data["x"], room_data["x"] + room_data["w"]]
+    y_values = [room_data["y"], room_data["y"] + room_data["h"]]
+    if invert_y_axis:
+        y_values = [-value for value in y_values]
+    min_x = min(x_values) * scale
+    max_x = max(x_values) * scale
+    min_y = min(y_values) * scale
+    max_y = max(y_values) * scale
+    points = [
+        {"x": point[0] * scale, "y": (-point[1] if invert_y_axis else point[1]) * scale}
+        for point in room.points
+    ]
+    return {
+        "name": str(room_data["name"]),
+        "x": min_x,
+        "y": min_y,
+        "w": max_x - min_x,
+        "h": max_y - min_y,
+        "points_json": json.dumps(points),
+    }
+
+
+def safe_upload_name(filename: str | None) -> str:
+    fallback = "upload.bin"
+    name = Path(filename or fallback).name
+    cleaned = "".join(ch if ch.isalnum() or ch in {".", "_", "-"} else "_" for ch in name)
+    return cleaned or fallback
+
+
+def model_package_refs(gltf_bytes: bytes) -> set[str]:
+    try:
+        payload = json.loads(gltf_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid GLTF file") from exc
+    refs: set[str] = set()
+    for item in payload.get("buffers", []):
+        uri = item.get("uri") if isinstance(item, dict) else None
+        if isinstance(uri, str) and not uri.startswith(("data:", "http://", "https://")):
+            refs.add(Path(unquote(uri)).name.lower())
+    for item in payload.get("images", []):
+        uri = item.get("uri") if isinstance(item, dict) else None
+        if isinstance(uri, str) and not uri.startswith(("data:", "http://", "https://")):
+            refs.add(Path(unquote(uri)).name.lower())
+    return refs
 
 
 def upload_next_actions(upload: UploadAsset) -> list[str]:
@@ -570,6 +738,11 @@ async def upload_file(
     source_type: str = Form(...),
     building_id: int | None = Form(None),
     floor_id: int | None = Form(None),
+    scale_factor: float | None = Form(None),
+    height_meters: float | None = Form(None),
+    scale_px_per_meter: float | None = Form(None),
+    invert_y_axis: bool | None = Form(None),
+    floor_level: int | None = Form(None),
     db: Session = Depends(get_db),
 ) -> UploadAsset:
     settings = get_settings()
@@ -592,6 +765,7 @@ async def upload_file(
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     ext = validate_source_extension(source_type, file.filename)
+    source_type = normalize_source_type_for_extension(source_type, ext)
 
     unique_name = f"{uuid4().hex}{ext}"
     file_path = upload_dir / unique_name
@@ -605,6 +779,17 @@ async def upload_file(
         file_path.unlink(missing_ok=True)
         raise
     status_value = "ready" if source_type in READY_SOURCE_TYPES else "uploaded"
+    processing_metadata: dict[str, object] = {}
+    if source_type in {"dxf", "dwg"}:
+        processing_metadata["processing_options"] = {
+            "scale_factor": scale_factor,
+            "height_meters": height_meters,
+            "invert_y_axis": invert_y_axis,
+        }
+    elif source_type == "image":
+        processing_metadata["processing_options"] = {"scale_px_per_meter": scale_px_per_meter}
+    elif source_type == "ifc":
+        processing_metadata["processing_options"] = {"floor_level": floor_level}
     message = (
         f"PointCloud object ready from {file_path.name} ({size_bytes} bytes)"
         if source_type == "pointcloud"
@@ -619,15 +804,156 @@ async def upload_file(
         status=status_value,
         message=message,
     )
-    db.add(upload)
     try:
+        delete_replaced_uploads(
+            db,
+            upload_dir=upload_dir,
+            building_id=building_id,
+            floor_id=floor_id,
+            source_type=source_type,
+        )
+        db.add(upload)
         db.flush()
-        ensure_project_asset_for_upload(db, upload)
+        if source_type in {"dxf", "dwg"}:
+            try:
+                parse_result = parse_dxf_file(file_path)
+                parsed_geometry = parse_result.summary()
+                parsed_geometry["persistence"] = persist_dxf_geometry(
+                    db,
+                    parse_result,
+                    floor_id=floor_id,
+                    scale_factor=scale_factor,
+                    invert_y_axis=invert_y_axis,
+                )
+            except Exception as exc:
+                logger.exception("CAD geometry parsing failed for upload %s", file_path)
+                parsed_geometry = {
+                    "status": "failed",
+                    "error": str(exc),
+                    "total_entities": 0,
+                    "layers": [],
+                    "entity_counts": {},
+                    "walls_count": 0,
+                    "rooms_count": 0,
+                    "persistence": {"status": "skipped", "created_walls_count": 0, "created_rooms_count": 0},
+                }
+            processing_metadata["parsed_geometry"] = parsed_geometry
+            setattr(upload, "parsed_geometry", parsed_geometry)
+        ensure_project_asset_for_upload(db, upload, extra_metadata=processing_metadata)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid upload reference") from exc
+    db.refresh(upload)
+    return upload
+
+
+@router.post("/model-package", response_model=UploadAssetRead, status_code=status.HTTP_201_CREATED)
+async def upload_model_package(
+    files: list[UploadFile] = File(...),
+    building_id: int | None = Form(None),
+    floor_id: int | None = Form(None),
+    db: Session = Depends(get_db),
+) -> UploadAsset:
+    settings = get_settings()
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one GLB or GLTF file must be included")
+
+    if building_id is not None and db.get(Building, building_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Building not found")
+
+    floor: Floor | None = None
+    if floor_id is not None:
+        floor = db.get(Floor, floor_id)
+        if floor is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Floor not found")
+        if building_id is not None and floor.building_id != building_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Floor does not belong to building")
+
+    named_files = [(safe_upload_name(file.filename), file) for file in files]
+    lower_names = [name.lower() for name, _file in named_files]
+    entry_candidates = [name for name in lower_names if name.endswith((".glb", ".gltf"))]
+    if not entry_candidates:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one GLB or GLTF file must be included")
+
+    for name, _file in named_files:
+        if Path(name).suffix.lower() not in MODEL_PACKAGE_EXTENSIONS:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported model package file type: {Path(name).suffix.lower()}")
+
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    package_id = uuid4().hex
+    package_dir = upload_dir / package_id
+    package_dir.mkdir(parents=True, exist_ok=True)
+
+    entry_name = next((name for name in lower_names if name.endswith(".glb")), entry_candidates[0])
+    stored_files: list[dict[str, object]] = []
+    total_size = 0
+    gltf_payloads: dict[str, bytes] = {}
+    try:
+        for original_name, upload_item in named_files:
+            ext = Path(original_name).suffix.lower()
+            stored_name = safe_upload_name(original_name)
+            target = package_dir / stored_name
+            size_bytes = await write_upload_stream(upload_item, target, settings.upload_max_bytes_model)
+            total_size += size_bytes
+            if ext == ".gltf":
+                gltf_payloads[stored_name.lower()] = target.read_bytes()
+            stored_files.append({
+                "name": stored_name,
+                "size_bytes": size_bytes,
+                "role": "entry" if stored_name.lower() == entry_name else "resource",
+            })
+
+        uploaded_names = {item["name"].lower() for item in stored_files if isinstance(item["name"], str)}
+        missing_refs: set[str] = set()
+        for payload in gltf_payloads.values():
+            missing_refs.update(ref for ref in model_package_refs(payload) if ref not in uploaded_names)
+        if missing_refs:
+            missing = ", ".join(sorted(missing_refs))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"GLTF references missing files: {missing}")
+
+        primary_stored_name = f"{package_id}/{entry_name}"
+        upload = UploadAsset(
+            filename=entry_name,
+            source_type="glb",
+            building_id=building_id,
+            floor_id=floor_id,
+            status="ready",
+            message=f"GLB source ready at {primary_stored_name} ({total_size} bytes)",
+        )
+        try:
+            delete_replaced_uploads(
+                db,
+                upload_dir=upload_dir,
+                building_id=building_id,
+                floor_id=floor_id,
+                source_type="glb",
+            )
+            db.add(upload)
+            db.flush()
+            ensure_project_asset_for_upload(db, upload, extra_metadata={
+                "package_id": package_id,
+                "entry_file": entry_name,
+                "files": stored_files,
+                "package_kind": "glb" if entry_name.endswith(".glb") else "gltf",
+            })
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid upload reference") from exc
+    except HTTPException:
+        for path in package_dir.glob("*"):
+            path.unlink(missing_ok=True)
+        package_dir.rmdir()
+        raise
+    except Exception as exc:
+        for path in package_dir.glob("*"):
+            path.unlink(missing_ok=True)
+        package_dir.rmdir()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Model package upload failed: {exc}") from exc
+
     db.refresh(upload)
     return upload
 
@@ -644,7 +970,7 @@ def get_upload_pipeline(upload_id: int, db: Session = Depends(get_db)) -> Upload
         project_assets=[project_asset_to_read(asset) for asset in assets],
         next_actions=upload_next_actions(upload),
         current_stage=str(details["current_stage"]),
-        progress=int(details["progress"]),
+        progress=int(cast(int, details["progress"])),
         details=details,
     )
 
@@ -672,7 +998,7 @@ def update_upload_status(
         project_assets=[project_asset_to_read(asset) for asset in assets],
         next_actions=upload_next_actions(upload),
         current_stage=str(details["current_stage"]),
-        progress=int(details["progress"]),
+        progress=int(cast(int, details["progress"])),
         details=details,
     )
 
@@ -698,6 +1024,7 @@ def delete_upload(upload_id: int, db: Session = Depends(get_db)) -> None:
     delete_upload_files(upload, Path(settings.upload_dir))
     for asset in db.scalars(select(ProjectAsset).where(ProjectAsset.upload_asset_id == upload.id)):
         db.delete(asset)
+    clear_cad_geometry_for_upload(db, upload)
     db.delete(upload)
     db.commit()
 
