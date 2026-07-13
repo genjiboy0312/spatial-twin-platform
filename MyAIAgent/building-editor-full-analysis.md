@@ -1237,3 +1237,4 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Validation 3D View 저장 모델 복원: validation 페이지 진입 시 첫 번째 building의 `project-snapshot.editor`를 직접 읽어 3D 편집 벽/룸/보안장치 데이터를 Editor store에 복원하고, editor 페이지를 먼저 방문하지 않아도 validation View 오브젝트가 생성되도록 수정
 - [x] Editor Properties 패널 폭 확장: editor 우측 패널 기본 폭을 320px에서 400px로 늘리고, Properties 내부 정보 행을 2열 그리드로 정리해 좌표/크기/ID 값이 좁게 잘리지 않도록 수정
 - [x] Validation/Monitor 층별 데이터 반영 강화: Monitor가 선택 층의 `/api/floors/{floor_id}/geometry`와 object placement 장치만 렌더링하도록 변경하고, Validation도 실제 프로젝트 floors/geometry/placement를 기준으로 층 목록, 3D 프리뷰, 검증 점수, 장치 수를 계산하도록 연결
+- [x] Dashboard 저장 데이터 기반 KPI 전환: Dashboard의 건물별 geometry/device/PointCloud/source/alignment 요약을 현재 Editor store가 아닌 `project-data`, 층별 geometry API, 프로젝트 snapshot alignment에서 집계하도록 변경하여 새로고침/페이지 이동 순서와 무관하게 운영 KPI와 건물 카드 수치가 유지되도록 개선

@@ -2,14 +2,32 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
+import { getFloorGeometry } from '../api/geometry'
+import { getProjectData, getProjectSnapshot, type ProjectData } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
-import { useAlignmentStore } from '../stores/alignmentStore'
-import { useEditorStore } from '../stores/editorStore'
 import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
 
 type DashboardIconName = 'building' | 'monitor' | 'alert' | 'activity' | 'clock' | 'device' | 'map' | 'arrow' | 'check'
 type EventSeverity = 'critical' | 'high' | 'medium' | 'info'
+
+type DashboardProjectSummary = {
+  geometryCount: number
+  deviceCount: number
+  pointCloudCount: number
+  sourceCount: number
+  alignmentApplied: boolean
+  anchorCount: number
+}
+
+const emptySummary: DashboardProjectSummary = {
+  geometryCount: 0,
+  deviceCount: 0,
+  pointCloudCount: 0,
+  sourceCount: 0,
+  alignmentApplied: false,
+  anchorCount: 0,
+}
 
 const copy = {
   en: {
@@ -144,16 +162,70 @@ function formatRelativeTime(minutesAgo: number, language: 'en' | 'ko') {
   return language === 'ko' ? `${hours}시간 전` : `${hours}h ago`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function hasAlignmentMatrix(value: unknown): boolean {
+  return Array.isArray(value)
+    && value.length >= 2
+    && value.every((row) => (
+      Array.isArray(row)
+      && row.length >= 3
+      && row.every((item) => typeof item === 'number')
+    ))
+}
+
+function countAlignmentAnchors(value: unknown): number {
+  if (!isRecord(value)) return 0
+  return Object.values(value).filter((point) => (
+    isRecord(point)
+    && typeof point.x === 'number'
+    && typeof point.y === 'number'
+  )).length
+}
+
+function countSecurityDevices(data: ProjectData): number {
+  const placementDevices = data.object_placements.filter((placement) => (
+    placement.object_type === 'security_device'
+    || placement.metadata?.editor_source === 'editor-device'
+  )).length
+  return Math.max(placementDevices, data.security_devices.length)
+}
+
+async function loadDashboardSummary(buildingId: number): Promise<DashboardProjectSummary> {
+  const data = await getProjectData(buildingId)
+  const [geometryCounts, snapshot] = await Promise.all([
+    Promise.all(
+      data.floors.map((floor) => (
+        getFloorGeometry(floor.id)
+          .then((geometry) => geometry.walls.length + geometry.rooms.length)
+          .catch(() => 0)
+      )),
+    ),
+    getProjectSnapshot(buildingId).catch(() => null),
+  ])
+
+  const alignment = snapshot?.state.alignment
+  const alignmentApplied = isRecord(alignment)
+    && (alignment.hasJustAligned === true || hasAlignmentMatrix(alignment.alignmentMatrix))
+
+  return {
+    geometryCount: geometryCounts.reduce((sum, count) => sum + count, 0),
+    deviceCount: countSecurityDevices(data),
+    pointCloudCount: data.uploads.filter((upload) => upload.source_type === 'pointcloud').length,
+    sourceCount: data.uploads.filter((upload) => upload.source_type !== 'pointcloud').length,
+    alignmentApplied,
+    anchorCount: isRecord(alignment) ? countAlignmentAnchors(alignment.alignLocalPoints) : 0,
+  }
+}
+
 export function DashboardPage() {
   const { language } = usePreferences()
   const labels = copy[language]
   const [buildings, setBuildings] = useState<Building[]>([])
   const [loadingBuildings, setLoadingBuildings] = useState(true)
-  const walls = useEditorStore((state) => state.walls)
-  const rooms = useEditorStore((state) => state.rooms)
-  const devices = useEditorStore((state) => state.devices)
-  const anchors = useAlignmentStore((state) => state.anchors)
-  const isApplied = useAlignmentStore((state) => state.isApplied)
+  const [projectSummaries, setProjectSummaries] = useState<Record<number, DashboardProjectSummary>>({})
   const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
 
   const loadBuildings = useCallback(async () => {
@@ -171,28 +243,64 @@ export function DashboardPage() {
     loadBuildings()
   }, [loadBuildings])
 
-  const totalDevices = devices.length
-  const onlineDevices = Math.max(0, totalDevices - (totalDevices > 4 ? 1 : 0))
-  const offlineDevices = totalDevices - onlineDevices
-  const geometryReady = walls.length > 0 || rooms.length > 0
-  const healthScore = Math.min(100, 45 + buildings.length * 8 + (geometryReady ? 18 : 0) + (totalDevices > 0 ? 12 : 0) + (isApplied ? 17 : 0))
-  const alarms = offlineDevices + (isApplied ? 0 : 1)
-  const healthState = healthScore >= 80 ? labels.healthy : healthScore >= 55 ? labels.caution : labels.poor
-  const totalFloors = buildings.reduce((sum, building) => sum + (building.total_floors ?? 0), 0)
+  useEffect(() => {
+    let cancelled = false
+    if (buildings.length === 0) {
+      setProjectSummaries({})
+      return
+    }
+
+    Promise.all(
+      buildings.map((building) => (
+        loadDashboardSummary(building.id)
+          .then((summary) => [building.id, summary] as const)
+          .catch(() => [building.id, emptySummary] as const)
+      )),
+    ).then((entries) => {
+      if (!cancelled) setProjectSummaries(Object.fromEntries(entries))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [buildings])
+
   const selectedBuildingId = preferredBuildingId(buildings, globalSelectedBuildingId)
   const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId) ?? buildings[0]
+  const selectedSummary = selectedBuilding ? projectSummaries[selectedBuilding.id] ?? emptySummary : emptySummary
+  const totalDevices = selectedSummary.deviceCount
+  const onlineDevices = Math.max(0, totalDevices - (totalDevices > 4 ? 1 : 0))
+  const offlineDevices = totalDevices - onlineDevices
+  const geometryReady = selectedSummary.geometryCount > 0 || selectedSummary.sourceCount > 0
+  const healthScore = Math.min(
+    100,
+    45
+      + buildings.length * 8
+      + (geometryReady ? 18 : 0)
+      + (totalDevices > 0 ? 12 : 0)
+      + (selectedSummary.alignmentApplied ? 17 : 0),
+  )
+  const alarms = offlineDevices + (selectedSummary.alignmentApplied ? 0 : 1)
+  const healthState = healthScore >= 80 ? labels.healthy : healthScore >= 55 ? labels.caution : labels.poor
+  const totalFloors = buildings.reduce((sum, building) => sum + (building.total_floors ?? 0), 0)
 
   const events = useMemo(() => {
     const primaryBuildingName = selectedBuilding?.name
     const secondaryBuildingName = buildings.find((building) => building.id !== selectedBuilding?.id)?.name ?? primaryBuildingName
     const base: Array<{ severity: EventSeverity; icon: DashboardIconName; message: string; minutesAgo: number; buildingName: string | undefined }> = [
-      { severity: 'info', icon: 'activity', message: labels.events.modelReady, minutesAgo: 4, buildingName: primaryBuildingName },
-      { severity: 'info', icon: 'map', message: labels.events.pointCloud, minutesAgo: 13, buildingName: primaryBuildingName },
+      { severity: geometryReady ? 'info' : 'medium', icon: 'activity', message: labels.events.modelReady, minutesAgo: 4, buildingName: primaryBuildingName },
+      { severity: selectedSummary.pointCloudCount > 0 ? 'info' : 'medium', icon: 'map', message: labels.events.pointCloud, minutesAgo: 13, buildingName: primaryBuildingName },
       { severity: totalDevices > 0 ? 'medium' : 'info', icon: 'device', message: labels.events.deviceReview, minutesAgo: 31, buildingName: secondaryBuildingName },
-      { severity: isApplied ? 'info' : 'high', icon: isApplied ? 'check' : 'alert', message: isApplied ? labels.events.alignmentDone : labels.events.noAlignment, minutesAgo: 46, buildingName: primaryBuildingName },
+      {
+        severity: selectedSummary.alignmentApplied ? 'info' : 'high',
+        icon: selectedSummary.alignmentApplied ? 'check' : 'alert',
+        message: selectedSummary.alignmentApplied ? labels.events.alignmentDone : labels.events.noAlignment,
+        minutesAgo: 46,
+        buildingName: primaryBuildingName,
+      },
     ]
     return base
-  }, [buildings, isApplied, labels.events, selectedBuilding, totalDevices])
+  }, [buildings, geometryReady, labels.events, selectedBuilding, selectedSummary.alignmentApplied, selectedSummary.pointCloudCount, totalDevices])
 
   return (
     <section className="page-grid dashboard-page">
@@ -234,7 +342,7 @@ export function DashboardPage() {
           <div>
             <span>{labels.activeAlarms}</span>
             <strong>{alarms}<small>{alarms === 0 ? labels.normal : labels.checkRequired}</small></strong>
-            <em>{anchors.length} {labels.alignment}</em>
+            <em>{selectedSummary.anchorCount} {labels.alignment}</em>
           </div>
         </article>
       </div>
@@ -259,24 +367,27 @@ export function DashboardPage() {
             </div>
           ) : (
             <div className="dashboard-building-grid">
-              {buildings.map((building) => (
-                <Link key={building.id} className="dashboard-building-card" to={`/editor/${building.id}`}>
-                  <div className="dashboard-card-topline" />
-                  <div className="dashboard-building-card-header">
-                    <strong>{building.name}</strong>
-                    <span>{building.total_floors ?? '-'} {labels.floors}</span>
-                  </div>
-                  {building.address && <p>{building.address}</p>}
-                  <div className="dashboard-building-card-footer">
-                    <span>{labels.geometry}: {walls.length + rooms.length}</span>
-                    <span>{labels.devices}: {totalDevices}</span>
-                  </div>
-                  <em>
-                    {labels.openEditor}
-                    <DashboardIcon name="arrow" />
-                  </em>
-                </Link>
-              ))}
+              {buildings.map((building) => {
+                const summary = projectSummaries[building.id] ?? emptySummary
+                return (
+                  <Link key={building.id} className="dashboard-building-card" to={`/editor/${building.id}`}>
+                    <div className="dashboard-card-topline" />
+                    <div className="dashboard-building-card-header">
+                      <strong>{building.name}</strong>
+                      <span>{building.total_floors ?? '-'} {labels.floors}</span>
+                    </div>
+                    {building.address && <p>{building.address}</p>}
+                    <div className="dashboard-building-card-footer">
+                      <span>{labels.geometry}: {summary.geometryCount}</span>
+                      <span>{labels.devices}: {summary.deviceCount}</span>
+                    </div>
+                    <em>
+                      {labels.openEditor}
+                      <DashboardIcon name="arrow" />
+                    </em>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </section>
