@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listBuildings, type Building } from '../../../api/buildings'
 import { listFloors, type Floor } from '../../../api/floors'
+import { listObjectPlacements, type ObjectPlacement } from '../../../api/projectData'
 import { useEditorStore, type SecurityDevice } from '../../../stores/editorStore'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../../../stores/projectStore'
+import { deviceFromObjectPlacement, type FloorScopedSecurityDevice } from '../../../utils/projectObjectPlacements'
 
 export interface MonitorDataState {
   buildings: Building[]
@@ -21,11 +23,11 @@ export interface MonitorDataState {
 export function useMonitorData(): MonitorDataState {
   const editorDevices = useEditorStore((state) => state.devices)
   const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
-  const fallbackDevices = useEditorStore((state) => state.devices)
-  const devices = editorDevices.length > 0 ? editorDevices : fallbackDevices
 
   const [buildings, setBuildings] = useState<Building[]>([])
   const [floors, setFloors] = useState<Floor[]>([])
+  const [placementDevices, setPlacementDevices] = useState<FloorScopedSecurityDevice[]>([])
+  const [placementsLoaded, setPlacementsLoaded] = useState(false)
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
   const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null)
   useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
@@ -57,25 +59,45 @@ export function useMonitorData(): MonitorDataState {
   useEffect(() => {
     if (selectedBuildingId === null) {
       setFloors([])
+      setPlacementDevices([])
+      setPlacementsLoaded(false)
       setSelectedFloorId(null)
       return
     }
-    listFloors(selectedBuildingId)
-      .then((next) => {
-        setFloors(next)
+    setPlacementsLoaded(false)
+    Promise.all([
+      listFloors(selectedBuildingId),
+      listObjectPlacements(selectedBuildingId).catch(() => [] as ObjectPlacement[]),
+    ])
+      .then(([nextFloors, placements]) => {
+        setFloors(nextFloors)
+        setPlacementDevices(
+          placements
+            .map(deviceFromObjectPlacement)
+            .filter((device): device is FloorScopedSecurityDevice => device !== null),
+        )
+        setPlacementsLoaded(true)
         setSelectedFloorId((current) => {
-          if (current && next.some((f) => f.id === current)) return current
-          return next[0]?.id ?? null
+          if (current && nextFloors.some((f) => f.id === current)) return current
+          return nextFloors[0]?.id ?? null
         })
       })
       .catch(() => {
         setFloors([])
+        setPlacementDevices([])
+        setPlacementsLoaded(true)
         setSelectedFloorId(null)
       })
   }, [selectedBuildingId])
 
   const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId) ?? null
   const selectedFloor = floors.find((f) => f.id === selectedFloorId) ?? null
+  const floorScopedDevices = placementDevices.filter((device) => (
+    selectedFloorId === null ? device.floor_id === null : device.floor_id === selectedFloorId
+  ))
+  const devices: SecurityDevice[] = placementsLoaded
+    ? floorScopedDevices.map(({ floor_id: _floorId, ...device }) => device)
+    : editorDevices
   const cameras = devices.filter((d) => d.device_type === 'camera')
 
   return {

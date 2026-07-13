@@ -2,13 +2,16 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { listBuildings } from '../api/buildings'
-import { getProjectSnapshot } from '../api/projectData'
+import { listFloors, type Floor } from '../api/floors'
+import { getFloorGeometry } from '../api/geometry'
+import { getProjectSnapshot, listObjectPlacements, type ObjectPlacement } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
 import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import { useAlignmentStore } from '../stores/alignmentStore'
 import { useEditorStore, type SecurityDevice, type SecurityDeviceType } from '../stores/editorStore'
 import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import type { AnchorPoint } from '../utils/alignmentUtils'
+import { deviceFromObjectPlacement, type FloorScopedSecurityDevice } from '../utils/projectObjectPlacements'
 import { PageHeader } from './PageHeader'
 
 const ThreeJSViewer = lazy(() =>
@@ -479,17 +482,17 @@ const MIN_GPS_ANCHOR_DISTANCE_METERS = 1
 const ALIGNMENT_RMS_WARNING_METERS = 1
 const ALIGNMENT_RMS_ERROR_METERS = 3
 
-function useValidation(labels: ValidationLabels): ValidationResult {
-  const walls = useEditorStore((state) => state.walls)
-  const rooms = useEditorStore((state) => state.rooms)
-  const devices = useEditorStore((state) => state.devices)
+function useValidation(
+  labels: ValidationLabels,
+  data: { walls: Wall2D[]; rooms: Room2D[]; devices: SecurityDevice[] },
+): ValidationResult {
   const anchors = useAlignmentStore((state) => state.anchors)
   const result = useAlignmentStore((state) => state.result)
   const isApplied = useAlignmentStore((state) => state.isApplied)
 
   return useMemo(
-    () => buildValidation({ labels, walls, rooms, devices, anchors, result, isApplied }),
-    [anchors, devices, isApplied, labels, result, rooms, walls],
+    () => buildValidation({ labels, walls: data.walls, rooms: data.rooms, devices: data.devices, anchors, result, isApplied }),
+    [anchors, data.devices, data.rooms, data.walls, isApplied, labels, result],
   )
 }
 
@@ -1119,21 +1122,50 @@ export function ValidationPage() {
   const { language } = usePreferences()
   const labels = copy[language]
   const ui = validationUiCopy[language]
-  const validation = useValidation(labels)
-  const walls = useEditorStore((state) => state.walls)
-  const rooms = useEditorStore((state) => state.rooms)
-  const devices = useEditorStore((state) => state.devices)
+  const editorWalls = useEditorStore((state) => state.walls)
+  const editorRooms = useEditorStore((state) => state.rooms)
+  const editorDevices = useEditorStore((state) => state.devices)
   const loadEditorState = useEditorStore((state) => state.loadEditorState)
   const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
   const [selectedFloorId, setSelectedFloorId] = useState('1f')
   const [activeView, setActiveView] = useState<ValidationViewMode>('floor')
   const [selectedCategoryId, setSelectedCategoryId] = useState<ValidationCategoryId>('geometry')
   const [showIssueMarkers, setShowIssueMarkers] = useState(true)
+  const [projectBuildingName, setProjectBuildingName] = useState('Final Test Building')
+  const [projectFloors, setProjectFloors] = useState<Floor[]>([])
+  const [placementDevices, setPlacementDevices] = useState<FloorScopedSecurityDevice[]>([])
+  const [floorGeometry, setFloorGeometry] = useState<{ walls: Wall2D[]; rooms: Room2D[] }>({ walls: [], rooms: [] })
+  const [floorGeometryLoaded, setFloorGeometryLoaded] = useState(false)
 
-  const selectedFloor = validationFloors.find((floor) => floor.id === selectedFloorId) ?? validationFloors[2]!
+  const displayFloors = useMemo<ValidationFloor[]>(() => {
+    if (projectFloors.length === 0) return validationFloors
+    return projectFloors.map((floor, index) => ({
+      id: String(floor.id),
+      name: floor.floor_name ?? `${floor.floor_number}F`,
+      height: `${formatNumber(floor.height_meters)}m`,
+      sourceCategory: index === 0 ? 'geometry' : index === 1 ? 'space' : 'alignment',
+    }))
+  }, [projectFloors])
+
+  useEffect(() => {
+    if (displayFloors.length === 0) return
+    if (displayFloors.some((floor) => floor.id === selectedFloorId)) return
+    setSelectedFloorId(displayFloors[0]!.id)
+  }, [displayFloors, selectedFloorId])
+
+  const selectedFloor = displayFloors.find((floor) => floor.id === selectedFloorId) ?? displayFloors[0] ?? validationFloors[2]!
+  const selectedProjectFloor = projectFloors.find((floor) => String(floor.id) === selectedFloor.id) ?? null
+  const devices = selectedProjectFloor
+    ? placementDevices
+      .filter((device) => device.floor_id === selectedProjectFloor.id)
+      .map(({ floor_id: _floorId, ...device }) => device)
+    : editorDevices
+  const walls = selectedProjectFloor && floorGeometryLoaded ? floorGeometry.walls : editorWalls
+  const rooms = selectedProjectFloor && floorGeometryLoaded ? floorGeometry.rooms : editorRooms
+  const validation = useValidation(labels, { walls, rooms, devices })
   const selectedCategory = validation.categories.find((category) => category.id === selectedCategoryId) ?? validation.categories[0]!
   const allIssues = validation.categories.flatMap((category) => category.issues.map((issue) => ({ ...issue, category: category.id })))
-  const selectedFloorDeviceCount = selectedFloor.id === '1f' ? devices.length : 0
+  const selectedFloorDeviceCount = devices.length
   const quickIssues = selectedCategory.issues.length > 0 ? selectedCategory.issues : allIssues.slice(0, 4)
   const hasValidationGeometry = rooms.length > 0 || walls.length > 0
 
@@ -1145,7 +1177,20 @@ export function ValidationPage() {
       const building = buildings.find((candidate) => candidate.id === selectedId) ?? buildings[0]
       if (!building) return
       useProjectStore.getState().setSelectedBuildingId(building.id)
-      const snapshot = await getProjectSnapshot(building.id).catch(() => null)
+      if (!cancelled) setProjectBuildingName(building.name)
+      const [snapshot, nextFloors, placements] = await Promise.all([
+        getProjectSnapshot(building.id).catch(() => null),
+        listFloors(building.id).catch(() => [] as Floor[]),
+        listObjectPlacements(building.id).catch(() => [] as ObjectPlacement[]),
+      ])
+      if (!cancelled) {
+        setProjectFloors(nextFloors)
+        setPlacementDevices(
+          placements
+            .map(deviceFromObjectPlacement)
+            .filter((device): device is FloorScopedSecurityDevice => device !== null),
+        )
+      }
       if (cancelled || !snapshot?.saved) return
       const editorSnapshot = snapshot.state.editor
       if (!isEditorSnapshot(editorSnapshot)) return
@@ -1163,6 +1208,34 @@ export function ValidationPage() {
       cancelled = true
     }
   }, [globalSelectedBuildingId, loadEditorState])
+
+  useEffect(() => {
+    let cancelled = false
+    setFloorGeometryLoaded(false)
+    if (!selectedProjectFloor) {
+      setFloorGeometry({ walls: [], rooms: [] })
+      setFloorGeometryLoaded(true)
+      return
+    }
+
+    getFloorGeometry(selectedProjectFloor.id)
+      .then((geometry) => {
+        if (!cancelled) {
+          setFloorGeometry({ walls: geometry.walls, rooms: geometry.rooms })
+          setFloorGeometryLoaded(true)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFloorGeometry({ walls: [], rooms: [] })
+          setFloorGeometryLoaded(true)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProjectFloor])
 
   return (
     <section className="page-grid spatial-page validation-page validation-workspace">
@@ -1209,7 +1282,7 @@ export function ValidationPage() {
           </div>
 
           <div className="validation-floor-list">
-            {validationFloors.map((floor) => {
+            {displayFloors.map((floor) => {
               const category = validation.categories.find((item) => item.id === floor.sourceCategory)
               const isSelected = floor.id === selectedFloor.id
 
@@ -1226,7 +1299,7 @@ export function ValidationPage() {
                 >
                   <span>
                     <strong>{floor.name}</strong>
-                    <small>{floor.height} · {floor.id === '1f' ? devices.length : 0} {ui.devices}</small>
+                    <small>{floor.height} · {floor.id === selectedFloor.id ? devices.length : 0} {ui.devices}</small>
                   </span>
                   <em>#{category?.score ?? 0}</em>
                 </button>
@@ -1311,8 +1384,8 @@ export function ValidationPage() {
         <aside className="validation-summary-panel">
           <h3>{ui.summary}</h3>
           <div className="validation-building-summary">
-            <strong>Final Test Building</strong>
-            <span>{validationFloors.length} floors · {devices.length} devices</span>
+            <strong>{projectBuildingName}</strong>
+            <span>{displayFloors.length} floors · {devices.length} devices</span>
           </div>
 
           <div className="validation-selected-devices">

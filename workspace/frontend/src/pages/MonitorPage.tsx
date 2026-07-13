@@ -13,8 +13,10 @@ import {
 
 import { usePreferences } from '../app/preferences'
 import { getBuildingMapSettings, type BuildingMapSettings } from '../api/buildings'
+import { getFloorGeometry } from '../api/geometry'
 import { getProjectSnapshot } from '../api/projectData'
 import { useEditorStore } from '../stores/editorStore'
+import type { Room2D, Wall2D } from '../components/Canvas2DViewer'
 import type { SystemLog } from './MonitorPage/monitorTypes'
 
 import { useMonitorData } from './MonitorPage/hooks/useMonitorData'
@@ -119,14 +121,6 @@ const copy = {
   },
 } as const
 
-const fallbackDevices = [
-  { id: 'demo-camera-1', x: 4.5, y: 3.2, device_type: 'camera' as const, name: 'CAM-Lobby-01' },
-  { id: 'demo-camera-2', x: 12.4, y: 3.4, device_type: 'camera' as const, name: 'CAM-Office-02' },
-  { id: 'demo-sensor-1', x: 6.8, y: 9.8, device_type: 'sensor' as const, name: 'Sensor-Temp-01' },
-  { id: 'demo-alarm-1', x: 13.6, y: 10.5, device_type: 'alarm' as const, name: 'Alarm-East-01' },
-  { id: 'demo-access-1', x: 1.2, y: 6.6, device_type: 'access' as const, name: 'Access-Main-01' },
-]
-
 type MonitorAlignmentSnapshot = {
   buildingOrigin: [number, number] | null
   alignmentMatrix: number[][] | null
@@ -175,11 +169,9 @@ function formatTime(value: string) {
 export function MonitorPage() {
   const { language } = usePreferences()
   const labels = copy[language]
-  const walls = useEditorStore((state) => state.walls)
-  const rooms = useEditorStore((state) => state.rooms)
+  const editorWalls = useEditorStore((state) => state.walls)
+  const editorRooms = useEditorStore((state) => state.rooms)
   const loadSample = useEditorStore((state) => state.loadSample)
-  const editorDevices = useEditorStore((state) => state.devices)
-  const devices = editorDevices.length > 0 ? editorDevices : fallbackDevices
 
   const {
     buildings,
@@ -188,6 +180,7 @@ export function MonitorPage() {
     selectedFloorId,
     selectedBuilding,
     selectedFloor,
+    devices,
     cameras,
     setSelectedBuildingId,
     setSelectedFloorId,
@@ -204,10 +197,43 @@ export function MonitorPage() {
   const [bottomExpanded, setBottomExpanded] = useState(true)
   const [mapSettings, setMapSettings] = useState<BuildingMapSettings | null>(null)
   const [alignmentSnapshot, setAlignmentSnapshot] = useState<MonitorAlignmentSnapshot | null>(null)
+  const [floorGeometry, setFloorGeometry] = useState<{ walls: Wall2D[]; rooms: Room2D[] }>({ walls: [], rooms: [] })
+  const [floorGeometryLoaded, setFloorGeometryLoaded] = useState(false)
 
   useEffect(() => {
-    if (walls.length === 0 && rooms.length === 0) loadSample()
-  }, [loadSample, rooms.length, walls.length])
+    if (editorWalls.length === 0 && editorRooms.length === 0) loadSample()
+  }, [editorRooms.length, editorWalls.length, loadSample])
+
+  useEffect(() => {
+    let cancelled = false
+    setFloorGeometryLoaded(false)
+    if (selectedFloorId === null) {
+      setFloorGeometry({ walls: [], rooms: [] })
+      setFloorGeometryLoaded(true)
+      return
+    }
+
+    getFloorGeometry(selectedFloorId)
+      .then((geometry) => {
+        if (!cancelled) {
+          setFloorGeometry({ walls: geometry.walls, rooms: geometry.rooms })
+          setFloorGeometryLoaded(true)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFloorGeometry({ walls: [], rooms: [] })
+          setFloorGeometryLoaded(true)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedFloorId])
+
+  const walls = floorGeometryLoaded ? floorGeometry.walls : editorWalls
+  const rooms = floorGeometryLoaded ? floorGeometry.rooms : editorRooms
 
   useEffect(() => {
     let cancelled = false
