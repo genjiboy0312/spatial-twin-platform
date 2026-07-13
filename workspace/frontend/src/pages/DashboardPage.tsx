@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
-import { getFloorGeometry } from '../api/geometry'
-import { getProjectData, getProjectSnapshot, type ProjectData } from '../api/projectData'
+import { getProjectSummary } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
 import { preferredBuildingId, useProjectStore } from '../stores/projectStore'
 import { PageHeader } from './PageHeader'
@@ -162,61 +161,15 @@ function formatRelativeTime(minutesAgo: number, language: 'en' | 'ko') {
   return language === 'ko' ? `${hours}시간 전` : `${hours}h ago`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function hasAlignmentMatrix(value: unknown): boolean {
-  return Array.isArray(value)
-    && value.length >= 2
-    && value.every((row) => (
-      Array.isArray(row)
-      && row.length >= 3
-      && row.every((item) => typeof item === 'number')
-    ))
-}
-
-function countAlignmentAnchors(value: unknown): number {
-  if (!isRecord(value)) return 0
-  return Object.values(value).filter((point) => (
-    isRecord(point)
-    && typeof point.x === 'number'
-    && typeof point.y === 'number'
-  )).length
-}
-
-function countSecurityDevices(data: ProjectData): number {
-  const placementDevices = data.object_placements.filter((placement) => (
-    placement.object_type === 'security_device'
-    || placement.metadata?.editor_source === 'editor-device'
-  )).length
-  return Math.max(placementDevices, data.security_devices.length)
-}
-
 async function loadDashboardSummary(buildingId: number): Promise<DashboardProjectSummary> {
-  const data = await getProjectData(buildingId)
-  const [geometryCounts, snapshot] = await Promise.all([
-    Promise.all(
-      data.floors.map((floor) => (
-        getFloorGeometry(floor.id)
-          .then((geometry) => geometry.walls.length + geometry.rooms.length)
-          .catch(() => 0)
-      )),
-    ),
-    getProjectSnapshot(buildingId).catch(() => null),
-  ])
-
-  const alignment = snapshot?.state.alignment
-  const alignmentApplied = isRecord(alignment)
-    && (alignment.hasJustAligned === true || hasAlignmentMatrix(alignment.alignmentMatrix))
-
+  const summary = await getProjectSummary(buildingId)
   return {
-    geometryCount: geometryCounts.reduce((sum, count) => sum + count, 0),
-    deviceCount: countSecurityDevices(data),
-    pointCloudCount: data.uploads.filter((upload) => upload.source_type === 'pointcloud').length,
-    sourceCount: data.uploads.filter((upload) => upload.source_type !== 'pointcloud').length,
-    alignmentApplied,
-    anchorCount: isRecord(alignment) ? countAlignmentAnchors(alignment.alignLocalPoints) : 0,
+    geometryCount: summary.geometry_count,
+    deviceCount: summary.device_count,
+    pointCloudCount: summary.pointcloud_count,
+    sourceCount: summary.source_count,
+    alignmentApplied: summary.alignment_applied,
+    anchorCount: summary.anchor_count,
   }
 }
 

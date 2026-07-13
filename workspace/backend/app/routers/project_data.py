@@ -3,12 +3,12 @@ from collections import Counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Building, Floor, ObjectPlacement, ProjectAsset, ProjectSnapshot, SecurityDevice, UploadAsset
+from app.models import Building, Floor, ObjectPlacement, ProjectAsset, ProjectSnapshot, Room, SecurityDevice, UploadAsset, Wall
 from app.schemas import (
     FloorRead,
     ObjectPlacementCreate,
@@ -19,6 +19,7 @@ from app.schemas import (
     ProjectAssetRead,
     ProjectAssetUpdate,
     ProjectDataRead,
+    ProjectSummaryRead,
     ProjectSnapshotPayload,
     ProjectSnapshotRead,
     SecurityDeviceRead,
@@ -57,6 +58,44 @@ def get_project_data(building_id: int, db: Session = Depends(get_db)) -> Project
         project_assets=[_asset_to_read(asset) for asset in assets],
         object_placements=[_placement_to_read(placement) for placement in placements],
         security_devices=[SecurityDeviceRead.model_validate(device) for device in devices],
+        asset_counts=dict(counts),
+    )
+
+
+@router.get("/buildings/{building_id}/project-summary", response_model=ProjectSummaryRead)
+def get_project_summary(building_id: int, db: Session = Depends(get_db)) -> ProjectSummaryRead:
+    _get_building_or_404(db, building_id)
+    floors = _building_floors(db, building_id)
+    floor_ids = [floor.id for floor in floors]
+    uploads = list(db.scalars(select(UploadAsset).where(UploadAsset.building_id == building_id)))
+    assets = list(db.scalars(select(ProjectAsset).where(ProjectAsset.building_id == building_id)))
+    placements = list(db.scalars(select(ObjectPlacement).where(ObjectPlacement.building_id == building_id)))
+    devices = _devices_for_floors(db, floor_ids)
+    wall_count = _count_by_floor_ids(db, Wall, floor_ids)
+    room_count = _count_by_floor_ids(db, Room, floor_ids)
+    snapshot = db.scalar(select(ProjectSnapshot).where(ProjectSnapshot.building_id == building_id))
+    snapshot_state = _json_load(snapshot.state_json) if snapshot else None
+    alignment = snapshot_state.get("alignment") if isinstance(snapshot_state, dict) else None
+
+    counts = Counter(asset.asset_type for asset in assets)
+    counts.update(upload.source_type for upload in uploads)
+    counts["security_device"] = len(devices)
+    counts["object"] = len(placements)
+
+    return ProjectSummaryRead(
+        building_id=building_id,
+        floor_count=len(floors),
+        upload_count=len(uploads),
+        source_count=sum(1 for upload in uploads if upload.source_type != "pointcloud"),
+        pointcloud_count=sum(1 for upload in uploads if upload.source_type == "pointcloud"),
+        project_asset_count=len(assets),
+        object_count=len(placements),
+        device_count=max(_editor_device_count(placements), len(devices)),
+        wall_count=wall_count,
+        room_count=room_count,
+        geometry_count=wall_count + room_count,
+        alignment_applied=_alignment_applied(alignment),
+        anchor_count=_anchor_count(alignment),
         asset_counts=dict(counts),
     )
 
@@ -326,6 +365,36 @@ def _devices_for_floors(db: Session, floor_ids: list[int]) -> list[SecurityDevic
     return list(
         db.scalars(select(SecurityDevice).where(SecurityDevice.floor_id.in_(floor_ids)).order_by(SecurityDevice.id.desc()))
     )
+
+
+def _count_by_floor_ids(db: Session, model: type[Wall] | type[Room], floor_ids: list[int]) -> int:
+    if not floor_ids:
+        return 0
+    return int(db.scalar(select(func.count()).select_from(model).where(model.floor_id.in_(floor_ids))) or 0)
+
+
+def _editor_device_count(placements: list[ObjectPlacement]) -> int:
+    count = 0
+    for placement in placements:
+        metadata = _json_load(placement.metadata_json) or {}
+        if placement.object_type == "security_device" or metadata.get("editor_source") == "editor-device":
+            count += 1
+    return count
+
+
+def _alignment_applied(alignment: Any | None) -> bool:
+    if not isinstance(alignment, dict):
+        return False
+    return bool(alignment.get("hasJustAligned") or alignment.get("alignmentMatrix"))
+
+
+def _anchor_count(alignment: Any | None) -> int:
+    if not isinstance(alignment, dict):
+        return 0
+    points = alignment.get("alignLocalPoints")
+    if not isinstance(points, dict):
+        return 0
+    return sum(1 for point in points.values() if isinstance(point, dict) and isinstance(point.get("x"), (int, float)) and isinstance(point.get("y"), (int, float)))
 
 
 def _validate_floor_scope(db: Session, building_id: int, floor_id: int | None) -> None:

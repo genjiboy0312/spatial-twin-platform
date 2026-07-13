@@ -1241,3 +1241,4 @@ VITE_API_BASE_URL=http://localhost:8000  # 또는 http://localhost:3000
 - [x] Models 저장 모델 신호 반영: Models 페이지의 모델 존재 판단을 현재 Editor store가 아닌 `project-data`, 층별 geometry API, object placement/security device 요약으로 전환하여 새로고침 후에도 에디터에서 만든 벽/방/장치 기반 모델 상태와 Editor CTA가 유지되도록 개선
 - [x] Devices 저장 데이터 기준 전환: Devices 페이지가 Editor store 대신 선택 프로젝트의 `project-data`에서 object placement와 legacy security device를 합쳐 인벤토리/유형 분포/상세 패널을 렌더링하도록 변경하고, 프로젝트 선택 컨텍스트를 추가해 새로고침 후에도 장치 상태가 유지되도록 개선
 - [x] Export 저장 프로젝트 패키지 보강: Export 페이지가 Editor store 대신 선택 프로젝트의 층별 geometry, object placement/security device, uploads, project assets, PointCloud 업로드 수, alignment snapshot을 읽어 미리보기와 OBJ/DXF/CSV/Package export에 사용하도록 전환
+- [x] Project Summary API 최적화: 백엔드 `GET /api/buildings/{building_id}/project-summary`를 추가해 floors/uploads/assets/object/device/wall/room/geometry/alignment 요약을 단일 API로 제공하고, Dashboard/Models가 다중 API 조합 대신 해당 요약 API를 사용하도록 전환

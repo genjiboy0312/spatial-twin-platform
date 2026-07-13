@@ -310,6 +310,14 @@ def test_project_data_assets_and_object_placements() -> None:
         json={"name": "Lobby Camera", "device_type": "camera", "pos_x": 2.0, "pos_y": 3.0},
     )
     assert device_response.status_code == 201
+    geometry_response = client.put(
+        f"/api/floors/{floor['id']}/geometry",
+        json={
+            "walls": [{"x1": 0, "y1": 0, "x2": 5, "y2": 0}],
+            "rooms": [{"name": "Lobby", "x": 0, "y": 0, "w": 5, "h": 4}],
+        },
+    )
+    assert geometry_response.status_code == 200
 
     summary_response = client.get(f"/api/buildings/{building['id']}/project-data")
     assert summary_response.status_code == 200
@@ -320,6 +328,19 @@ def test_project_data_assets_and_object_placements() -> None:
     assert summary["asset_counts"]["object"] == 1
     assert summary["asset_counts"]["security_device"] == 1
     assert summary["object_placements"][0]["name"] == "Main IFC shell"
+
+    project_summary_response = client.get(f"/api/buildings/{building['id']}/project-summary")
+    assert project_summary_response.status_code == 200
+    project_summary = project_summary_response.json()
+    assert project_summary["building_id"] == building["id"]
+    assert project_summary["floor_count"] == 1
+    assert project_summary["source_count"] == 1
+    assert project_summary["pointcloud_count"] == 0
+    assert project_summary["device_count"] == 1
+    assert project_summary["wall_count"] == 1
+    assert project_summary["room_count"] == 1
+    assert project_summary["geometry_count"] == 2
+    assert project_summary["asset_counts"]["security_device"] == 1
 
 
 def test_object_placement_sync_replaces_scoped_editor_devices() -> None:

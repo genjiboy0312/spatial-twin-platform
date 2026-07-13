@@ -409,6 +409,23 @@ class ProjectDataRead(BaseModel):
     asset_counts: dict[str, int]
 
 
+class ProjectSummaryRead(BaseModel):
+    building_id: int
+    floor_count: int
+    upload_count: int
+    source_count: int
+    pointcloud_count: int
+    project_asset_count: int
+    object_count: int
+    device_count: int
+    wall_count: int
+    room_count: int
+    geometry_count: int
+    alignment_applied: bool
+    anchor_count: int
+    asset_counts: dict[str, int]
+
+
 class ProjectSnapshotPayload(BaseModel):
     version: int = Field(default=1, ge=1)
     state: dict[str, Any] = Field(default_factory=dict)

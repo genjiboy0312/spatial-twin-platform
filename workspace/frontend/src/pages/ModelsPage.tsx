@@ -3,8 +3,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { listBuildings, type Building } from '../api/buildings'
 import { listFloors, type Floor } from '../api/floors'
-import { getFloorGeometry } from '../api/geometry'
-import { getProjectData, type ProjectData } from '../api/projectData'
+import { getProjectSummary } from '../api/projectData'
 import { listUploadsByBuilding, type UploadAsset } from '../api/uploads'
 import { usePreferences } from '../app/preferences'
 import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
@@ -293,27 +292,11 @@ function latestFloorUpload(floor: Floor, uploads: UploadAsset[]) {
   return uploads.filter((upload) => upload.floor_id === floor.id).slice(-1)[0] ?? null
 }
 
-function countSecurityPlacements(data: ProjectData): number {
-  const placementDevices = data.object_placements.filter((placement) => (
-    placement.object_type === 'security_device'
-    || placement.metadata?.editor_source === 'editor-device'
-  )).length
-  return Math.max(placementDevices, data.security_devices.length)
-}
-
 async function loadModelProjectSignal(buildingId: number): Promise<ModelProjectSignal> {
-  const data = await getProjectData(buildingId)
-  const geometryCounts = await Promise.all(
-    data.floors.map((floor) => (
-      getFloorGeometry(floor.id)
-        .then((geometry) => geometry.walls.length + geometry.rooms.length)
-        .catch(() => 0)
-    )),
-  )
-
+  const summary = await getProjectSummary(buildingId)
   return {
-    geometryCount: geometryCounts.reduce((sum, count) => sum + count, 0),
-    deviceCount: countSecurityPlacements(data),
+    geometryCount: summary.geometry_count,
+    deviceCount: summary.device_count,
   }
 }
 

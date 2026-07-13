@@ -49,6 +49,23 @@ export type ProjectData = {
   asset_counts: Record<string, number>
 }
 
+export type ProjectSummary = {
+  building_id: number
+  floor_count: number
+  upload_count: number
+  source_count: number
+  pointcloud_count: number
+  project_asset_count: number
+  object_count: number
+  device_count: number
+  wall_count: number
+  room_count: number
+  geometry_count: number
+  alignment_applied: boolean
+  anchor_count: number
+  asset_counts: Record<string, number>
+}
+
 export type ProjectSnapshot = {
   building_id: number
   version: number
@@ -77,6 +94,10 @@ export type ObjectPlacementCreate = {
 
 export function getProjectData(buildingId: number): Promise<ProjectData> {
   return getJson<ProjectData>(`/api/buildings/${buildingId}/project-data`)
+}
+
+export function getProjectSummary(buildingId: number): Promise<ProjectSummary> {
+  return getJson<ProjectSummary>(`/api/buildings/${buildingId}/project-summary`)
 }
 
 export function getProjectSnapshot(buildingId: number): Promise<ProjectSnapshot> {
