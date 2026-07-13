@@ -1,9 +1,14 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
+import { listBuildings, type Building } from '../api/buildings'
+import { getProjectData, type ProjectData, type ProjectSecurityDevice } from '../api/projectData'
 import { usePreferences } from '../app/preferences'
 import { Bell, Camera, DoorOpen, Radio } from '../components/Icons'
 import { DEVICE_COLORS, DEVICE_TYPE_EN_LABELS, DEVICE_TYPE_LABELS, DEVICE_TYPE_LIST } from '../constants/devices'
-import { useEditorStore, type SecurityDevice, type SecurityDeviceType } from '../stores/editorStore'
+import type { SecurityDevice, SecurityDeviceType } from '../stores/editorStore'
+import { preferredBuildingId, useProjectSelectionSync, useProjectStore } from '../stores/projectStore'
+import { deviceFromObjectPlacement } from '../utils/projectObjectPlacements'
 import { PageHeader } from './PageHeader'
 
 const copy = {
@@ -63,6 +68,11 @@ const copy = {
   },
 } as const
 
+type InventoryDevice = SecurityDevice & {
+  floor_id: number | null
+  source: 'object-placement' | 'security-device'
+}
+
 const placementGuides = {
   en: [
     'Place cameras on corridors or entrances and verify their view angle.',
@@ -84,6 +94,46 @@ function formatPosition(device: SecurityDevice) {
   return `${device.x.toFixed(2)}, ${device.y.toFixed(2)}`
 }
 
+function isSecurityDeviceType(value: unknown): value is SecurityDeviceType {
+  return typeof value === 'string' && DEVICE_TYPE_LIST.includes(value as SecurityDeviceType)
+}
+
+function legacySecurityDeviceToInventory(device: ProjectSecurityDevice): InventoryDevice | null {
+  if (!isSecurityDeviceType(device.device_type)) return null
+  return {
+    id: `security-${device.id}`,
+    name: device.name,
+    device_type: device.device_type,
+    x: device.pos_x,
+    y: device.pos_y,
+    angle: device.angle,
+    floor_id: device.floor_id,
+    source: 'security-device',
+  }
+}
+
+function devicesFromProjectData(data: ProjectData): InventoryDevice[] {
+  const placementDevices = data.object_placements
+    .map(deviceFromObjectPlacement)
+    .filter((device): device is NonNullable<ReturnType<typeof deviceFromObjectPlacement>> => device !== null)
+    .map((device): InventoryDevice => ({
+      ...device,
+      source: 'object-placement',
+    }))
+
+  const placementLegacyIds = new Set(
+    placementDevices
+      .map((device) => device.id)
+      .filter((id) => id.startsWith('security-')),
+  )
+  const securityDevices = data.security_devices
+    .map(legacySecurityDeviceToInventory)
+    .filter((device): device is InventoryDevice => device !== null)
+    .filter((device) => !placementLegacyIds.has(device.id))
+
+  return [...placementDevices, ...securityDevices]
+}
+
 function DeviceTypeIcon({ type, size = 16 }: { type: SecurityDeviceType; size?: number }) {
   const Icon = {
     camera: Camera,
@@ -97,15 +147,67 @@ function DeviceTypeIcon({ type, size = 16 }: { type: SecurityDeviceType; size?: 
 export function DevicesPage() {
   const { language } = usePreferences()
   const labels = copy[language]
-  const devices = useEditorStore((state) => state.devices)
-  const selectedDeviceIdx = useEditorStore((state) => state.selectedDeviceIdx)
-  const selectDevice = useEditorStore((state) => state.selectDevice)
-  const selectedDevice = selectedDeviceIdx === null ? null : devices[selectedDeviceIdx] ?? null
+  const setGlobalSelectedBuildingId = useProjectStore((state) => state.setSelectedBuildingId)
+  const globalSelectedBuildingId = useProjectStore((state) => state.selectedBuildingId)
+  const [buildings, setBuildings] = useState<Building[]>([])
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null)
+  const [devices, setDevices] = useState<InventoryDevice[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
+  useProjectSelectionSync(buildings, selectedBuildingId, setSelectedBuildingId)
+  const selectedDevice = devices.find((device) => device.id === selectedDeviceId) ?? null
 
-  const counts = DEVICE_TYPE_LIST.reduce<Record<SecurityDeviceType, number>>((acc, type) => {
+  const loadBuildings = useCallback(async () => {
+    try {
+      const data = await listBuildings()
+      setBuildings(data)
+      setSelectedBuildingId((current) => {
+        const next = preferredBuildingId(data, current ?? globalSelectedBuildingId)
+        setGlobalSelectedBuildingId(next)
+        return next
+      })
+    } catch {
+      setBuildings([])
+      setSelectedBuildingId(null)
+    }
+  }, [globalSelectedBuildingId, setGlobalSelectedBuildingId])
+
+  useEffect(() => {
+    loadBuildings()
+  }, [loadBuildings])
+
+  useEffect(() => {
+    let cancelled = false
+    if (selectedBuildingId === null) {
+      setDevices([])
+      setSelectedDeviceId(null)
+      return
+    }
+
+    getProjectData(selectedBuildingId)
+      .then((data) => {
+        if (cancelled) return
+        const nextDevices = devicesFromProjectData(data)
+        setDevices(nextDevices)
+        setSelectedDeviceId((current) => (
+          current && nextDevices.some((device) => device.id === current) ? current : null
+        ))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDevices([])
+          setSelectedDeviceId(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedBuildingId])
+
+  const counts = useMemo(() => DEVICE_TYPE_LIST.reduce<Record<SecurityDeviceType, number>>((acc, type) => {
     acc[type] = devices.filter((device) => device.device_type === type).length
     return acc
-  }, { camera: 0, sensor: 0, alarm: 0, access: 0 })
+  }, { camera: 0, sensor: 0, alarm: 0, access: 0 }), [devices])
 
   const reviewCount = devices.filter((device) => device.device_type === 'alarm' || device.device_type === 'access').length
   const coverageReady = devices.filter((device) => device.device_type === 'camera' || device.device_type === 'sensor').length
@@ -121,6 +223,24 @@ export function DevicesPage() {
           <p>{devices.length > 0 ? labels.editorHint : labels.emptyBody}</p>
         </div>
         <div className="devices-hero-actions">
+          {buildings.length > 0 && (
+            <select
+              className="select-input"
+              value={selectedBuildingId ?? ''}
+              onChange={(event) => {
+                const next = event.target.value ? Number(event.target.value) : null
+                setSelectedBuildingId(next)
+                setGlobalSelectedBuildingId(next)
+              }}
+              aria-label="Building context"
+            >
+              {buildings.map((building) => (
+                <option key={building.id} value={building.id}>
+                  {building.name}
+                </option>
+              ))}
+            </select>
+          )}
           <Link className="btn btn-secondary" to="/monitor">{labels.monitor}</Link>
           <Link className="btn btn-primary" to="/editor">{labels.openEditor}</Link>
         </div>
@@ -177,9 +297,9 @@ export function DevicesPage() {
               {devices.map((device, index) => (
                 <button
                   key={device.id}
-                  className={`devices-table-row ${selectedDeviceIdx === index ? 'selected' : ''}`}
+                  className={`devices-table-row ${selectedDeviceId === device.id ? 'selected' : ''}`}
                   type="button"
-                  onClick={() => selectDevice(selectedDeviceIdx === index ? null : index)}
+                  onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}
                 >
                   <span className="devices-name-cell">
                     <i style={{ background: DEVICE_COLORS[device.device_type] }}>
