@@ -39,6 +39,13 @@ export type UploadPipeline = {
 
 export type UploadStatus = 'queued' | 'pending' | 'uploaded' | 'validating' | 'processing' | 'converting' | 'preview_ready' | 'ready' | 'failed'
 
+export type PointCloudMeshProgress = {
+  upload_id: number
+  percent: number
+  stage: string
+  active: boolean
+}
+
 export type UploadAssetCreate = {
   filename: string
   source_type: 'dxf' | 'dwg' | 'image' | 'ifc' | 'glb' | 'pointcloud' | 'unknown'
@@ -182,4 +189,8 @@ export async function deleteUpload(uploadId: number): Promise<void> {
 
 export function generatePointCloudMesh(uploadId: number): Promise<UploadAsset> {
   return sendJson<UploadAsset, Record<string, never>>(`/api/uploads/${uploadId}/pointcloud-mesh`, 'POST', {})
+}
+
+export function getPointCloudMeshProgress(uploadId: number): Promise<PointCloudMeshProgress> {
+  return getJson<PointCloudMeshProgress>(`/api/uploads/${uploadId}/pointcloud-mesh-progress`)
 }

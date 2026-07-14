@@ -26,6 +26,7 @@ type Props = {
   onSelectEmpty?: (() => void) | undefined
   viewMode?: '2d' | '3d'
   pointClouds?: UploadAsset[]
+  pointCloudRenderMode?: 'points' | 'mesh'
   showAxisGizmo?: boolean
   visibleLayers?: EditorVisibleLayers
   layerVisibility?: Partial<Record<LayerId, boolean>>
@@ -1043,7 +1044,8 @@ function PointCloudObject({ asset, index, pointCount }: { asset: UploadAsset; in
 
 function PointCloudMeshObject({ asset, index }: { asset: UploadAsset; index: number }) {
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
-  const meshUrl = `${baseUrl}${asset.pointcloud_mesh_url}`
+  const meshVersion = encodeURIComponent(asset.message ?? String(asset.id))
+  const meshUrl = `${baseUrl}${asset.pointcloud_mesh_url}?version=${meshVersion}`
   const gltf = useLoader(GLTFLoader, meshUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene])
 
@@ -1115,6 +1117,7 @@ function Scene({
   onSelectOpening,
   onSelectDevice,
   pointClouds,
+  pointCloudRenderMode = 'mesh',
   sceneCenter = { x: 0, y: 0 },
   visibleLayers = DEFAULT_VISIBLE_LAYERS,
   layerVisibility = {},
@@ -1172,7 +1175,7 @@ function Scene({
         {visibleLayers.heatmap && <HeatmapOverlay rooms={rooms} opacity={layerOpacity.heatmap ?? 0.5} />}
         {visibleLayers.pathway && <PathwayOverlay devices={devices} layerVisibility={layerVisibility} opacity={layerOpacity.pathway ?? 0.5} />}
       </group>
-      {pointClouds?.map((asset, i) => asset.pointcloud_mesh_url ? (
+      {pointClouds?.map((asset, i) => pointCloudRenderMode === 'mesh' && asset.pointcloud_mesh_url ? (
         <PointCloudMeshObject key={`mesh-${asset.id}`} asset={asset} index={i} />
       ) : (
         <PointCloudObject key={`points-${asset.id}`} asset={asset} index={i} pointCount={pointBudgetForAsset(i, pointClouds.length)} />
@@ -1209,6 +1212,7 @@ export function ThreeJSViewer({
   onSelectDevice,
   onSelectEmpty,
   pointClouds = [],
+  pointCloudRenderMode = 'mesh',
   showAxisGizmo = false,
   visibleLayers = DEFAULT_VISIBLE_LAYERS,
   layerVisibility = {},
@@ -1246,6 +1250,7 @@ export function ThreeJSViewer({
           onSelectOpening={onSelectOpening}
           onSelectDevice={onSelectDevice}
           pointClouds={pointClouds}
+          pointCloudRenderMode={pointCloudRenderMode}
           sceneCenter={{ x: bounds.centerX, y: bounds.centerY }}
           visibleLayers={visibleLayers}
           layerVisibility={layerVisibility}

@@ -5880,8 +5880,8 @@ a {
 }
 
 .object-snap-panel.snap-active {
-  border-color: var(--accent, #38bdf8);
-  background: rgba(56, 189, 248, 0.03);
+  border-color: rgba(34, 197, 94, 0.58);
+  background: rgba(34, 197, 94, 0.05);
 }
 
 :root[data-theme="light"] .object-snap-panel {
@@ -5889,7 +5889,7 @@ a {
 }
 
 :root[data-theme="light"] .object-snap-panel.snap-active {
-  background: rgba(56, 189, 248, 0.04);
+  background: rgba(34, 197, 94, 0.07);
 }
 
 .object-snap-header {
@@ -5914,9 +5914,10 @@ a {
 }
 
 .snap-toggle-btn.on {
-  background: var(--accent, #38bdf8);
+  background: #16a34a;
   color: #fff;
-  border-color: var(--accent, #38bdf8);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.14);
 }
 
 .snap-toggle-btn.off {
@@ -6052,6 +6053,162 @@ a {
   inset: 0;
 }
 
+.editor-mesh-progress-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 5, 7, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.editor-mesh-progress-dialog {
+  display: grid;
+  justify-items: center;
+  width: min(360px, 100%);
+  padding: 28px 24px 24px;
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  border-radius: 8px;
+  background: rgba(15, 15, 18, 0.96);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
+  text-align: center;
+}
+
+.editor-mesh-progress-ring {
+  position: relative;
+  display: grid;
+  width: 116px;
+  height: 116px;
+  margin-bottom: 20px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.editor-mesh-progress-ring::before {
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: inherit;
+  background: #111113;
+  content: "";
+}
+
+.editor-mesh-progress-ring::after {
+  position: absolute;
+  inset: -7px;
+  border: 2px solid transparent;
+  border-top-color: #93c5fd;
+  border-right-color: rgba(59, 130, 246, 0.45);
+  border-radius: inherit;
+  content: "";
+  animation: editor-mesh-progress-spin 0.9s linear infinite;
+}
+
+.editor-mesh-progress-ring span {
+  position: relative;
+  z-index: 1;
+  color: #eff6ff;
+  font-size: 23px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-mesh-progress-dialog strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.editor-mesh-progress-dialog p {
+  margin: 8px 0 4px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-mesh-progress-dialog small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-mesh-progress-dialog em {
+  margin-top: 14px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-style: normal;
+}
+
+@keyframes editor-mesh-progress-spin {
+  to { transform: rotate(360deg); }
+}
+
+:root[data-theme="light"] .editor-mesh-progress-overlay {
+  background: rgba(241, 245, 249, 0.76);
+}
+
+:root[data-theme="light"] .editor-mesh-progress-dialog {
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+:root[data-theme="light"] .editor-mesh-progress-ring::before {
+  background: #fff;
+}
+
+:root[data-theme="light"] .editor-mesh-progress-ring span {
+  color: #172554;
+}
+
+.editor-pointcloud-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  margin: 0 0 10px;
+  padding: 3px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 7px;
+  background: rgba(17, 17, 19, 0.86);
+}
+
+.editor-pointcloud-view-switch button {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-pointcloud-view-switch button:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.editor-pointcloud-view-switch button.active {
+  color: #fff;
+  background: #475569;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+}
+
+.editor-pointcloud-view-switch button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+:root[data-theme="light"] .editor-pointcloud-view-switch {
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .editor-pointcloud-stage > div:first-child {
   width: 100%;
   height: 100%;
@@ -6141,6 +6298,8 @@ a {
 
 .editor-pointcloud-card-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   justify-content: flex-end;
   margin-top: 5px;
 }
@@ -6160,6 +6319,17 @@ a {
 .editor-pointcloud-card-actions button:hover:not(:disabled) {
   border-color: rgba(56, 189, 248, 0.62);
   background: rgba(56, 189, 248, 0.2);
+}
+
+.editor-pointcloud-card-actions button.active {
+  border-color: rgba(96, 165, 250, 0.72);
+  color: #eff6ff;
+  background: rgba(37, 99, 235, 0.32);
+}
+
+.editor-pointcloud-card-actions button.secondary {
+  color: var(--muted);
+  background: transparent;
 }
 
 .editor-pointcloud-card-actions button:disabled {

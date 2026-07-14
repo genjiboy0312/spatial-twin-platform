@@ -1,22 +1,26 @@
 import struct
 
-from app.services.pointcloud_mesh import build_voxel_glb
+import numpy as np
+
+from app.services.pointcloud_mesh import _glb_bytes
 
 
-def test_build_voxel_glb_writes_valid_glb(tmp_path) -> None:
-    preview = b"".join(
-        struct.pack("<ffffff", x, y, z, 0.2 + x * 0.1, 0.5, 0.8)
-        for x in (0.0, 0.2, 0.4)
-        for y in (0.0, 0.2)
-        for z in (0.0, 0.2)
-    )
-    output = tmp_path / "mesh.glb"
+def test_glb_bytes_writes_indexed_colored_mesh() -> None:
+    positions = np.asarray([
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    ], dtype=np.float32)
+    normals = np.asarray([[0.0, 0.0, 1.0]] * 3, dtype=np.float32)
+    colors = np.asarray([
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float32)
+    indices = np.asarray([[0, 1, 2]], dtype=np.uint32)
 
-    result = build_voxel_glb(preview, output, max_voxels=100)
+    payload = _glb_bytes(positions, normals, colors, indices)
 
-    payload = output.read_bytes()
     assert payload[:4] == b"glTF"
     assert struct.unpack_from("<I", payload, 4)[0] == 2
     assert struct.unpack_from("<I", payload, 8)[0] == len(payload)
-    assert result["voxel_count"] > 0
-    assert result["triangle_count"] > 0

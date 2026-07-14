@@ -96,10 +96,34 @@ const copy = {
 } as const
 
 type ViewMode = '2d' | 'split' | '3d' | 'pointcloud' | 'ifc'
+type MeshProgressState = { percent: number; stage: string; remainingSeconds: number | null }
 type EditorSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 type LoadBuildingFloorsOptions = { preferGeometryFloorId?: number }
 
 const viewModes: ViewMode[] = ['2d', '3d', 'split', 'pointcloud', 'ifc']
+
+const meshStageLabels = {
+  en: {
+    preparing: 'Preparing source data', reading_points: 'Reading PointCloud', downsampling: 'Preparing detail samples',
+    filtering_noise: 'Removing scan noise', estimating_normals: 'Detecting surface edges', orienting_normals: 'Aligning surface directions',
+    reconstructing_surface: 'Reconstructing continuous mesh', cleaning_surface: 'Cleaning isolated surfaces', optimizing_mesh: 'Optimizing triangles',
+    baking_colors: 'Baking RGB colors', writing_mesh: 'Writing 3D mesh', completed: 'Mesh completed', failed: 'Mesh generation failed',
+  },
+  ko: {
+    preparing: '원본 데이터 준비 중', reading_points: '포인트클라우드 읽는 중', downsampling: '세부 샘플 구성 중',
+    filtering_noise: '스캔 노이즈 제거 중', estimating_normals: '표면 모서리 분석 중', orienting_normals: '표면 방향 정렬 중',
+    reconstructing_surface: '연속 메시 재구성 중', cleaning_surface: '고립된 표면 정리 중', optimizing_mesh: '삼각형 최적화 중',
+    baking_colors: 'RGB 색상 베이킹 중', writing_mesh: '3D 메시 저장 중', completed: '메시 생성 완료', failed: '메시 생성 실패',
+  },
+} as const
+
+function formatRemainingTime(seconds: number, language: 'en' | 'ko') {
+  const rounded = Math.max(1, Math.round(seconds))
+  if (rounded < 60) return language === 'ko' ? `약 ${rounded}초 남음` : `About ${rounded}s remaining`
+  const minutes = Math.floor(rounded / 60)
+  const remainder = rounded % 60
+  return language === 'ko' ? `약 ${minutes}분 ${remainder}초 남음` : `About ${minutes}m ${remainder}s remaining`
+}
 const POINTCLOUD_MAX_POINTS = 2_000_000
 
 function floorLabel(floor: Floor, suffix: string) {
@@ -341,7 +365,9 @@ export function EditorPage() {
   const [deviceScale, setDeviceScale] = useState(5)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const [pointCloudUploads, setPointCloudUploads] = useState<UploadAsset[]>([])
+  const [pointCloudRenderMode, setPointCloudRenderMode] = useState<'points' | 'mesh'>('points')
   const [meshingPointCloudId, setMeshingPointCloudId] = useState<number | null>(null)
+  const [meshProgress, setMeshProgress] = useState<MeshProgressState | null>(null)
   const [pointCloudMeshError, setPointCloudMeshError] = useState<string | null>(null)
   const [pointCloudSelectionByFloor, setPointCloudSelectionByFloor] = useState<Record<string, number[]>>({})
   const objectPlacementsRef = useRef<ObjectPlacement[]>([])
@@ -426,6 +452,16 @@ export function EditorPage() {
   const setSnapTolerance = useCallback((tolerance: number) => {
     setSnapConfig(prev => ({ ...prev, tolerance }))
   }, [])
+
+  useEffect(() => {
+    if (!snapConfig.enabled) {
+      setSnapMode('none')
+      return
+    }
+    const gridEnabled = snapConfig.types.includes(SnapType.GRID)
+    const endpointEnabled = snapConfig.types.includes(SnapType.ENDPOINT)
+    setSnapMode(gridEnabled && endpointEnabled ? 'both' : gridEnabled ? 'grid' : endpointEnabled ? 'endpoint' : 'none')
+  }, [setSnapMode, snapConfig.enabled, snapConfig.types])
 
   const sortedFloors = useMemo(() => floors.slice().sort((a, b) => b.floor_number - a.floor_number), [floors])
   const nextFloorNumber = useMemo(() => Math.max(0, ...floors.map((floor) => floor.floor_number)) + 1, [floors])
@@ -715,18 +751,46 @@ export function EditorPage() {
     return floorScoped.filter((upload) => selectedIdSet.has(upload.id))
   }, [pointCloudSelectionByFloor, pointCloudUploads, selectedFloorId])
 
-  const handleGeneratePointCloudMesh = useCallback(async (upload: UploadAsset) => {
+  const handleGeneratePointCloudMesh = useCallback(async (upload: UploadAsset, showAfterGeneration = false) => {
     if (selectedBuildingId === '' || meshingPointCloudId !== null) return
     setMeshingPointCloudId(upload.id)
+    setMeshProgress({ percent: 1, stage: 'preparing', remainingSeconds: null })
     setPointCloudMeshError(null)
+    const startedAt = Date.now()
+    const expectedDurationSeconds = 180
+    const progressTimer = window.setInterval(() => {
+      const elapsedSeconds = Math.max(0, (Date.now() - startedAt) / 1000)
+      const percent = Math.min(96, 1 + elapsedSeconds / expectedDurationSeconds * 95)
+      const stage = percent < 8 ? 'reading_points'
+        : percent < 18 ? 'downsampling'
+          : percent < 28 ? 'filtering_noise'
+            : percent < 38 ? 'estimating_normals'
+              : percent < 47 ? 'orienting_normals'
+                : percent < 80 ? 'reconstructing_surface'
+                  : percent < 87 ? 'cleaning_surface'
+                    : percent < 92 ? 'optimizing_mesh'
+                      : percent < 97 ? 'baking_colors'
+                        : 'writing_mesh'
+      setMeshProgress({
+        percent,
+        stage,
+        remainingSeconds: Math.max(1, expectedDurationSeconds - elapsedSeconds),
+      })
+    }, 500)
     try {
       await generatePointCloudMesh(upload.id)
       const refreshed = await listUploadsByBuilding(selectedBuildingId)
       setPointCloudUploads(refreshed.filter((asset) => asset.source_type === 'pointcloud'))
+      if (showAfterGeneration) setPointCloudRenderMode('mesh')
+      setMeshProgress({ percent: 100, stage: 'completed', remainingSeconds: 0 })
+      await new Promise((resolve) => window.setTimeout(resolve, 700))
     } catch (error) {
+      setMeshProgress({ percent: 100, stage: 'failed', remainingSeconds: null })
       setPointCloudMeshError(error instanceof Error ? error.message : language === 'ko' ? '메시 생성에 실패했습니다.' : 'Mesh generation failed.')
     } finally {
+      window.clearInterval(progressTimer)
       setMeshingPointCloudId(null)
+      setMeshProgress(null)
     }
   }, [language, meshingPointCloudId, selectedBuildingId])
 
@@ -897,12 +961,39 @@ export function EditorPage() {
       )
     }
 
+    const activeMeshUpload = visiblePointCloudUploads.find((upload) => upload.id === meshingPointCloudId)
+    const currentStageLabels = meshStageLabels[language]
+    const meshStageLabel = meshProgress
+      ? currentStageLabels[meshProgress.stage as keyof typeof currentStageLabels] ?? meshProgress.stage
+      : ''
+    const displayedMeshPercent = Math.round(meshProgress?.percent ?? 0)
+
     return (
       <>
         <div className="editor-pointcloud-stage">
           <Suspense fallback={<div className="viewer-placeholder">{labels.loading3d}</div>}>
-            <ThreeJSViewer pointClouds={visiblePointCloudUploads} showAxisGizmo />
+            <ThreeJSViewer pointClouds={visiblePointCloudUploads} pointCloudRenderMode={pointCloudRenderMode} showAxisGizmo />
           </Suspense>
+          {meshingPointCloudId !== null && meshProgress && (
+            <div className="editor-mesh-progress-overlay" role="status" aria-live="polite">
+              <div className="editor-mesh-progress-dialog">
+                <div
+                  className="editor-mesh-progress-ring"
+                  style={{ background: `conic-gradient(#60a5fa ${displayedMeshPercent}%, rgba(96, 165, 250, 0.12) 0)` }}
+                >
+                  <span>{displayedMeshPercent}%</span>
+                </div>
+                <strong>{language === 'ko' ? '고해상도 3D 메시 생성' : 'Building High-detail 3D Mesh'}</strong>
+                <p>{meshStageLabel}</p>
+                <small>{activeMeshUpload?.filename}</small>
+                <em>
+                  {meshProgress.remainingSeconds !== null && displayedMeshPercent < 100
+                    ? formatRemainingTime(meshProgress.remainingSeconds, language)
+                    : language === 'ko' ? '잠시만 기다려 주세요' : 'Please wait'}
+                </em>
+              </div>
+            </div>
+          )}
           <div className="editor-pointcloud-object-list">
             {visiblePointCloudUploads.map((upload, index) => (
               <article key={upload.id} className="editor-pointcloud-object-card">
@@ -916,6 +1007,29 @@ export function EditorPage() {
                 <div className="editor-pointcloud-card-actions">
                   <button
                     type="button"
+                    className={pointCloudRenderMode === 'points' ? 'active' : ''}
+                    aria-pressed={pointCloudRenderMode === 'points'}
+                    onClick={() => setPointCloudRenderMode('points')}
+                  >
+                    {language === 'ko' ? '포인트 보기' : 'Point View'}
+                  </button>
+                  <button
+                    type="button"
+                    className={pointCloudRenderMode === 'mesh' ? 'active' : ''}
+                    aria-pressed={pointCloudRenderMode === 'mesh'}
+                    disabled={meshingPointCloudId !== null || !upload.filename.toLowerCase().endsWith('.las')}
+                    onClick={() => {
+                      if (upload.pointcloud_mesh_url) setPointCloudRenderMode('mesh')
+                      else void handleGeneratePointCloudMesh(upload, true)
+                    }}
+                  >
+                    {meshingPointCloudId === upload.id
+                      ? (language === 'ko' ? '표면 생성 중...' : 'Building Surface...')
+                      : (language === 'ko' ? '표면 메시 보기' : 'Surface Mesh')}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
                     disabled={meshingPointCloudId !== null || !upload.filename.toLowerCase().endsWith('.las')}
                     title={!upload.filename.toLowerCase().endsWith('.las') ? 'LAS files are currently supported' : undefined}
                     onClick={() => handleGeneratePointCloudMesh(upload)}
@@ -923,8 +1037,8 @@ export function EditorPage() {
                     {meshingPointCloudId === upload.id
                       ? (language === 'ko' ? '생성 중...' : 'Generating...')
                       : upload.pointcloud_mesh_url
-                        ? (language === 'ko' ? 'Mesh 재생성' : 'Regenerate Mesh')
-                        : (language === 'ko' ? 'Mesh 생성' : 'Generate Mesh')}
+                        ? (language === 'ko' ? '메시 재생성' : 'Regenerate Mesh')
+                        : (language === 'ko' ? '메시 생성' : 'Generate Mesh')}
                   </button>
                 </div>
                 <i style={{ width: `${Math.min(92, 34 + index * 12)}%` }} />
@@ -1131,6 +1245,7 @@ export function EditorPage() {
           {/* Object Snap */}
           <ObjectSnapPanel
             snapConfig={snapConfig}
+            language={language}
             onToggleEnabled={toggleSnapEnabled}
             onToggleType={toggleSnapType}
             onChangeRadius={setSnapTolerance}

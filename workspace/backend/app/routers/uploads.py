@@ -3,9 +3,10 @@ import logging
 import mmap
 import struct
 from pathlib import Path
+from threading import Lock
 from typing import cast
-from uuid import uuid4
 from urllib.parse import unquote
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
@@ -17,11 +18,23 @@ from app.db import get_db
 from app.models import Building, Floor, ProjectAsset, Room, UploadAsset, Wall
 from app.schemas import AssetType, ProjectAssetRead, UploadAssetCreate, UploadAssetRead, UploadAssetStatusUpdate, UploadPipelineRead
 from app.services.dxf_parser import DxfParseResult, DxfRoom, parse_dxf_file
-from app.services.pointcloud_mesh import build_voxel_glb
+from app.services.pointcloud_mesh import build_surface_glb
 from app.settings import get_settings
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
+pointcloud_mesh_progress: dict[int, dict[str, int | str | bool]] = {}
+pointcloud_mesh_progress_lock = Lock()
+
+
+def set_pointcloud_mesh_progress(upload_id: int, percent: int, stage: str, active: bool = True) -> None:
+    with pointcloud_mesh_progress_lock:
+        pointcloud_mesh_progress[upload_id] = {
+            "upload_id": upload_id,
+            "percent": max(0, min(100, percent)),
+            "stage": stage,
+            "active": active,
+        }
 
 ALLOWED_SOURCE_TYPES = {"dxf", "dwg", "image", "ifc", "glb", "pointcloud", "unknown"}
 SOURCE_EXTENSIONS = {
@@ -1070,21 +1083,41 @@ def create_pointcloud_mesh(upload_id: int, db: Session = Depends(get_db)) -> Upl
 
     upload.status = "converting"
     db.commit()
+    set_pointcloud_mesh_progress(upload_id, 1, "preparing")
     try:
-        preview, _, _ = las_preview_bytes(file_path, 200_000)
+        preview, _, _ = las_preview_bytes(file_path, 2_000_000)
         mesh_path = file_path.with_suffix(f"{file_path.suffix}.mesh.glb")
-        result = build_voxel_glb(preview, mesh_path)
+        result = build_surface_glb(
+            preview,
+            mesh_path,
+            progress_callback=lambda percent, stage: set_pointcloud_mesh_progress(upload_id, percent, stage),
+        )
         base_message = (upload.message or "").split(" | Mesh ready", 1)[0]
         upload.message = f"{base_message} | Mesh ready ({result['triangle_count']} triangles)"
         upload.status = "ready"
         db.commit()
         db.refresh(upload)
+        set_pointcloud_mesh_progress(upload_id, 100, "completed", active=False)
         return upload
     except Exception as exc:
         upload.status = "failed"
         db.commit()
+        set_pointcloud_mesh_progress(upload_id, 100, "failed", active=False)
         logger.exception("PointCloud mesh generation failed for upload %s", upload_id)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Mesh generation failed: {exc}") from exc
+
+
+@router.get("/{upload_id}/pointcloud-mesh-progress")
+def get_pointcloud_mesh_progress(upload_id: int, db: Session = Depends(get_db)) -> dict[str, int | str | bool]:
+    if db.get(UploadAsset, upload_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
+    with pointcloud_mesh_progress_lock:
+        return pointcloud_mesh_progress.get(upload_id, {
+            "upload_id": upload_id,
+            "percent": 0,
+            "stage": "idle",
+            "active": False,
+        }).copy()
 
 
 @router.get("/{upload_id}/pointcloud-mesh")
@@ -1097,4 +1130,9 @@ def get_pointcloud_mesh(upload_id: int, db: Session = Depends(get_db)) -> FileRe
     mesh_path = file_path.with_suffix(f"{file_path.suffix}.mesh.glb")
     if not mesh_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PointCloud mesh is not ready")
-    return FileResponse(mesh_path, media_type="model/gltf-binary", filename=f"{file_path.stem}-mesh.glb")
+    return FileResponse(
+        mesh_path,
+        media_type="model/gltf-binary",
+        filename=f"{file_path.stem}-mesh.glb",
+        headers={"Cache-Control": "no-cache"},
+    )

@@ -2,6 +2,7 @@ import { SnapType, SNAP_TYPE_KOR_LABELS, type SnapConfig } from '../utils/object
 
 interface Props {
   snapConfig: SnapConfig
+  language: 'ko' | 'en'
   onToggleEnabled: () => void
   onToggleType: (type: SnapType) => void
   onChangeRadius: (radius: number) => void
@@ -9,11 +10,12 @@ interface Props {
 
 const SNAP_TYPES = Object.values(SnapType)
 
-export function ObjectSnapPanel({ snapConfig, onToggleEnabled, onToggleType, onChangeRadius }: Props) {
+export function ObjectSnapPanel({ snapConfig, language, onToggleEnabled, onToggleType, onChangeRadius }: Props) {
+  const isKorean = language === 'ko'
   return (
     <section className={`object-snap-panel${snapConfig.enabled ? ' snap-active' : ''}`}>
       <div className="object-snap-header">
-        <h3 className="eyebrow-muted">오브젝트 스냅</h3>
+        <h3 className="eyebrow-muted">{isKorean ? '오브젝트 스냅' : 'Object Snap'}</h3>
         <button
           type="button"
           className={`snap-toggle-btn ${snapConfig.enabled ? 'on' : 'off'}`}
@@ -27,7 +29,7 @@ export function ObjectSnapPanel({ snapConfig, onToggleEnabled, onToggleType, onC
         <div className="object-snap-body">
           {/* Snap radius */}
           <div className="snap-radius-row">
-            <span className="snap-label">반경</span>
+            <span className="snap-label">{isKorean ? '반경' : 'Radius'}</span>
             <input
               type="range"
               min="5"
@@ -61,9 +63,9 @@ export function ObjectSnapPanel({ snapConfig, onToggleEnabled, onToggleType, onC
           </div>
 
           <div className="snap-footer">
-            <span className="snap-hint">Shift+클릭: 다중 선택</span>
+            <span className="snap-hint">{isKorean ? '도면 배치 위치 자동 정렬' : 'Automatically align placements'}</span>
             <span className={`snap-count ${snapConfig.types.length > 0 ? 'has' : ''}`}>
-              {snapConfig.types.length}개 활성
+              {isKorean ? `${snapConfig.types.length}개 활성` : `${snapConfig.types.length} active`}
             </span>
           </div>
         </div>
