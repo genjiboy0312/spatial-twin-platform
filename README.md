@@ -148,7 +148,7 @@ flowchart LR
 
 ```bash
 # 프로젝트 복사
-git clone https://github.com/your-username/spatial-twin-platform.git
+git clone https://github.com/genjiboy0312/spatial-twin-platform.git
 cd spatial-twin-platform/workspace
 
 # 전체 실행
@@ -253,21 +253,23 @@ npm run dev
 ## 프로젝트 구조
 
 ```
-workspace/
-├── backend/           # 서버 (Python + FastAPI)
-│   ├── app/
-│   │   ├── routers/   # API 엔드포인트 (데이터 통로)
-│   │   ├── services/  # 비즈니스 로직 (데이터 처리)
-│   │   ├── models.py  # 데이터 구조 정의
-│   │   └── main.py    # 서버 시작점
-│   ├── tests/         # 자동 테스트
-│   └── alembic/       # 데이터베이스 변경 이력
-└── frontend/          # 화면 (React + TypeScript)
-    └── src/
-        ├── pages/     # 각 화면 컴포넌트
-        ├── components/ # 재사용 가능한 UI 조각
-        ├── api/       # 서버 통신 모듈
-        └── stores/    # 화면 상태 관리
+spatial-twin-platform/
+├── docs/              # 스크린샷 및 문서
+├── workspace/
+│   ├── backend/           # 서버 (Python + FastAPI)
+│   │   ├── app/
+│   │   │   ├── routers/   # API 엔드포인트 (데이터 통로)
+│   │   │   ├── services/  # 비즈니스 로직 (데이터 처리)
+│   │   │   ├── models.py  # 데이터 구조 정의
+│   │   │   └── main.py    # 서버 시작점
+│   │   ├── tests/         # 자동 테스트
+│   │   └── alembic/       # 데이터베이스 변경 이력
+│   └── frontend/          # 화면 (React + TypeScript)
+│       └── src/
+│           ├── pages/     # 각 화면 컴포넌트
+│           ├── components/ # 재사용 가능한 UI 조각
+│           ├── api/       # 서버 통신 모듈
+│           └── stores/    # 화면 상태 관리
 ```
 
 ---
