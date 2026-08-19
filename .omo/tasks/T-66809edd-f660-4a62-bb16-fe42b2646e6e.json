@@ -1,0 +1,10 @@
+{
+  "id": "T-66809edd-f660-4a62-bb16-fe42b2646e6e",
+  "subject": "Refactor AlignmentPage with AnchorsPage-style layout",
+  "description": "Apply the same AnchorsPage treatment (step progress bar, polished card UI, updated header) to AlignmentPage that was just done for AnchorsPage.",
+  "status": "completed",
+  "activeForm": "Refactoring AlignmentPage layout",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

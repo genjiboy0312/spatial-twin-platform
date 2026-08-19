@@ -1,0 +1,13 @@
+{
+  "id": "T-246ca836-32f5-4abf-8efa-bfbdd620af87",
+  "subject": "Write implementation specification",
+  "description": "Synthesize findings into a detailed implementation specification for the current project.",
+  "status": "completed",
+  "activeForm": "Writing implementation specification",
+  "blocks": [],
+  "blockedBy": [
+    "T-0001d725-d871-4e4d-99ea-20e139c6246a"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c044c905ffe6I6kVtg2I6gjQi"
+}

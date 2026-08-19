@@ -1,0 +1,12 @@
+{
+  "id": "T-f527ed62-1b01-4d22-8558-a215f53bf01c",
+  "subject": "Rewrite MonitorEventsPanel with card-style layout",
+  "description": "Rewrite MonitorEventsPanel to match reference's MonitorRealtimeEventTab with priority-colored cards, icons, and severity badges",
+  "status": "completed",
+  "activeForm": "Rewriting MonitorEventsPanel",
+  "blocks": [],
+  "blockedBy": [
+    "T-81d6ca9b-2c84-4f90-8df0-db3b38bc67b1"
+  ],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

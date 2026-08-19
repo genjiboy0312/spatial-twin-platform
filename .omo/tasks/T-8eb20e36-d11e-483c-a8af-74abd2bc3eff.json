@@ -1,0 +1,13 @@
+{
+  "id": "T-8eb20e36-d11e-483c-a8af-74abd2bc3eff",
+  "subject": "Verify validation dashboard changes",
+  "description": "Run LSP diagnostics on modified files, related tests if present, typecheck, and build where available; fix any errors found.",
+  "status": "completed",
+  "activeForm": "Verifying validation dashboard changes",
+  "blocks": [],
+  "blockedBy": [
+    "T-6326322c-351b-4212-b347-edde5d88c12e"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c001883effeJmQt0VAM4GL3PO"
+}

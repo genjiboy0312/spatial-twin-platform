@@ -1,0 +1,13 @@
+{
+  "id": "T-e954045d-01e5-42a3-a6a7-aed84ce95954",
+  "subject": "Re-verify alignment viewer after review fixes",
+  "description": "Run LSP diagnostics and build after addressing post-review blocking issues.",
+  "status": "completed",
+  "activeForm": "Re-verifying alignment viewer fixes",
+  "blocks": [],
+  "blockedBy": [
+    "T-05c74b16-8591-4f41-a8cf-3101f91a494d"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb3f69e4ffeNygV3297XWY3Ae"
+}

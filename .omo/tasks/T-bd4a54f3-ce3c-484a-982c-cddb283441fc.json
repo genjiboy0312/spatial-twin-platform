@@ -1,0 +1,12 @@
+{
+  "id": "T-bd4a54f3-ce3c-484a-982c-cddb283441fc",
+  "subject": "Check safe git context",
+  "description": "Run read-only git status/log inspection if this directory is a repository and report whether it changes the requirement assessment.",
+  "status": "completed",
+  "activeForm": "Checking safe git context",
+  "blocks": [],
+  "blockedBy": [
+    "T-8487fb49-0bb8-4f46-b5a6-f8af6ae2378a"
+  ],
+  "threadID": "ses_0c5f9cbb1ffewgxdHfqs7WVvEF"
+}

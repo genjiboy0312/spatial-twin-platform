@@ -1,0 +1,12 @@
+{
+  "id": "T-c9e46018-2183-4a3f-8f1a-d104bfab7d0e",
+  "subject": "Add export tests and verify",
+  "description": "Create exportUtils tests and run diagnostics, tsc --noEmit, and vitest run.",
+  "status": "completed",
+  "activeForm": "Testing and verifying export feature",
+  "blocks": [],
+  "blockedBy": [
+    "T-e60081fa-102a-4ce5-89a7-3e8366bee8f6"
+  ],
+  "threadID": "ses_0c543ca5bffeJ4wnbq90lC57td"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T-233ce8c5-fab4-499f-bbf2-16ea073a9b43",
+  "subject": "Redesign DrawingToolbar with slide animation",
+  "description": "Change toggle to < > buttons, slide left/right animation with CSS transform",
+  "status": "completed",
+  "activeForm": "Animating DrawingToolbar",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

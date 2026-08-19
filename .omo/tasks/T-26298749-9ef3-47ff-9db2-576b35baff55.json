@@ -1,0 +1,10 @@
+{
+  "id": "T-26298749-9ef3-47ff-9db2-576b35baff55",
+  "subject": "Update EditorPage - remove left building selector, add snap panel, fix device buttons, slider",
+  "description": "4 changes: (1) remove left sidebar building selector/floor list (2) add ObjectSnapPanel to right sidebar (3) update device buttons with outlined SVG icons (4) shorten device size slider with multiplier text",
+  "status": "completed",
+  "activeForm": "Updating EditorPage with requested changes",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

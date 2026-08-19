@@ -1,0 +1,13 @@
+{
+  "id": "T-44c9d4e2-e8ba-4080-97c8-10b5fb79e64c",
+  "subject": "Create ported alignment infrastructure files",
+  "description": "Create exactly the five requested files under C:\\spatial-twin-platform\\workspace\\frontend\\src\\pages\\alignment with adapted TypeScript, React context, constants, and useAlignmentPage hook.",
+  "status": "completed",
+  "activeForm": "Creating ported alignment infrastructure files",
+  "blocks": [],
+  "blockedBy": [
+    "T-3db9c9f0-dbf4-4d73-a781-12a4b6bfc931"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb78c393ffeUMBpSBwiLO2Yx3"
+}

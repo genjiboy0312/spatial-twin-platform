@@ -1,0 +1,10 @@
+{
+  "id": "T-d0f2c2f3-f64f-4008-865c-c5bb867e365a",
+  "subject": "Explore export feature context",
+  "description": "Read the required editor store, viewer, utility, routing, shell, page reference, and DXF analysis files before implementation.",
+  "status": "completed",
+  "activeForm": "Reading existing frontend export context",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c543ca5bffeJ4wnbq90lC57td"
+}

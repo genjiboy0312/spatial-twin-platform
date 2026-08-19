@@ -1,0 +1,13 @@
+# Cloudflare Tunnel 설정 파일
+# 위치: C:\Users\%USERNAME%\.cloudflared\config.yml
+
+tunnel: <Tunnel-ID>
+credentials-file: C:\Users\%USERNAME%\.cloudflared\<Tunnel-ID>.json
+
+ingress:
+  # 외부 접속 시 Localhost의 Frontend로 전달
+  - hostname: spatial.yourdomain.com
+    service: http://localhost:5174
+  
+  # 나머지 요청은 404 반환
+  - service: http_status:404

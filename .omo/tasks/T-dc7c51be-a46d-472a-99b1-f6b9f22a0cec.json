@@ -1,0 +1,12 @@
+{
+  "id": "T-dc7c51be-a46d-472a-99b1-f6b9f22a0cec",
+  "subject": "Re-verify export review fixes",
+  "description": "Run diagnostics, tsc --noEmit, vitest run, and production build after review fixes.",
+  "status": "completed",
+  "activeForm": "Verifying export review fixes",
+  "blocks": [],
+  "blockedBy": [
+    "T-5a6696f2-c707-4f73-8f69-f964570104bf"
+  ],
+  "threadID": "ses_0c5263e9fffebpaVLKFVR7e71M"
+}

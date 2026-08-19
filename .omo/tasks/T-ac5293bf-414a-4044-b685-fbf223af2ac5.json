@@ -1,0 +1,14 @@
+{
+  "id": "T-ac5293bf-414a-4044-b685-fbf223af2ac5",
+  "subject": "Run backend diagnostics and verification",
+  "description": "Run LSP diagnostics on modified files plus related tests, typecheck/build where applicable, and report exact validation results.",
+  "status": "completed",
+  "activeForm": "Running backend diagnostics and verification",
+  "blocks": [],
+  "blockedBy": [
+    "T-5360d983-5af7-49b3-80e2-ffa68e9d5f49"
+  ],
+  "owner": "Sisyphus-Junior",
+  "repoURL": "C:\\spatial-twin-platform\\workspace\\backend",
+  "threadID": "ses_0a636f5ccffebf1jXDTdl25fbU"
+}

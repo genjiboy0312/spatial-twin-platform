@@ -1,0 +1,16 @@
+{
+  "id": "T-6e3a0168-2690-489e-b2e0-17509e37030a",
+  "subject": "Verify prototype",
+  "description": "Run diagnostics, installs/build/tests where possible, then fix failures and summarize validation evidence.",
+  "status": "completed",
+  "activeForm": "completed verification and review fixes",
+  "blocks": [],
+  "blockedBy": [
+    "T-1afd0bf3-b401-4055-aa37-9c9302e2165a",
+    "T-299cdc4c-f7b1-4560-bf75-6fa0b9ac672a",
+    "T-24a37664-031d-433c-9669-f49981db9daf",
+    "T-0ce85882-2cd4-4eea-ab54-4e3866e71133"
+  ],
+  "parentID": "T-e12e35d0-2c86-4338-8ca3-30eb194a4521",
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

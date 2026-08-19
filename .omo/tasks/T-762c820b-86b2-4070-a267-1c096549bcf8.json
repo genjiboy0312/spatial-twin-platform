@@ -1,0 +1,13 @@
+{
+  "id": "T-762c820b-86b2-4070-a267-1c096549bcf8",
+  "subject": "Synthesize migration validation specification",
+  "description": "Turn the extracted validation, check, verification, and audit references into a migration-ready feature specification with presentation and endpoint/logic notes.",
+  "status": "completed",
+  "activeForm": "Writing validation migration specification",
+  "blocks": [],
+  "blockedBy": [
+    "T-7fb40bc4-d643-4cb0-8159-4b440641aa8b"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c01dab9dffeuLvDnAF6juavx5"
+}

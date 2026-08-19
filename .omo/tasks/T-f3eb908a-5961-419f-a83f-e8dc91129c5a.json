@@ -1,0 +1,10 @@
+{
+  "id": "T-f3eb908a-5961-419f-a83f-e8dc91129c5a",
+  "subject": "Add mouse rotate/pan to FloorPositionModal preview",
+  "description": "Add left-click drag to rotate and right-click drag to pan the stacked floor view in 전층보기 popup.",
+  "status": "completed",
+  "activeForm": "Adding 3D rotate/pan to FloorPositionModal",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

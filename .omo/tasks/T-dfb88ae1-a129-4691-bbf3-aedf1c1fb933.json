@@ -1,0 +1,10 @@
+{
+  "id": "T-dfb88ae1-a129-4691-bbf3-aedf1c1fb933",
+  "subject": "Migrate object snap utils from building-editor",
+  "description": "Copy objectSnap.ts utility to spatial-twin-platform for right panel snap settings",
+  "status": "in_progress",
+  "activeForm": "Migrating object snap utils",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

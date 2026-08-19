@@ -1,0 +1,10 @@
+{
+  "id": "T-fc121326-74b3-4573-891d-f7a09d21585a",
+  "subject": "Flatten prototype workspace",
+  "description": "Move the Building Editor prototype contents from workspace/building-editor-prototype to workspace root and update path-sensitive documentation/configuration.",
+  "status": "completed",
+  "activeForm": "completed workspace flattening and verification",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

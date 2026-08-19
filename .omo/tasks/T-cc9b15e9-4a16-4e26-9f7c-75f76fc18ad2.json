@@ -1,0 +1,10 @@
+{
+  "id": "T-cc9b15e9-4a16-4e26-9f7c-75f76fc18ad2",
+  "subject": "Redesign DrawingToolbar as bottom popup with lucide icons",
+  "description": "Rewrite DrawingToolbar as collapsible bottom popup, replace emoji with lucide-react icons, remove text labels, add tooltips, add text to undo/redo, update CSS, move to bottom of viewport",
+  "status": "completed",
+  "activeForm": "Redesigning DrawingToolbar as bottom popup",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

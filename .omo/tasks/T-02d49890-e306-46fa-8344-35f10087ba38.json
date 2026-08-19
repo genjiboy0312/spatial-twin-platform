@@ -1,0 +1,11 @@
+{
+  "id": "T-02d49890-e306-46fa-8344-35f10087ba38",
+  "subject": "Implement Alignment 3D viewer",
+  "description": "Create Alignment3DViewer with React Three Fiber OSM ground texture, markers, picking, overlays, and empty-state handling.",
+  "status": "completed",
+  "activeForm": "Implementing Alignment3DViewer component",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb3f69e4ffeNygV3297XWY3Ae"
+}

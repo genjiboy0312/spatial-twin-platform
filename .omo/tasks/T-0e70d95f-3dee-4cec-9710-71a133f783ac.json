@@ -1,0 +1,10 @@
+{
+  "id": "T-0e70d95f-3dee-4cec-9710-71a133f783ac",
+  "subject": "Redesign MonitorPage layout: device search left, map center, building/floor+events right, logs bottom",
+  "description": "Re-layout MonitorPage to match reference project and user request: left=device search/filter (MonitorDevicePanel), center=spatial view (MonitorSpatialView), right=building floors + events stacked vertically (MonitorBuildingFloorTree + MonitorEventsPanel), bottom=system logs (unchanged)",
+  "status": "completed",
+  "activeForm": "Redesigning MonitorPage layout",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

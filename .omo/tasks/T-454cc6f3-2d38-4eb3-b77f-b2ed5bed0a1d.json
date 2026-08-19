@@ -1,0 +1,10 @@
+{
+  "id": "T-454cc6f3-2d38-4eb3-b77f-b2ed5bed0a1d",
+  "subject": "Implement export utilities and tests",
+  "description": "Create client-side OBJ/DXF/CSV/PDF export utilities plus backend DXF fallback helper and unit tests.",
+  "status": "completed",
+  "activeForm": "Implementing export utilities and tests",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c5263e9fffebpaVLKFVR7e71M"
+}

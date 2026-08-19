@@ -1,0 +1,12 @@
+{
+  "id": "T-8487fb49-0bb8-4f46-b5a6-f8af6ae2378a",
+  "subject": "Inspect prototype scaffold shape",
+  "description": "Read-only inspection of workspace/building-editor-prototype to understand the current implementation path being checked against requirements.",
+  "status": "completed",
+  "activeForm": "Inspecting prototype scaffold shape",
+  "blocks": [],
+  "blockedBy": [
+    "T-27cadab9-fc69-4057-8306-01faf1b4eaa5"
+  ],
+  "threadID": "ses_0c5f9cbb1ffewgxdHfqs7WVvEF"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T-496288b5-56ca-4679-ac93-009008b4b84d",
+  "subject": "ProjectsPage Building API integration",
+  "description": "Replace hardcoded ProjectsPage cards with real Building API listing and create modal while preserving existing header and styles.",
+  "status": "completed",
+  "activeForm": "Integrating Building API on ProjectsPage",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c5ce0b2cffegKZx5t78lPtaf0"
+}

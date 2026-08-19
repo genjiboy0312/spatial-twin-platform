@@ -1,0 +1,10 @@
+{
+  "id": "T-f505da02-1b69-47b0-821f-dd9822a0be6d",
+  "subject": "Implement 2D/3D view improvements: gray bg, pan/zoom, infinite grid",
+  "description": "1) Change viewport backgrounds from blue (#0f172a) to gray tones matching theme 2) Add right-click pan + wheel zoom to 2D view 3) Make both 2D/3D grids infinite expanding with unified style 4) Same grid size/dot style across both views",
+  "status": "completed",
+  "activeForm": "Implementing viewport improvements",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

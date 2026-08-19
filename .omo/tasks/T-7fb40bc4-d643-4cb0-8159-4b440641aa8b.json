@@ -1,0 +1,11 @@
+{
+  "id": "T-7fb40bc4-d643-4cb0-8159-4b440641aa8b",
+  "subject": "Extract validation mentions from analysis document",
+  "description": "Search building-editor-full-analysis.md for validation/check/verify/audit references, inspect surrounding context, and produce a migration-ready validation feature specification.",
+  "status": "completed",
+  "activeForm": "Finding and analyzing building-editor-full-analysis.md",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0c01dab9dffeuLvDnAF6juavx5"
+}

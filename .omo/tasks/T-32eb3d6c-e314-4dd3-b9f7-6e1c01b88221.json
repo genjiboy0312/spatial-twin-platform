@@ -1,0 +1,10 @@
+{
+  "id": "T-32eb3d6c-e314-4dd3-b9f7-6e1c01b88221",
+  "subject": "Replace text labels with colored device type icons in DeviceListItem",
+  "description": "DeviceListItem shows text for device type. Change to show colored icons matching building-editor color scheme per device type.",
+  "status": "completed",
+  "activeForm": "Updating DeviceListItem with colored icons",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

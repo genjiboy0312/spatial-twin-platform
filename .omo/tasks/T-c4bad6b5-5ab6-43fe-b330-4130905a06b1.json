@@ -1,0 +1,13 @@
+{
+  "id": "T-c4bad6b5-5ab6-43fe-b330-4130905a06b1",
+  "subject": "Wire Alignment 3D viewer into page",
+  "description": "Replace OsmTileMapPanel in AlignmentCenterViewerPanel and update AlignmentPage prop usage.",
+  "status": "completed",
+  "activeForm": "Wiring Alignment3DViewer into AlignmentPage",
+  "blocks": [],
+  "blockedBy": [
+    "T-02d49890-e306-46fa-8344-35f10087ba38"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb3f69e4ffeNygV3297XWY3Ae"
+}

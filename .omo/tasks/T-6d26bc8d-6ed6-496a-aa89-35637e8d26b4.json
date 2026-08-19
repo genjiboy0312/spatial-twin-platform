@@ -1,0 +1,12 @@
+{
+  "id": "T-6d26bc8d-6ed6-496a-aa89-35637e8d26b4",
+  "subject": "Rewrite AlignmentPage workflow UI",
+  "description": "Replace the AlignmentPage stub with a complete GPS alignment workflow using existing store actions and components, without creating new files.",
+  "status": "completed",
+  "activeForm": "Rewriting AlignmentPage GPS alignment workflow",
+  "blocks": [],
+  "blockedBy": [
+    "T-c2b1dea4-98c8-4af6-9256-3f975bbc4832"
+  ],
+  "threadID": "ses_0c56ea66affe9MRdWqa686uaRo"
+}

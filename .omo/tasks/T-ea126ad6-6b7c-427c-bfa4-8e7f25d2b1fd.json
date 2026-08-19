@@ -1,0 +1,11 @@
+{
+  "id": "T-ea126ad6-6b7c-427c-bfa4-8e7f25d2b1fd",
+  "subject": "Rewrite AnchorsPage to step workflow",
+  "description": "Replace the current project's AnchorsPage.tsx with a building-editor-inspired step workflow adapted to existing OsmTileMapPanel, alignmentStore, gps alignment API, and CSS conventions.",
+  "status": "completed",
+  "activeForm": "Rewriting AnchorsPage to step workflow",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb910ab0ffeBo5adMoEp4pMwB"
+}

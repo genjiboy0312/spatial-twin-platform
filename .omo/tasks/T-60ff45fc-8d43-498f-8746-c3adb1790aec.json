@@ -1,0 +1,12 @@
+{
+  "id": "T-60ff45fc-8d43-498f-8746-c3adb1790aec",
+  "subject": "Validate OsmMapPicker component",
+  "description": "Run diagnostics and relevant verification for the new component while ensuring no other files were changed.",
+  "status": "completed",
+  "activeForm": "Validating OsmMapPicker component",
+  "blocks": [],
+  "blockedBy": [
+    "T-762d7ab7-d11d-4766-9aba-7bc4c8b7ef70"
+  ],
+  "threadID": "ses_0c56e84b7ffe1VMbhwSLHGhy34"
+}

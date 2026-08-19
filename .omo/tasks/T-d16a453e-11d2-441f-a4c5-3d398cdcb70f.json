@@ -1,0 +1,16 @@
+{
+  "id": "T-d16a453e-11d2-441f-a4c5-3d398cdcb70f",
+  "subject": "Verify upload frontend changes",
+  "description": "Run modified-file diagnostics, related tests if present, TypeScript checks, build, and end-to-end/browser validation where available.",
+  "status": "in_progress",
+  "activeForm": "Verifying upload frontend changes",
+  "blocks": [],
+  "blockedBy": [
+    "T-507567d7-4b53-487a-ac80-7fca9547f091"
+  ],
+  "owner": "Sisyphus-Junior",
+  "metadata": {
+    "project": "workspace/frontend"
+  },
+  "threadID": "ses_0a6373c94ffeDPGhDlkv3mWVBJ"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "T-dfec67db-59ef-41b3-889c-34c3bc49161f",
+  "subject": "Port OSM alignment components",
+  "description": "Create OSMAlignmentPanel.tsx and OSMOriginPickerPopup.tsx in workspace/frontend/src/pages/alignment/components by adapting building-editor sources to current project dependencies, inline labels, inline styles, no UI kit/i18n/lucide imports, and verify diagnostics/build where applicable.",
+  "status": "completed",
+  "activeForm": "Ported OSM alignment components and verified build",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb788346ffeaW7CvC30JuxcB2"
+}

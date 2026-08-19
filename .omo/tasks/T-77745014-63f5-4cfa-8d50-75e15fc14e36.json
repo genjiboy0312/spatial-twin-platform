@@ -1,0 +1,10 @@
+{
+  "id": "T-77745014-63f5-4cfa-8d50-75e15fc14e36",
+  "subject": "Phase 6.1: GPS Alignment - OSM Map Integration",
+  "description": "Add Leaflet map view to AlignmentPage for GPS coordinate picking on OSM tiles",
+  "status": "completed",
+  "activeForm": "Integrating OSM map for coordinate picking",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

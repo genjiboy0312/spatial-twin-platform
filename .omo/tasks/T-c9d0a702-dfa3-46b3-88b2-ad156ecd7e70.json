@@ -1,0 +1,10 @@
+{
+  "id": "T-c9d0a702-dfa3-46b3-88b2-ad156ecd7e70",
+  "subject": "Replace AlignmentCenterViewerPanel with 3D viewer",
+  "description": "Create Three.js-based 3D viewer showing OSM tiles as ground texture, 3D anchor markers, and click picking. Replace 2D OsmTileMapPanel.",
+  "status": "completed",
+  "activeForm": "Building 3D viewer",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

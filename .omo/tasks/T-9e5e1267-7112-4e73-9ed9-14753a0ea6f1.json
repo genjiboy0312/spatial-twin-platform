@@ -1,0 +1,10 @@
+{
+  "id": "T-9e5e1267-7112-4e73-9ed9-14753a0ea6f1",
+  "subject": "Phase 2 — Geometry API (Wall/Room CRUD)",
+  "description": "Wall/Room SQLAlchemy 모델, Pydantic 스키마, CRUD 라우터, main.py 등록",
+  "status": "completed",
+  "activeForm": "Geometry API 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

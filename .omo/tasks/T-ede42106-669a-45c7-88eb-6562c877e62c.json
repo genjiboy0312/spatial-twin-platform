@@ -1,0 +1,10 @@
+{
+  "id": "T-ede42106-669a-45c7-88eb-6562c877e62c",
+  "subject": "Inspect GPS alignment frontend patterns",
+  "description": "Read existing frontend files for component class patterns, alignment store shape, and AnchorPoint type before adding new components.",
+  "status": "completed",
+  "activeForm": "Inspecting GPS alignment frontend patterns",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c56ed700ffenJ5mI4nDqkoTlD"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T-03b2af54-319c-4f6b-96aa-73d091f13da0",
+  "subject": "Search modal upload export components",
+  "description": "Find existing Modal components, upload/export components, and modal styles; return paths and snippets.",
+  "status": "completed",
+  "activeForm": "Searching codebase",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c058afd7ffeTFlg1GpcWdF7BJ"
+}

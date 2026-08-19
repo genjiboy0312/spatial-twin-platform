@@ -1,0 +1,12 @@
+{
+  "id": "T-4a529a70-b526-4f77-a558-296a6ad6a782",
+  "subject": "Port types, context, and useAlignmentPage hooks",
+  "description": "Create pages/alignment/types.ts, context/AlignmentContext.tsx, hooks/useAlignmentPage.types.ts, hooks/useAlignmentPage.constants.ts, hooks/useAlignmentPage.ts - adapted for current project",
+  "status": "pending",
+  "activeForm": "Porting alignment core infrastructure",
+  "blocks": [
+    "T-4b349a99-576f-479d-9f4d-fe84a4d37eb8"
+  ],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

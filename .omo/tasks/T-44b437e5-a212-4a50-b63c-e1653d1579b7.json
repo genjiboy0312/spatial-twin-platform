@@ -1,0 +1,15 @@
+{
+  "id": "T-44b437e5-a212-4a50-b63c-e1653d1579b7",
+  "subject": "Produce final PASS/FAIL review",
+  "description": "Summarize verdict, blocking issues, and findings for the prototype scaffold.",
+  "status": "completed",
+  "activeForm": "Producing final review report",
+  "blocks": [],
+  "blockedBy": [],
+  "owner": "gpt-5.5",
+  "metadata": {
+    "phase": "final",
+    "verdict": "FAIL with small, fixable blockers"
+  },
+  "threadID": "ses_0c5f9ccddffeCu8DAaygFvntIc"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T-b8fc8a8c-a494-4c95-9952-dcb4a903a9d4",
+  "subject": "Refactor AnchorsPage with building-editor anchors page layout",
+  "description": "Apply the building-editor's AnchorsPage layout and workflow (step progress bar, OSM map panel, admin region selector, 3-point alignment compute/apply) to the current project's AnchorsPage. Adapt features to use existing stores/APIs.",
+  "status": "completed",
+  "activeForm": "Planning AnchorsPage refactor",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

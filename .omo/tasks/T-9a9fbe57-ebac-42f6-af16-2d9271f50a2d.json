@@ -1,0 +1,10 @@
+{
+  "id": "T-9a9fbe57-ebac-42f6-af16-2d9271f50a2d",
+  "subject": "Relocate and style Upload/Export in left sidebar",
+  "description": "Move upload/export buttons to left sidebar. Order: All-floors -> separator -> '파일 업로드' label -> buttons. Update CSS.",
+  "status": "pending",
+  "activeForm": "Relocating and styling upload/export UI",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

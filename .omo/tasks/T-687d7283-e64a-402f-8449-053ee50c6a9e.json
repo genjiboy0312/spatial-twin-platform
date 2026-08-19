@@ -1,0 +1,12 @@
+{
+  "id": "T-687d7283-e64a-402f-8449-053ee50c6a9e",
+  "subject": "에러 메시지 개선 및 사용자 가이드 추가",
+  "description": "DWG 변환 실패 시 구체적인 에러 메시지와 해결 가이드 제공",
+  "status": "pending",
+  "activeForm": "에러 메시지 개선 중",
+  "blocks": [],
+  "blockedBy": [
+    "T-2725bf69-f343-44d2-8f8b-4fa832e2486d"
+  ],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}

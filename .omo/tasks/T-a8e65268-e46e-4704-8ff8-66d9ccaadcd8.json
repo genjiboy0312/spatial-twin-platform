@@ -1,0 +1,10 @@
+{
+  "id": "T-a8e65268-e46e-4704-8ff8-66d9ccaadcd8",
+  "subject": "Fix opacity default to 1.0",
+  "description": "Change default osmQuadOpacity from 0.72 to 1.0 in useAlignmentPage.ts and make opacity non-reducible",
+  "status": "completed",
+  "activeForm": "Fixing opacity",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

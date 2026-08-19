@@ -1,0 +1,12 @@
+{
+  "id": "T-88e2614a-114b-4516-8060-b1cf5bd5e834",
+  "subject": "Implement export utilities and API",
+  "description": "Create client-side OBJ/DXF/CSV/PDF/download utilities and backend DXF API fallback hook with existing TypeScript patterns.",
+  "status": "completed",
+  "activeForm": "Implementing export utilities and API",
+  "blocks": [],
+  "blockedBy": [
+    "T-d0f2c2f3-f64f-4008-865c-c5bb867e365a"
+  ],
+  "threadID": "ses_0c543ca5bffeJ4wnbq90lC57td"
+}

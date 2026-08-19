@@ -1,0 +1,12 @@
+{
+  "id": "T-e60081fa-102a-4ce5-89a7-3e8366bee8f6",
+  "subject": "Implement Export page and navigation",
+  "description": "Create ExportPage with preview/format selection and add route plus AppShell nav item.",
+  "status": "completed",
+  "activeForm": "Implementing export page and navigation",
+  "blocks": [],
+  "blockedBy": [
+    "T-88e2614a-114b-4516-8060-b1cf5bd5e834"
+  ],
+  "threadID": "ses_0c543ca5bffeJ4wnbq90lC57td"
+}

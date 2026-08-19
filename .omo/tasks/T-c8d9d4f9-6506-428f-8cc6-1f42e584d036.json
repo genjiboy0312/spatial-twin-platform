@@ -1,0 +1,13 @@
+{
+  "id": "T-c8d9d4f9-6506-428f-8cc6-1f42e584d036",
+  "subject": "Verify 3D alignment viewer changes",
+  "description": "Run LSP diagnostics, TypeScript typecheck or build, and related checks for the modified frontend files.",
+  "status": "completed",
+  "activeForm": "Verifying 3D alignment viewer changes",
+  "blocks": [],
+  "blockedBy": [
+    "T-c4bad6b5-5ab6-43fe-b330-4130905a06b1"
+  ],
+  "owner": "Sisyphus-Junior",
+  "threadID": "ses_0bb3f69e4ffeNygV3297XWY3Ae"
+}

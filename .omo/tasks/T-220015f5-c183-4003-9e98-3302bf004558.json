@@ -1,0 +1,10 @@
+{
+  "id": "T-220015f5-c183-4003-9e98-3302bf004558",
+  "subject": "Implement 3D view controls and indicator on validation page",
+  "description": "Fix left-click orbit rotation, right-click pan on 3D view, and implement bottom-right indicator on validation page",
+  "status": "completed",
+  "activeForm": "Implementing 3D view controls and indicator",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0b68c9c63ffeVJPiQVK7b27xel"
+}

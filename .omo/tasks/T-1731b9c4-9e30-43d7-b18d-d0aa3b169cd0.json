@@ -1,0 +1,10 @@
+{
+  "id": "T-1731b9c4-9e30-43d7-b18d-d0aa3b169cd0",
+  "subject": "Phase 1 CI/CD + Phase 2 Security Device API",
+  "description": "GitHub Actions CI/CD 워크플로우 + Security Device CRUD 백엔드 구현",
+  "status": "in_progress",
+  "activeForm": "Phase 1 CI/CD 및 Phase 2 Security Device 구현 중",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

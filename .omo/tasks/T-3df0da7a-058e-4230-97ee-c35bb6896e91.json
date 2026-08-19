@@ -1,0 +1,10 @@
+{
+  "id": "T-3df0da7a-058e-4230-97ee-c35bb6896e91",
+  "subject": "Restore building selector + floor management in left sidebar",
+  "description": "Add building name display, floor list with add button to the editor-scene-sidebar above EnhancedLayerPanel",
+  "status": "completed",
+  "activeForm": "Restoring building and floor UI",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0c60fc814ffesXh9B00evtOWsP"
+}

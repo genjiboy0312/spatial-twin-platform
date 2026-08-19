@@ -1,0 +1,12 @@
+{
+  "id": "T-ecf97807-c368-4097-aec3-381958e0d03f",
+  "subject": "Create adapted alignment hooks",
+  "description": "Create useAlignmentDoAlign, useAlignmentHistory, and useAlignmentPickAnchorMarkers with current alignmentStore integration and simplified local history/marker logic.",
+  "status": "completed",
+  "activeForm": "Creating adapted alignment hooks",
+  "blocks": [],
+  "blockedBy": [
+    "T-d847653d-ae67-40bc-924e-08c7f6d03aa5"
+  ],
+  "threadID": "ses_0bb78431dffeC1bCGQdVf2sfft"
+}

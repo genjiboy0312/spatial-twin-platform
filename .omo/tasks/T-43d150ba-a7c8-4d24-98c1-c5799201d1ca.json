@@ -1,0 +1,10 @@
+{
+  "id": "T-43d150ba-a7c8-4d24-98c1-c5799201d1ca",
+  "subject": "Check frontend upload component for error handling",
+  "description": "Review UploadDialog.tsx and uploadApi.ts for error handling and identify what user sees on failure",
+  "status": "completed",
+  "activeForm": "Checking frontend upload component",
+  "blocks": [],
+  "blockedBy": [],
+  "threadID": "ses_0a6a87f67ffev4Vs4Q6PKyxOXw"
+}
